@@ -1,0 +1,23 @@
+{
+  "name": "formforge",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A playful, local-first browser CAD and sculpting workspace.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n web,api -c cyan,magenta \"npm:dev -w @formforge/web\" \"npm:dev -w @formforge/api\"",
+    "build": "npm run build -w @formforge/model && npm run build -w @formforge/web && npm run build -w @formforge/api",
+    "test": "npm run test -w @formforge/model && npm run test -w @formforge/web",
+    "check": "npm run build -w @formforge/model && npm run typecheck -w @formforge/web && npm run typecheck -w @formforge/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

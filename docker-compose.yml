@@ -1,0 +1,45 @@
+services:
+  web:
+    build:
+      context: .
+      target: web
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      target: api
+    environment:
+      API_PORT: 8787
+      DATABASE_URL: postgres://formforge:${POSTGRES_PASSWORD:-formforge}@postgres:5432/formforge
+      OWNER_TOKEN: ${OWNER_TOKEN:-change-me-before-public-hosting}
+      SHARE_SECRET: ${SHARE_SECRET:-change-me-too}
+      TRELLIS_SPACE_ENABLED: ${TRELLIS_SPACE_ENABLED:-false}
+      TRELLIS_SPACE: ${TRELLIS_SPACE:-microsoft/TRELLIS.2}
+      HF_TOKEN: ${HF_TOKEN:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: formforge
+      POSTGRES_USER: formforge
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-formforge}
+    volumes:
+      - formforge-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U formforge"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  formforge-db:

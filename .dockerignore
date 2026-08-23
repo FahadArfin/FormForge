@@ -1,0 +1,12 @@
+node_modules
+**/node_modules
+**/dist
+.git
+.audit
+.codex
+*.log
+.env
+.env.*
+!.env.example
+coverage
+docker-data
