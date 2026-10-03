@@ -13,6 +13,10 @@ export function ViewportTools() {
   const showReferencePlanes = useEditor((state) => state.showReferencePlanes)
   const xrayEnabled = useEditor((state) => state.xrayEnabled)
   const translationSnap = useEditor((state) => state.translationSnap)
+  const rotationSnap = useEditor((state) => state.rotationSnap)
+  const scaleSnap = useEditor((state) => state.scaleSnap)
+  const setRotationSnap = useEditor((state) => state.setRotationSnap)
+  const setScaleSnap = useEditor((state) => state.setScaleSnap)
   const displayMode = useEditor((state) => state.displayMode)
   const tool = useEditor((state) => state.tool)
   const measurement = useEditor((state) => state.measurement)
@@ -31,27 +35,27 @@ export function ViewportTools() {
   useEffect(() => {
     if (!displayOpen) return
     const dismiss = (event: PointerEvent) => { if (!displayRef.current?.contains(event.target as Node)) setDisplayOpen(false) }
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { setDisplayOpen(false); displayRef.current?.querySelector('button')?.focus() } }
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setDisplayOpen(false); displayRef.current?.querySelector('button')?.focus() } }
     document.addEventListener('pointerdown', dismiss)
-    document.addEventListener('keydown', escape)
-    return () => { document.removeEventListener('pointerdown', dismiss); document.removeEventListener('keydown', escape) }
+    document.addEventListener('keydown', escape, true)
+    return () => { document.removeEventListener('pointerdown', dismiss); document.removeEventListener('keydown', escape, true) }
   }, [displayOpen])
 
   return (
     <div className="viewport-tools viewport-controls" role="group" aria-label="Viewport controls">
       <label className="view-control" title="Standard camera view">
         <Box size={15} />
-        <select aria-label="Camera view" defaultValue="iso" onChange={(event) => setView(event.target.value)}><option value="iso">Isometric</option><option value="top">Top</option><option value="front">Front</option><option value="right">Right</option><option value="back">Back</option><option value="left">Left</option><option value="bottom">Bottom</option></select>
+        <select aria-label="Camera view" value="" onChange={(event) => setView(event.target.value)}><option value="" disabled>View</option><option value="iso">Isometric</option><option value="top">Top</option><option value="front">Front</option><option value="right">Right</option><option value="back">Back</option><option value="left">Left</option><option value="bottom">Bottom</option></select>
       </label>
       <button onClick={() => frame(false)} title="Frame the complete model (F)"><Maximize2 size={15} /><span>Fit all</span></button>
-      <label className="snap-control" title="Movement granularity">
+      <label className="snap-control" title={`${tool === 'rotate' ? 'Rotation' : tool === 'scale' ? 'Scale' : 'Movement'} snap increment`}>
         <Magnet size={15} />
         <span>Snap</span>
-        <select aria-label="Movement snap" value={translationSnap ?? 'free'} onChange={(event) => setTranslationSnap(event.target.value === 'free' ? null : Number(event.target.value))}>
+        {tool === 'rotate' ? <select aria-label="Rotation snap" value={rotationSnap} onChange={(event) => setRotationSnap(Number(event.target.value))}>{[0, 5, 15, 45, 90].map(value => <option key={value} value={value}>{value ? `${value}°` : 'Free'}</option>)}</select> : tool === 'scale' ? <select aria-label="Scale snap" value={scaleSnap} onChange={(event) => setScaleSnap(Number(event.target.value))}>{[0, 0.01, 0.05, 0.1, 0.25].map(value => <option key={value} value={value}>{value ? `${value * 100}%` : 'Free'}</option>)}</select> : <select aria-label="Movement snap" value={translationSnap ?? 'free'} onChange={(event) => setTranslationSnap(event.target.value === 'free' ? null : Number(event.target.value))}>
           {snapOptions.map((value) => <option key={value ?? 'free'} value={value ?? 'free'}>{value === null ? 'Free' : `${value} mm`}</option>)}
-        </select>
+        </select>}
       </label>
-      <button aria-pressed={tool === 'measure'} className={tool === 'measure' ? 'active' : ''} onClick={() => { const nextTool = useEditor.getState().tool === 'measure' ? 'select' : 'measure'; setMeasurement(null); setTool(nextTool) }} title="Measure between two surface points"><Ruler size={15} /><span>{distance === null ? 'Measure' : `${distance.toFixed(2)} mm`}</span></button>
+      <button aria-label={distance === null ? 'Measure' : `Measured distance ${distance.toFixed(2)} mm`} aria-pressed={tool === 'measure'} className={`measure-control ${tool === 'measure' ? 'active' : ''}`} onClick={() => { const nextTool = useEditor.getState().tool === 'measure' ? 'select' : 'measure'; setMeasurement(null); setTool(nextTool) }} title="Measure between two surface points"><Ruler size={15} /><span>{distance === null ? 'Measure' : `${distance.toFixed(2)} mm`}</span></button>
       <div className="viewport-display" ref={displayRef}>
         <button className={`viewport-display-trigger ${displayOpen ? 'active' : ''}`} aria-label="Display options" aria-expanded={displayOpen} aria-controls="viewport-display-panel" onClick={() => setDisplayOpen((current) => !current)} title="Display options"><SlidersHorizontal size={16} /><ChevronDown size={12} /></button>
         {displayOpen && <div id="viewport-display-panel" className="viewport-display-panel" role="group" aria-label="Display options">

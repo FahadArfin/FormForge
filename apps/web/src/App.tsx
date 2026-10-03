@@ -15,15 +15,19 @@ import { useEditor } from './store/editor'
 import { importMeshFile } from './lib/importers'
 import { WorkspaceHelp } from './components/WorkspaceHelp'
 import { CommandMenu } from './components/CommandMenu'
+import { WorkspaceDialog } from './components/WorkspaceDialog'
+import { downloadBlob, safeFilename } from './lib/download'
+import { saveBeforeReplace } from './lib/saveBeforeReplace'
 
 const Community = lazy(() => import('./components/Community').then((module) => ({ default: module.Community })))
 const GenerateStudio = lazy(() => import('./components/GenerateStudio').then((module) => ({ default: module.GenerateStudio })))
 
 type Area = 'projects' | 'studio' | 'community'
-const readArea = (): Area => window.location.hash === '#studio' ? 'studio' : window.location.hash === '#community' ? 'community' : 'projects'
+const readArea = (): Area => window.location.hash.split('?')[0] === '#studio' ? 'studio' : window.location.hash.split('?')[0] === '#community' ? 'community' : 'projects'
+const readTheme = (): AppearanceTheme => { try { return localStorage.getItem('formforge-theme') === 'dark' ? 'dark' : 'light' } catch { return 'light' } }
 
 export function App() {
-  const [theme, setTheme] = useState<AppearanceTheme>(() => localStorage.getItem('formforge-theme') === 'dark' ? 'dark' : 'light')
+  const [theme, setTheme] = useState<AppearanceTheme>(readTheme)
   const [area, updateArea] = useState<Area>(readArea)
   const setArea = (next: Area) => { updateArea(next); if (window.location.hash !== `#${next}`) window.location.hash = next }
   const [helpOpen, setHelpOpen] = useState(false)
@@ -35,6 +39,9 @@ export function App() {
   const importGeneration = useRef(0)
   const [publishRequest, setPublishRequest] = useState(0)
   const [generateOpen, setGenerateOpen] = useState(false)
+  const [saveBlocked, setSaveBlocked] = useState(false)
+  const [retryingSave, setRetryingSave] = useState(false)
+  const pendingNavigation = useRef<{ action: () => void; isCurrent: () => boolean } | null>(null)
   const hydrate = useEditor((state) => state.hydrate)
   const hydrated = useEditor((state) => state.hydrated)
   const notice = useEditor((state) => state.notice)
@@ -51,7 +58,8 @@ export function App() {
   const cancelPlacement = useEditor((state) => state.cancelPlacement)
   const selectedNodeId = useEditor((state) => state.selectedNodeId)
   const document = useEditor((state) => state.document)
-  const updateNode = useEditor((state) => state.updateNode)
+  const translateSelection = useEditor((state) => state.translateSelection)
+  const selectAll = useEditor((state) => state.selectAll)
   const translationSnap = useEditor((state) => state.translationSnap)
   const setBrushSetting = useEditor((state) => state.setBrushSetting)
   const brushRadius = useEditor((state) => state.brushRadius)
@@ -67,19 +75,39 @@ export function App() {
   const addPrimitive = useEditor((state) => state.addPrimitive)
   const loadDemo = useEditor((state) => state.loadDemo)
   const openImport = (asNew = false) => { importAsNew.current = asNew; fileRef.current?.click() }
-  const openProjects = async () => { await saveNow(); setArea('projects') }
-  const startExample = () => { loadDemo(); setHelpOpen(false); setArea('studio') }
+  const safelyContinue = async (action: () => void, isCurrent = () => true) => {
+    const outcome = await saveBeforeReplace(() => useEditor.getState().document, saveNow, action, isCurrent)
+    if (outcome === 'failed') { pendingNavigation.current = { action, isCurrent }; setSaveBlocked(true) }
+    if (outcome === 'changed') setNotice('Your project changed while saving. Please try that action again.')
+    return outcome === 'continued'
+  }
+  const openProjects = () => safelyContinue(() => setArea('projects'))
+  const createProject = () => void safelyContinue(() => { newDocument(); setArea('studio') })
+  const startExample = () => void safelyContinue(() => { loadDemo(); setHelpOpen(false); setArea('studio') })
 
   useEffect(() => { void hydrate() }, [hydrate])
   useEffect(() => { window.document.title = area === 'studio' ? `${document.name || 'Untitled project'} · FormForge` : area === 'community' ? 'Community · FormForge' : 'Your workshop · FormForge' }, [area, document.name])
   useEffect(() => { const onHash = () => updateArea(readArea()); window.addEventListener('hashchange', onHash); return () => window.removeEventListener('hashchange', onHash) }, [])
   useEffect(() => { setCommandsOpen(false); setGenerateOpen(false); setExportOpen(false); setMobilePanel(null) }, [area])
+  useEffect(() => {
+    const openInspector = () => { if (window.innerWidth <= 980) setMobilePanel('inspector') }
+    const openExport = () => { setMobilePanel(null); setExportOpen(true) }
+    window.addEventListener('formforge:open-inspector', openInspector)
+    window.addEventListener('formforge:open-export', openExport)
+    return () => { window.removeEventListener('formforge:open-inspector', openInspector); window.removeEventListener('formforge:open-export', openExport) }
+  }, [])
+  useEffect(() => { if (tool === 'place' || tool === 'draw-profile') setMobilePanel(null) }, [tool])
+  useEffect(() => {
+    const protectUnsavedWork = (event: BeforeUnloadEvent) => { if (useEditor.getState().saveStatus !== 'saved') { event.preventDefault(); event.returnValue = '' } }
+    window.addEventListener('beforeunload', protectUnsavedWork)
+    return () => window.removeEventListener('beforeunload', protectUnsavedWork)
+  }, [])
 
   useEffect(() => {
     window.document.documentElement.dataset.theme = theme
     window.document.documentElement.style.colorScheme = theme
     window.document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'light' ? '#f7f8fb' : '#12131a')
-    localStorage.setItem('formforge-theme', theme)
+    try { localStorage.setItem('formforge-theme', theme) } catch { /* Theme still applies for this visit. */ }
   }, [theme])
 
   useEffect(() => {
@@ -87,8 +115,9 @@ export function App() {
       const target = event.target as HTMLElement
       if (area !== 'studio' || window.document.querySelector('dialog[open]') || generateOpen) return
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); void saveNow(); return }
-      if (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
+      if (target.isContentEditable || target.closest('input, textarea, select, [contenteditable="true"]')) return
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setCommandsOpen(true); return }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') { event.preventDefault(); selectAll(); return }
       if (!event.ctrlKey && !event.metaKey && !event.altKey) {
         const shortcuts = { v: 'select', g: 'move', r: 'rotate', s: 'scale' } as const
         const nextTool = shortcuts[event.key.toLowerCase() as keyof typeof shortcuts]
@@ -108,6 +137,8 @@ export function App() {
         cancelPlacement()
         if (meshComponentMode !== 'object') clearMeshComponentSelection()
         if (tool === 'draw-profile') window.dispatchEvent(new Event('formforge:cancel-sketch'))
+        if (tool !== 'place' && tool !== 'draw-profile' && meshComponentMode === 'object') useEditor.getState().selectNode(null)
+        setMobilePanel(null)
       }
       if (!event.ctrlKey && !event.metaKey && selectedNodeId && ['1', '2', '3', '4'].includes(event.key)) {
         setMeshComponentMode(event.key === '1' ? 'vertex' : event.key === '2' ? 'edge' : event.key === '3' ? 'face' : 'object')
@@ -115,10 +146,8 @@ export function App() {
       if (event.key === 'Enter' && tool === 'draw-profile') window.dispatchEvent(new Event('formforge:finish-sketch'))
       if (event.key === '[') setBrushSetting({ brushRadius: Math.max(0.5, brushRadius - 0.5) })
       if (event.key === ']') setBrushSetting({ brushRadius: Math.min(24, brushRadius + 0.5) })
-      if (selectedNodeId && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'].includes(event.key)) {
+      if (selectedNodeId && !target.closest('button, a, summary, [role="slider"]') && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'].includes(event.key)) {
         event.preventDefault()
-        const node = document.nodes.find((item) => item.id === selectedNodeId)
-        if (!node || node.locked) return
         const baseStep = translationSnap ?? 0.1
         const step = baseStep * (event.shiftKey ? 10 : event.altKey ? 0.1 : 1)
         if (meshComponentMode !== 'object') {
@@ -132,19 +161,19 @@ export function App() {
           translateMeshComponents(delta)
           return
         }
-        const position = { ...node.transform.position }
-        if (event.key === 'ArrowLeft') position.x -= step
-        if (event.key === 'ArrowRight') position.x += step
-        if (event.key === 'ArrowUp') position.y += step
-        if (event.key === 'ArrowDown') position.y -= step
-        if (event.key === 'PageUp') position.z += step
-        if (event.key === 'PageDown') position.z -= step
-        updateNode(node.id, { transform: { ...node.transform, position } })
+        const delta = { x: 0, y: 0, z: 0 }
+        if (event.key === 'ArrowLeft') delta.x -= step
+        if (event.key === 'ArrowRight') delta.x += step
+        if (event.key === 'ArrowUp') delta.y += step
+        if (event.key === 'ArrowDown') delta.y -= step
+        if (event.key === 'PageUp') delta.z += step
+        if (event.key === 'PageDown') delta.z -= step
+        translateSelection(delta)
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [area, generateOpen, saveNow, undo, redo, removeSelected, duplicateSelected, cancelPlacement, selectedNodeId, document, updateNode, translationSnap, setBrushSetting, brushRadius, tool, setTool, meshComponentMode, setMeshComponentMode, clearMeshComponentSelection, translateMeshComponents, deleteSelectedMeshComponents])
+  }, [area, generateOpen, saveNow, undo, redo, removeSelected, duplicateSelected, cancelPlacement, selectedNodeId, translateSelection, selectAll, translationSnap, setBrushSetting, brushRadius, tool, setTool, meshComponentMode, setMeshComponentMode, clearMeshComponentSelection, translateMeshComponents, deleteSelectedMeshComponents])
 
   useEffect(() => {
     if (!notice) return
@@ -154,7 +183,7 @@ export function App() {
 
   if (!hydrated) return <div className="app-loading"><span className="brand-mark large"><span /></span><strong>Heating up the forge…</strong><div className="loading-line"><i /></div></div>
 
-  const remix = (model: CommunityModel) => {
+  const remix = (model: CommunityModel) => void safelyContinue(() => {
     if (!model.document) { newDocument(); useEditor.getState().dispatch({ type: 'rename-document', name: `${model.title} — My version` }); setNotice('Start your own version from a blank canvas. This inspiration preview has no editable file.'); setArea('studio'); return }
     const source = structuredClone(model.document)
     source.id = crypto.randomUUID()
@@ -165,7 +194,7 @@ export function App() {
     importDocument(source)
     setNotice(`Editable copy started from ${model.creator}'s model. Your changes save on this device.`)
     setArea('studio')
-  }
+  })
 
   const shared = <>
     <input ref={fileRef} hidden type="file" accept=".json,.forge.json,.stl,.obj,.glb,.gltf" aria-label="Import a model or project" onChange={async (event) => {
@@ -185,32 +214,41 @@ export function App() {
           const source = parseModelDocument(JSON.parse(await file.text()))
           if (!canApply()) return
           if (asNew) { source.id = crypto.randomUUID(); source.name = `${source.name || 'Untitled project'} — Imported`; source.createdAt = new Date().toISOString(); source.updatedAt = source.createdAt; source.revision = 0 }
-          importDocument(source)
+          if (!await safelyContinue(() => { importDocument(source); setArea('studio') }, canApply)) return
         }
         else {
           const mesh = await importMeshFile(file)
           if (!canApply()) return
-          if (asNew) { newDocument(); useEditor.getState().dispatch({ type: 'rename-document', name: file.name.replace(/\.[^.]+$/, '') }) }
-          useEditor.getState().importMesh(file.name.replace(/\.[^.]+$/, ''), mesh)
+          const apply = () => {
+            if (asNew) { newDocument(); useEditor.getState().dispatch({ type: 'rename-document', name: file.name.replace(/\.[^.]+$/, '') }) }
+            useEditor.getState().importMesh(file.name.replace(/\.[^.]+$/, ''), mesh)
+            setArea('studio')
+          }
+          if (asNew) { if (!await safelyContinue(apply, canApply)) return } else apply()
         }
         setArea('studio')
       } catch (error) { setNotice(error instanceof Error ? error.message : 'That file could not be opened.') }
     }} />
     {notice && <div className="toast" role="status"><span>{notice}</span><button aria-label="Dismiss notification" onClick={() => setNotice(null)}><X size={17} /></button></div>}
     {helpOpen && <WorkspaceHelp onClose={() => setHelpOpen(false)} onExample={startExample} />}
+    {saveBlocked && <WorkspaceDialog title="Your latest edits aren’t saved" description="Keep this project open while you retry. You can also download an editable backup of your current work." onClose={() => { setSaveBlocked(false); pendingNavigation.current = null }}>
+      <p className="export-warning" role="alert">{useEditor.getState().saveError || 'This browser could not save your project.'}</p>
+      <div className="save-recovery-actions"><button className="studio-secondary" onClick={() => { const current = useEditor.getState().document; downloadBlob(new Blob([JSON.stringify(current, null, 2)], { type: 'application/json' }), `${safeFilename(current.name)}.forge.json`); setNotice('Backup download requested. Check your browser’s downloads.') }}>Download editable backup</button>
+      <button className="studio-primary" disabled={retryingSave} onClick={async () => { setRetryingSave(true); const pending = pendingNavigation.current; if (pending && await safelyContinue(pending.action, pending.isCurrent)) { setSaveBlocked(false); pendingNavigation.current = null }; setRetryingSave(false) }}>{retryingSave ? 'Saving…' : 'Retry save and continue'}</button></div>
+    </WorkspaceDialog>}
   </>
 
   if (area === 'community') return <>{shared}<Suspense fallback={<div className="route-loading"><span className="brand-mark large"><span /></span><strong>Opening the community…</strong></div>}>
-    <Community theme={theme} onToggleTheme={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')} document={document} openPublishRequest={publishRequest} onOpenStudio={() => setArea('studio')} onOpenProjects={() => setArea('projects')} onRemix={remix} onPublished={(model) => void markProjectPublic(document.id, model.id)} />
+    <Community theme={theme} onToggleTheme={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')} document={document} openPublishRequest={publishRequest} onPublishRequestHandled={() => setPublishRequest(0)} onOpenStudio={() => setArea('studio')} onOpenProjects={() => setArea('projects')} onRemix={remix} onPublished={(model) => void markProjectPublic(document.id, model.id)} />
   </Suspense></>
 
   if (area === 'projects') return <>{shared}<ProjectsHome
     theme={theme}
     onToggleTheme={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')}
     currentDocument={document}
-    onCreate={() => { newDocument(); setArea('studio') }}
-    onOpen={(project) => { importDocument(project.document); setArea('studio') }}
-    onPublish={(project) => { importDocument(project.document); setPublishRequest((value) => value + 1); setArea('community') }}
+    onCreate={createProject}
+    onOpen={(project) => { if (project.id === document.id) setArea('studio'); else void safelyContinue(() => { importDocument(project.document); setArea('studio') }) }}
+    onPublish={(project) => void safelyContinue(() => { if (project.id !== document.id) importDocument(project.document); setPublishRequest((value) => value + 1); setArea('community') })}
     onOpenCommunity={() => setArea('community')}
     onImport={() => openImport(true)}
     onContinue={() => setArea('studio')}
@@ -220,8 +258,9 @@ export function App() {
 
   return (
     <div className={`app-shell mode-${document.workspaceMode} mobile-panel-${mobilePanel ?? 'none'}`}>
-      <TopBar theme={theme} onToggleTheme={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')} onOpenProjects={() => void openProjects()} onOpenCommunity={() => setArea('community')} onOpenGenerate={() => setGenerateOpen(true)} onImport={() => openImport()} onCommands={() => setCommandsOpen(true)} onHelp={() => setHelpOpen(true)} exportOpen={exportOpen} onExportChange={setExportOpen} />
+      <TopBar theme={theme} onToggleTheme={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')} onNewProject={createProject} onOpenProjects={() => void openProjects()} onOpenCommunity={() => setArea('community')} onOpenGenerate={() => setGenerateOpen(true)} onImport={() => openImport()} onCommands={() => setCommandsOpen(true)} onHelp={() => setHelpOpen(true)} exportOpen={exportOpen} onExportChange={setExportOpen} />
       <main className="workspace">
+        {mobilePanel && <button className="mobile-panel-scrim" aria-label="Close side panel backdrop" onClick={() => setMobilePanel(null)} />}
         <Toolbox />
         <section className="viewport-wrap">
           <Viewport theme={theme} />
@@ -234,7 +273,8 @@ export function App() {
           <div className="mobile-panel-controls"><button aria-pressed={mobilePanel === 'tools'} onClick={() => setMobilePanel(mobilePanel === 'tools' ? null : 'tools')}><PanelLeft size={17} /> Build tools</button><button aria-pressed={mobilePanel === 'inspector'} onClick={() => setMobilePanel(mobilePanel === 'inspector' ? null : 'inspector')}><PanelRight size={17} /> Inspector</button>{mobilePanel && <button aria-label="Close side panel" onClick={() => setMobilePanel(null)}><X size={17} /></button>}</div>
           <div className="interaction-hint"><MousePointerClick size={16} /><span>{tool === 'place' ? 'Click-drag on the plane to draw · Esc to cancel' : tool === 'draw-profile' ? 'Click polygon points · click the green start or press Enter to extrude' : tool === 'move' ? 'Drag the model to move it · use the axis handles for precision' : tool === 'sculpt-add' || tool === 'sculpt-carve' ? 'Paint volume · Shift inverts · [ and ] change radius' : tool.startsWith('sculpt') ? 'Drag directly on the mesh · Shift inverts · one Undo step per stroke' : 'Drag to orbit · wheel to zoom · right-drag to pan'}</span></div>
           {geometryBusyVisible && <div className="rebuild-chip"><span /> Refining solid in background</div>}
-          {geometryError && <div className="geometry-error"><strong>That operation did not work</strong><span>{geometryError}</span></div>}
+          {(tool === 'place' || tool === 'draw-profile') && <div className="placement-actions">{tool === 'draw-profile' && <button className="studio-primary" onClick={() => window.dispatchEvent(new Event('formforge:finish-sketch'))}>Finish outline</button>}<button className="studio-secondary" onClick={() => { cancelPlacement(); if (tool === 'draw-profile') window.dispatchEvent(new Event('formforge:cancel-sketch')) }}>Cancel {tool === 'place' ? 'placement' : 'outline'}</button></div>}
+          {geometryError && <div className="geometry-error" role="alert"><strong>That operation did not work</strong><span>{geometryError}</span><button onClick={() => void useEditor.getState().rebuild()}>Retry model</button></div>}
         </section>
         <Inspector />
       </main>

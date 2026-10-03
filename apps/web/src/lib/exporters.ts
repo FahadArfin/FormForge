@@ -36,10 +36,18 @@ export function exportObj(payload: MeshPayload) {
 
 export async function exportGlb(payload: MeshPayload) {
   const mesh = createExportMesh(payload)
-  const result = await new GLTFExporter().parseAsync(mesh, { binary: true, onlyVisible: true })
-  mesh.geometry.dispose()
-  if (!(result instanceof ArrayBuffer)) throw new Error('Binary glTF export failed.')
-  return new Blob([result], { type: 'model/gltf-binary' })
+  // glTF uses meters and Y-up; the modeling workspace uses millimeters and Z-up.
+  // Transform the export object rather than mutating the store's shared position buffer.
+  mesh.scale.setScalar(0.001)
+  mesh.rotation.x = -Math.PI / 2
+  try {
+    const result = await new GLTFExporter().parseAsync(mesh, { binary: true, onlyVisible: true })
+    if (!(result instanceof ArrayBuffer)) throw new Error('Binary glTF export failed.')
+    return new Blob([result], { type: 'model/gltf-binary' })
+  } finally {
+    mesh.geometry.dispose()
+    mesh.material.dispose()
+  }
 }
 
 const xmlEscape = (value: string) => value.replace(/[<>&"']/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' })[char]!)

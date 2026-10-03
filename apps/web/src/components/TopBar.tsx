@@ -1,39 +1,52 @@
 import { ArrowLeft, ChevronDown, Check, Download, FilePlus2, FolderOpen, History, LoaderCircle, Redo2, Save, Search, Sparkles, Undo2, Users, CircleHelp, HardDrive, AlertCircle } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useEditor } from '@/store/editor'
 import { downloadBlob, safeFilename } from '@/lib/download'
 import { export3mf, exportGlb, exportMultiColor3mf, exportObj, exportStl } from '@/lib/exporters'
 import { saveVersion } from '@/lib/db'
 import { ThemeToggle, type AppearanceTheme } from './ThemeToggle'
 import { WorkspaceDialog } from './WorkspaceDialog'
+import { getPrintReadiness } from '@/lib/printReadiness'
 
-export function TopBar({ theme, onToggleTheme, onOpenProjects, onOpenCommunity, onOpenGenerate, onImport, onCommands, onHelp, exportOpen, onExportChange }: {
+export function TopBar({ theme, onToggleTheme, onNewProject, onOpenProjects, onOpenCommunity, onOpenGenerate, onImport, onCommands, onHelp, exportOpen, onExportChange }: {
   theme: AppearanceTheme; onToggleTheme: () => void; onOpenProjects: () => void; onOpenCommunity: () => void; onOpenGenerate: () => void;
-  onImport: () => void; onCommands: () => void; onHelp: () => void; exportOpen: boolean; onExportChange: (open: boolean) => void;
+  onNewProject: () => void; onImport: () => void; onCommands: () => void; onHelp: () => void; exportOpen: boolean; onExportChange: (open: boolean) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [format, setFormat] = useState('3mf')
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState('')
+  const [downloadRequested, setDownloadRequested] = useState(false)
   const [checkpointName, setCheckpointName] = useState('')
   const [checkpointBusy, setCheckpointBusy] = useState(false)
   const [checkpointFeedback, setCheckpointFeedback] = useState('')
   const document = useEditor((state) => state.document)
+  const [projectName, setProjectName] = useState(document.name)
+  useEffect(() => setProjectName(document.name), [document.name, document.id])
+  useEffect(() => { setDownloadRequested(false); setExportError('') }, [exportOpen, format])
+  useEffect(() => {
+    const requestedFormat = (event: Event) => { if ((event as CustomEvent<{ format?: string }>).detail?.format === 'project') setFormat('project') }
+    window.addEventListener('formforge:open-export', requestedFormat)
+    return () => window.removeEventListener('formforge:open-export', requestedFormat)
+  }, [])
   const mesh = useEditor((state) => state.mesh)
   const meshDocument = useEditor((state) => state.meshDocument)
   const placingNodeId = useEditor((state) => state.placingNodeId)
   const geometryStatus = useEditor((state) => state.geometryStatus)
+  const geometryError = useEditor((state) => state.geometryError)
+  const analysis = useEditor((state) => state.analysis)
   const undoStack = useEditor((state) => state.undoStack)
   const redoStack = useEditor((state) => state.redoStack)
   const dispatch = useEditor((state) => state.dispatch)
   const undo = useEditor((state) => state.undo)
   const redo = useEditor((state) => state.redo)
-  const newDocument = useEditor((state) => state.newDocument)
   const setNotice = useEditor((state) => state.setNotice)
   const saveStatus = useEditor((state) => state.saveStatus)
   const saveError = useEditor((state) => state.saveError)
   const saveNow = useEditor((state) => state.saveNow)
-  const meshReady = geometryStatus === 'ready' && meshDocument === document && !placingNodeId && Boolean(mesh?.triangleCount)
+  const readiness = getPrintReadiness({ document, meshDocument, analysis, geometryStatus, geometryError, placingNodeId })
+  const meshReady = readiness.canExportMesh && Boolean(mesh?.triangleCount)
+  const reviewPrint = () => { onExportChange(false); window.dispatchEvent(new CustomEvent('formforge:open-inspector', { detail: { tab: 'print' } })) }
   const formats = [
     { id: '3mf', title: '3MF', description: 'Recommended for 3D printing. Includes units.', tag: 'Recommended' },
     { id: 'stl', title: 'STL', description: 'Universal compatibility with 3D slicers.' },
@@ -56,8 +69,7 @@ export function TopBar({ theme, onToggleTheme, onOpenProjects, onOpenCommunity, 
         const blob = format === 'stl' ? exportStl(mesh) : format === '3mf' ? export3mf(mesh, document.name) : format === 'glb' ? await exportGlb(mesh) : exportObj(mesh)
         downloadBlob(blob, `${filename}.${format}`)
       }
-      setNotice(`${format === 'project' ? 'Editable backup' : formats.find((item) => item.id === format)?.title} downloaded.`)
-      onExportChange(false)
+      setDownloadRequested(true)
     } catch (error) { setExportError(error instanceof Error ? error.message : 'The export could not be completed.') }
     finally { setExporting(false) }
   }
@@ -71,7 +83,7 @@ export function TopBar({ theme, onToggleTheme, onOpenProjects, onOpenCommunity, 
   return <>
     <header className="studio-header">
       <button className="studio-home" aria-label="Open projects" title="Back to your workshop" onClick={onOpenProjects}><ArrowLeft size={18} /><span className="brand-mark"><span /></span></button>
-      <div className="studio-project"><div><input className="studio-project-name" value={document.name} aria-label="Project name" onChange={(event) => dispatch({ type: 'rename-document', name: event.target.value })} /><button className="studio-icon" title="Project actions" aria-label="Project actions" onClick={() => setMenuOpen(true)}><ChevronDown size={16} /></button></div>
+      <div className="studio-project"><div><input className="studio-project-name" value={projectName} aria-label="Project name" onChange={(event) => setProjectName(event.target.value)} onBlur={() => { const name = projectName.trim() || 'Untitled project'; setProjectName(name); if (name !== document.name) dispatch({ type: 'rename-document', name }) }} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { setProjectName(document.name) } }} /><button className="studio-icon" title="Project actions" aria-label="Project actions" onClick={() => setMenuOpen(true)}><ChevronDown size={16} /></button></div>
         <button className={`device-save ${saveStatus}`} title={saveError || 'Autosaved in this browser. Click to save now. Download an editable backup for a separate copy.'} onClick={() => void saveNow()} aria-live="polite">{saveStatus === 'saving' ? <LoaderCircle size={12} /> : saveStatus === 'error' ? <AlertCircle size={12} /> : <Check size={12} />}<span>{saveStatus === 'saving' ? 'Saving on this device…' : saveStatus === 'error' ? 'Save failed · retry' : 'Saved on this device'}</span></button>
       </div>
       <div className="studio-history"><button className="studio-icon" title="Undo (Ctrl Z)" aria-label="Undo" disabled={!undoStack.length} onClick={undo}><Undo2 size={18} /></button><button className="studio-icon" title="Redo (Ctrl Shift Z)" aria-label="Redo" disabled={!redoStack.length} onClick={redo}><Redo2 size={18} /></button></div>
@@ -82,14 +94,15 @@ export function TopBar({ theme, onToggleTheme, onOpenProjects, onOpenCommunity, 
       <button className="studio-primary" onClick={() => onExportChange(true)}><Download size={17} /> Export</button></div>
     </header>
     {menuOpen && <WorkspaceDialog title="Your project" description="Manage this model and keep a copy of your work." onClose={() => setMenuOpen(false)} className="project-dialog">
-      <div className="project-action-list"><button onClick={() => action(onOpenProjects)}><FolderOpen size={19} /><span><strong>My projects</strong><small>Return to your workshop</small></span></button><button onClick={() => action(newDocument)}><FilePlus2 size={19} /><span><strong>New project</strong><small>Your current work stays in Projects</small></span></button><button onClick={() => action(onImport)}><FolderOpen size={19} /><span><strong>Import project or mesh</strong><small>FORGE, STL, OBJ, GLB, or GLTF</small></span></button><button onClick={() => action(() => { setFormat('project'); onExportChange(true) })}><Save size={19} /><span><strong>Download an editable backup</strong><small>Save a separate .forge.json file</small></span></button><button onClick={() => action(onOpenCommunity)}><Users size={19} /><span><strong>Explore community</strong><small>Discover models and inspiration</small></span></button></div>
+      <div className="project-action-list"><button onClick={() => action(onOpenProjects)}><FolderOpen size={19} /><span><strong>My projects</strong><small>Return to your workshop</small></span></button><button onClick={() => action(onNewProject)}><FilePlus2 size={19} /><span><strong>New project</strong><small>Save this project before starting another</small></span></button><button onClick={() => action(onImport)}><FolderOpen size={19} /><span><strong>Import project or mesh</strong><small>FORGE, STL, OBJ, GLB, or self-contained GLTF</small></span></button><button onClick={() => action(() => { setFormat('project'); onExportChange(true) })}><Save size={19} /><span><strong>Download an editable backup</strong><small>Save a separate .forge.json file</small></span></button><button onClick={() => action(onOpenCommunity)}><Users size={19} /><span><strong>Explore community</strong><small>Discover models and inspiration</small></span></button></div>
       <div className="checkpoint-control"><label htmlFor="checkpoint-name"><History size={17} /> Save a checkpoint</label><p>Restore a previous version from the History tab.</p><div><input id="checkpoint-name" placeholder="Optional name, e.g. before carving" value={checkpointName} onChange={(event) => setCheckpointName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !checkpointBusy) void createCheckpoint() }} /><button className="studio-secondary" disabled={checkpointBusy} onClick={() => void createCheckpoint()}>{checkpointBusy ? 'Saving…' : 'Save'}</button></div>{checkpointFeedback && <p role="status">{checkpointFeedback}</p>}</div>
       <p className="local-storage-note"><HardDrive size={16} /> Projects and checkpoints are saved in this browser on this device.</p>
     </WorkspaceDialog>}
     {exportOpen && <WorkspaceDialog title="Take your idea with you." description={`Export “${document.name || 'Untitled project'}” for printing, sharing, or safekeeping.`} onClose={() => onExportChange(false)} className="export-dialog">
+      <div className={`export-readiness ${readiness.status}`}><div><strong>{readiness.title}</strong><p>{readiness.analysis ? `${readiness.analysis.dimensions.x.toFixed(1)} × ${readiness.analysis.dimensions.y.toFixed(1)} × ${readiness.analysis.dimensions.z.toFixed(1)} mm · ${document.printer.name}` : readiness.message}</p></div><button className="studio-secondary" onClick={reviewPrint}>Review print checks</button></div>
       <div className="export-formats" role="group" aria-label="Export format">{formats.map((item) => <button key={item.id} aria-pressed={format === item.id} className={format === item.id ? 'active' : ''} onClick={() => setFormat(item.id)}><span className="format-check">{format === item.id && <Check size={14} />}</span><div><strong>{item.title}</strong><p>{item.description}</p></div>{item.tag && <em>{item.tag}</em>}</button>)}</div>
-      {!canExport && <p className="export-warning" role="status">{format === 'ams' && multiColorUnsupported ? 'Choose standard 3MF to preserve holes, intersections, hulls, sculpting, and surface modifiers. Multi-color export supports separate solid parts.' : placingNodeId ? 'Finish placing your shape, or press Escape in the canvas to cancel, before exporting.' : geometryStatus === 'building' || meshDocument !== document ? 'Your model is rebuilding. Export will be available when it is ready.' : 'Create a valid solid to export a mesh, or choose Editable backup to save your project.'}</p>}
-      {exportError && <p className="export-warning" role="alert">{exportError}</p>}<footer className="dialog-footer"><span>{format === 'project' ? 'Your editable model, saved as a file.' : 'Check the Print tab before sending to a slicer.'}</span><button className="studio-primary" disabled={!canExport || exporting} onClick={() => void download()}><Download size={17} />{exporting ? 'Preparing…' : 'Download file'}</button></footer>
+      {!canExport && <p className="export-warning" role="status">{format === 'ams' && multiColorUnsupported ? 'Choose standard 3MF to preserve holes, intersections, hulls, sculpting, and surface modifiers. Multi-color export supports separate solid parts.' : readiness.message}</p>}
+      {exportError && <p className="export-warning" role="alert">{exportError}</p>}{downloadRequested && <p className="download-confirmation" role="status">Download requested. Check your browser’s downloads. If no file appears, allow downloads or try a full browser window.</p>}<footer className="dialog-footer"><span>{format === 'project' ? 'Your editable model, saved as a file.' : 'Review supports, layers, and strength in your slicer before printing.'}</span><button className="studio-primary" disabled={!canExport || exporting} onClick={() => void download()}><Download size={17} />{exporting ? 'Preparing…' : downloadRequested ? 'Download again' : 'Download file'}</button></footer>
     </WorkspaceDialog>}
   </>
 }

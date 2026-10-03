@@ -27,6 +27,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: formforge-web-${{ github.sha }}
-          path: apps/web/dist
+          path: dist
           if-no-files-found: error
           retention-days: 14

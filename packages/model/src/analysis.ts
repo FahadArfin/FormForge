@@ -14,8 +14,8 @@ export function analyzeForPrint(document: ModelDocument, mesh: MeshPayload | nul
   if (activeNodes.some((node) => node.boolean === 'cut') && activeNodes.every((node) => node.boolean === 'cut')) {
     issues.push({ id: 'cuts-only', severity: 'error', title: 'Only carve shapes', description: 'A carve needs a solid shape to remove material from.' })
   }
-  if (dimensions.z > 0 && Math.min(dimensions.x, dimensions.y) < document.printer.minimumWall) {
-    issues.push({ id: 'thin', severity: 'warning', title: 'Very thin feature', description: `Some dimensions are below the ${document.printer.minimumWall} mm wall target.` })
+  if (mesh && mesh.triangleCount > 0 && Math.min(dimensions.x, dimensions.y, dimensions.z) < document.printer.minimumWall) {
+    issues.push({ id: 'thin', severity: 'warning', title: 'Small overall dimension', description: `An overall model dimension is below the ${document.printer.minimumWall} mm wall target. Local wall thickness is not measured; check thin features in your slicer.` })
   }
   if (mesh && mesh.triangleCount > 500_000) {
     issues.push({ id: 'dense', severity: 'info', title: 'Dense mesh', description: 'Consider simplifying the model before sharing or slicing.' })

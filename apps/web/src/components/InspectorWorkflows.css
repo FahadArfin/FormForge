@@ -1,0 +1,82 @@
+.inspector .inspector-workflow {
+  --workflow-positive: #8ae0bd;
+  --workflow-caution: #edc77e;
+  --workflow-negative: #ffa2af;
+  min-height: 0; flex: 1; overflow-y: auto; padding: 18px 16px 24px;
+  display: flex; flex-direction: column; gap: 16px; color: var(--text); font-size: 13px; line-height: 1.5;
+  scrollbar-width: thin; scrollbar-color: var(--line) transparent;
+}
+[data-theme='light'] .inspector .inspector-workflow { --workflow-positive: #176a50; --workflow-caution: #82540a; --workflow-negative: #a32f45; }
+.inspector-workflow h2, .inspector-workflow h3, .inspector-workflow h4, .inspector-workflow p, .inspector-workflow dl { margin: 0; }
+.inspector-workflow h2 { color: var(--text); font-size: 16px; line-height: 1.35; font-weight: 650; letter-spacing: -.25px; }
+.inspector-workflow h3 { color: var(--text); font-size: 14px; line-height: 1.4; font-weight: 650; }
+.inspector-workflow h4 { color: var(--text); font-size: 13px; line-height: 1.45; font-weight: 650; overflow-wrap: anywhere; }
+.inspector-workflow p { color: var(--subtle); font-size: 13px; line-height: 1.55; }
+.inspector-workflow button, .inspector-workflow input { font-size: 13px; }
+.inspector-workflow .workflow-caption { color: var(--subtle); font-size: 12px; line-height: 1.55; }
+.inspector-workflow .workflow-state, .inspector-workflow .workflow-intro { display: flex; align-items: flex-start; gap: 10px; }
+.inspector-workflow .workflow-state { padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-raised); }
+.inspector-workflow .workflow-state > svg, .inspector-workflow .workflow-intro > svg { flex-shrink: 0; margin-top: 2px; color: var(--accent); }
+.inspector-workflow .workflow-state p, .inspector-workflow .workflow-intro p { margin-top: 5px; }
+.inspector-workflow .workflow-state.ready > svg { color: var(--workflow-positive); }
+.inspector-workflow .workflow-state.warning > svg, .inspector-workflow .workflow-state.blocked > svg { color: var(--workflow-caution); }
+.inspector-workflow .workflow-state.error > svg { color: var(--workflow-negative); }
+.inspector-workflow .workflow-card { flex-shrink: 0; padding: 15px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); display: flex; flex-direction: column; gap: 11px; }
+.inspector-workflow .workflow-card-heading, .inspector-workflow .workflow-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.inspector-workflow .workflow-card-heading h3 { display: flex; align-items: center; gap: 7px; }
+.inspector-workflow .workflow-section-heading span { color: var(--subtle); font-size: 12px; }
+.inspector-workflow .workflow-icon { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; color: var(--subtle); background: var(--surface-raised); border: 1px solid var(--line); border-radius: 7px; }
+.inspector-workflow .workflow-action { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 39px; padding: 9px 11px; border: 1px solid transparent; border-radius: 8px; color: #fff; background: #7762d4; font-weight: 600; line-height: 1.4; text-align: center; white-space: normal; }
+.inspector-workflow .workflow-action:hover:not(:disabled) { background: #6651c3; }
+.inspector-workflow .workflow-action.secondary { color: var(--text); background: var(--surface-raised); border-color: var(--line); }
+.inspector-workflow .workflow-action.secondary:hover:not(:disabled) { border-color: var(--accent); }
+.inspector-workflow .workflow-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.inspector-workflow .workflow-actions > button { flex: 1; }
+.inspector-workflow .workflow-text-action { display: inline-flex; align-items: center; gap: 5px; color: var(--accent-bright); border: 0; background: transparent; padding: 5px 0; align-self: flex-start; text-align: left; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.inspector-workflow .print-dimensions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.inspector-workflow .print-dimensions dt { color: var(--subtle); font-size: 12px; }
+.inspector-workflow .print-dimensions dd { color: var(--text); font-size: 16px; margin: 4px 0 0; font-weight: 650; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.inspector-workflow .print-dimensions small { font-size: 10px; color: var(--subtle); font-weight: 400; }
+.inspector-workflow .print-summary { display: grid; gap: 7px; padding-top: 10px; border-top: 1px solid var(--line); }
+.inspector-workflow .print-summary > div { display: flex; justify-content: space-between; gap: 12px; }
+.inspector-workflow .print-summary dt { color: var(--subtle); }
+.inspector-workflow .print-summary dd { margin: 0; text-align: right; color: var(--text); font-variant-numeric: tabular-nums; }
+.inspector-workflow .printer-name { color: var(--text); font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.inspector-workflow .printer-settings { display: grid; gap: 12px; }
+.inspector-workflow label { display: grid; gap: 6px; min-width: 0; color: var(--text); font-size: 12px; }
+.inspector-workflow label > span { line-height: 1.5; }
+.inspector-workflow label small { color: var(--subtle); font-size: 11px; font-weight: 400; }
+.inspector-workflow input { width: 100%; min-width: 0; min-height: 37px; border: 1px solid var(--line); border-radius: 7px; padding: 8px; background: var(--surface-raised); color: var(--text); }
+.inspector-workflow input::placeholder { color: var(--subtle); opacity: 1; }
+.inspector-workflow fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+.inspector-workflow legend { padding: 0; margin-bottom: 7px; color: var(--text); font-size: 12px; font-weight: 600; }
+.inspector-workflow .printer-dimensions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.inspector-workflow .printer-targets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.inspector-workflow .print-findings ul, .inspector-workflow .checkpoint-list { list-style: none; margin: 0; padding: 0; }
+.inspector-workflow .print-finding { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 12px; }
+.inspector-workflow .print-finding > svg { flex-shrink: 0; margin-top: 3px; color: var(--workflow-caution); }
+.inspector-workflow .print-finding.error > svg { color: var(--workflow-negative); }
+.inspector-workflow .print-finding p { margin-top: 4px; }
+.inspector-workflow .workflow-passed, .inspector-workflow .workflow-feedback { color: var(--workflow-positive); display: flex; align-items: flex-start; gap: 7px; }
+.inspector-workflow .workflow-passed > svg { flex-shrink: 0; margin-top: 2px; }
+.inspector-workflow .workflow-warning { color: var(--workflow-caution); }
+.inspector-workflow .workflow-error { color: var(--workflow-negative); }
+.inspector-workflow .slicer-checklist ol { padding-left: 19px; margin: 0; color: var(--subtle); }
+.inspector-workflow .slicer-checklist li { padding-left: 3px; margin-bottom: 9px; }
+.inspector-workflow .slicer-checklist li:last-child { margin-bottom: 0; }
+.inspector-workflow .print-handoff { flex-shrink: 0; width: 100%; min-height: 44px; }
+.inspector-workflow .workflow-message { display: flex; align-items: flex-start; gap: 9px; border: 1px solid var(--line); border-radius: 10px; padding: 13px; background: var(--surface-raised); }
+.inspector-workflow .workflow-message > svg { color: var(--workflow-negative); margin-top: 2px; flex-shrink: 0; }
+.inspector-workflow .workflow-message p { color: var(--workflow-negative); margin-bottom: 8px; }
+.inspector-workflow .workflow-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 9px; padding: 24px 10px; color: var(--subtle); }
+.inspector-workflow .checkpoint-list { display: grid; gap: 13px; }
+.inspector-workflow .checkpoint-list article { display: flex; gap: 10px; border: 1px solid var(--line); border-radius: 11px; padding: 13px; background: var(--surface); }
+.inspector-workflow .checkpoint-marker { flex-shrink: 0; width: 29px; height: 29px; display: grid; place-items: center; background: var(--accent-wash); color: var(--accent); border-radius: 8px; }
+.inspector-workflow .checkpoint-copy { min-width: 0; flex: 1; }
+.inspector-workflow .checkpoint-copy time { color: var(--subtle); font-size: 11px; display: block; margin-top: 4px; }
+.inspector-workflow .checkpoint-copy p { font-size: 12px; margin: 3px 0 9px; }
+.inspector-workflow .checkpoint-copy .workflow-action { width: 100%; font-size: 12px; min-height: 36px; padding: 8px; }
+.inspector-workflow .checkpoint-local-note { border-top: 1px solid var(--line); padding-top: 13px; }
+.workflow-spinner { animation: workflow-spin 1.1s linear infinite; }
+@keyframes workflow-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .workflow-spinner { animation: none; } }

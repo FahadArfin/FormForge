@@ -186,7 +186,11 @@ export function makeSourceGeometry(node: ModelNode) {
   else if (node.kind === 'roundedBox') geometry = new RoundedBoxGeometry(p.width, p.depth, p.height, Math.max(1, Math.min(8, Math.round(p.segments / 12))), Math.min(p.fillet, p.width / 2, p.depth / 2, p.height / 2))
   else if (node.kind === 'sphere') geometry = new THREE.SphereGeometry(p.radius, Math.min(64, p.segments), Math.min(32, p.segments / 2))
   else if (node.kind === 'torus') geometry = new THREE.TorusGeometry(p.radius, Math.max(0.5, p.radiusTop), Math.min(24, p.segments / 2), Math.min(96, p.segments * 2))
-  else if (node.kind === 'capsule') { geometry = new THREE.CapsuleGeometry(p.radius, Math.max(0.1, p.height - p.radius * 2), 10, Math.min(48, p.segments)); geometry.rotateX(Math.PI / 2) }
+  else if (node.kind === 'capsule') {
+    const radius = Math.min(p.radius, p.height / 2)
+    geometry = new THREE.CapsuleGeometry(radius, Math.max(0, p.height - radius * 2), 10, Math.min(48, p.segments))
+    geometry.rotateX(Math.PI / 2)
+  }
   else if (node.kind === 'tube') geometry = tubeGeometry(p.radius, p.radiusTop, p.height, p.segments)
   else if (node.kind === 'wedge') geometry = wedgeGeometry(p.width, p.depth, p.height)
   else if (node.kind === 'star') geometry = starGeometry(p.radius, Math.max(0.5, p.radiusTop), p.height, p.segments)

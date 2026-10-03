@@ -66,13 +66,81 @@ export const communitySeed: CommunityModel[] = [
 export const communityCategories = ['Trending', 'New & Notable', 'Organization', 'Toys & Games', 'Tools', 'Home & Garden', 'Art', 'Electronics', 'Replacement Parts']
 
 export function loadCommunityModels() {
+  let models = communitySeed
   try {
     const value = localStorage.getItem('formforge-community-models')
-    if (value) return [...(JSON.parse(value) as CommunityModel[]), ...communitySeed]
+    if (value) models = [...(JSON.parse(value) as CommunityModel[]), ...communitySeed]
   } catch { /* start from curated models */ }
-  return communitySeed
+  const comments = readCommentStore()
+  return models.map((model) => comments[model.id] ? { ...model, ...comments[model.id] } : model)
 }
 
 export function savePublishedModels(models: CommunityModel[]) {
   localStorage.setItem('formforge-community-models', JSON.stringify(models.filter((model) => model.creatorHandle === '@you')))
+}
+
+/** Persist before returning, so callers only show a successful update after storage accepts it. */
+export function saveShowcaseModel(incoming: CommunityModel) {
+  const models = loadCommunityModels()
+  const existing = models.find((model) => model.creatorHandle === '@you' && (model.id === incoming.id || (incoming.document && model.document?.id === incoming.document.id)))
+  const saved = existing ? { ...incoming, id: existing.id, createdAt: existing.createdAt, comments: existing.comments, reviewCount: existing.reviewCount, rating: existing.rating, likes: existing.likes, boosts: existing.boosts } : incoming
+  savePublishedModels(existing ? models.map((model) => model.id === existing.id ? saved : model) : [saved, ...models])
+  return saved
+}
+
+type CommentStore = Record<string, Pick<CommunityModel, 'comments' | 'reviewCount'>>
+function readCommentStore(): CommentStore {
+  try {
+    const value = JSON.parse(localStorage.getItem('formforge-community-comments') ?? '{}') as CommentStore
+    return value && !Array.isArray(value) && typeof value === 'object' ? value : {}
+  } catch { return {} }
+}
+
+export function saveCommunityComments(model: CommunityModel) {
+  const previous = readCommentStore()
+  localStorage.setItem('formforge-community-comments', JSON.stringify({ ...previous, [model.id]: { comments: model.comments, reviewCount: model.reviewCount } }))
+}
+
+export function readCommunitySet(key: string) {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(key) ?? '[]')
+    return new Set(Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : [])
+  } catch { return new Set<string>() }
+}
+
+export function saveCommunitySet(key: string, value: Set<string>) {
+  localStorage.setItem(key, JSON.stringify([...value]))
+  return new Set(value)
+}
+
+export function applyCommunityReactions(models: CommunityModel[], liked: Set<string>, boosted: Set<string>) {
+  return models.map((model) => ({ ...model, likes: model.likes + Number(liked.has(model.id)), boosts: model.boosts + Number(boosted.has(model.id)) }))
+}
+
+export type CommunityPage = 'discover' | 'profile' | 'collections' | 'history'
+export type CommunitySort = 'Trending' | 'Newest' | 'Most downloaded'
+export interface CommunityRoute { modelId: string | null; query: string; category: string; page: CommunityPage; sort: CommunitySort }
+
+export function readCommunityRoute(hash: string): CommunityRoute {
+  const params = new URLSearchParams(hash.split('?')[1] ?? '')
+  const page = params.get('page')
+  const sort = params.get('sort')
+  const category = params.get('category') ?? 'Trending'
+  return {
+    modelId: params.get('model') || null,
+    query: params.get('q') ?? '',
+    category: communityCategories.includes(category) ? category : 'Trending',
+    page: page === 'profile' || page === 'collections' || page === 'history' ? page : 'discover',
+    sort: sort === 'Newest' || sort === 'Most downloaded' ? sort : 'Trending',
+  }
+}
+
+export function communityRouteHash(route: CommunityRoute) {
+  const params = new URLSearchParams()
+  if (route.modelId) params.set('model', route.modelId)
+  if (route.query) params.set('q', route.query)
+  if (route.category !== 'Trending') params.set('category', route.category)
+  if (route.page !== 'discover') params.set('page', route.page)
+  if (route.sort !== 'Trending') params.set('sort', route.sort)
+  return `#community${params.size ? `?${params}` : ''}`
 }

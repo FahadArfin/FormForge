@@ -76,3 +76,13 @@
   .viewport-tools.viewport-controls > button { padding: 0 7px; }
   .viewport-tools.viewport-controls .snap-control > span { display: none; }
 }
+@media (max-width: 700px) {
+  .viewport-tools.viewport-controls { flex-wrap: nowrap; top: 10px; left: 10px; right: 10px; max-width: none; padding: 3px; }
+  .viewport-tools.viewport-controls .view-control { padding-left: 3px; }
+  .viewport-tools.viewport-controls .view-control > svg { display: none; }
+  .viewport-tools.viewport-controls select { min-height: 38px; }
+  .viewport-tools.viewport-controls > button { min-height: 38px; }
+  .viewport-tools.viewport-controls .measure-control > span { display: none; }
+  .viewport-tools.viewport-controls .viewport-display-trigger { min-height: 38px; }
+  .viewport-tools.viewport-controls .snap-control { padding-left: 4px; }
+}

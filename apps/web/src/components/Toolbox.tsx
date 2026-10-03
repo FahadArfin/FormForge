@@ -5,6 +5,7 @@ import { useEditor } from '@/store/editor'
 import { IconButton } from './IconButton'
 import { ProfileRecipeCreator } from './ProfileRecipeCreator'
 import './Toolbox.css'
+import { NumberInput } from './NumberInput'
 
 type ShapeChoice = Exclude<PrimitiveKind, 'extrude' | 'revolve' | 'mesh'>
 
@@ -65,6 +66,8 @@ export function Toolbox() {
   const subdivideSelectedMesh = useEditor((state) => state.subdivideSelectedMesh)
   const clearSculptMask = useEditor((state) => state.clearSculptMask)
   const invertSculptMask = useEditor((state) => state.invertSculptMask)
+  const volumeLocked = useEditor(state => state.document.nodes.some(node => node.locked && !node.suppressed))
+  const isVolumeBrush = tool === 'sculpt-add' || tool === 'sculpt-carve'
   const isSculptMesh = selectedNode?.kind === 'mesh' && Boolean(selectedNode.mesh)
   const visibleShapes = shapes.filter((item, index) => (!search && !moreShapes ? index < 6 : true) && item.label.toLowerCase().includes(search.trim().toLowerCase()))
 
@@ -77,7 +80,7 @@ export function Toolbox() {
     if (!Number.isFinite(value)) return
     setParameters((current) => ({ ...current, [key]: key === 'twist' ? value : Math.max(key === 'radiusTop' ? 0 : 0.1, value) }))
   }
-  const field = (label: string, key: keyof ModelNode['parameters'], suffix = 'mm') => <label><span>{label}</span><div><input aria-label={`${label} dimension`} type="number" step="0.5" value={parameters[key]} onChange={(event) => setParameter(key, Number(event.target.value))} />{suffix && <em>{suffix}</em>}</div></label>
+  const field = (label: string, key: keyof ModelNode['parameters'], suffix = 'mm') => <NumberInput label={label} accessibleLabel={`${label} dimension`} value={parameters[key]} suffix={suffix} onChange={value => setParameter(key, value)} />
 
   return (
     <aside className="toolbox panel-surface modeling-toolbox" aria-label="Modeling tools">
@@ -156,13 +159,13 @@ export function Toolbox() {
         <div className="section-title"><span className="section-kicker">Shape your surface</span></div>
         <div className={`sculpt-ready-card ${isSculptMesh ? 'ready' : ''}`}>
           <div><strong>{isSculptMesh ? selectedNode.name : selectedNode ? `Sculpt ${selectedNode.name}` : 'Start with a shape'}</strong><small>{isSculptMesh ? `${Math.round((selectedNode.mesh?.indices.length ?? 0) / 3).toLocaleString()} faces · choose a brush, then drag on the surface.` : selectedNode ? 'Turn this shape into an editable surface. You can undo the conversion.' : 'Add or select a shape in your model, then convert it to use surface brushes.'}</small></div>
-          {!isSculptMesh && (selectedNode ? <button onClick={() => makeSculptable(2)}><Sparkles size={14} /> Convert to sculpt mesh</button> : <button onClick={() => setTask('build')}><Box size={14} /> Browse shapes</button>)}
+          {!isSculptMesh && (selectedNode ? <button disabled={selectedNode.locked} onClick={() => makeSculptable(2)}><Sparkles size={14} /> Convert to sculpt mesh</button> : <button onClick={() => setTask('build')}><Box size={14} /> Browse shapes</button>)}
         </div>
 
-        <div className="sculpt-subhead"><span>Volume brushes</span></div>
+        <div className="sculpt-subhead"><span>Volume brushes</span></div>{volumeLocked && <p className="sculpt-gesture-tip">Unlock all shapes before volume sculpting. Volume brushes affect the combined model.</p>}
         <div className="sculpt-tools-grid">
-          <IconButton active={tool === 'sculpt-add'} icon={<Sparkles size={18} />} label="Volume add" onClick={() => setTool('sculpt-add')} />
-          <IconButton active={tool === 'sculpt-carve'} icon={<WandSparkles size={18} />} label="Volume carve" onClick={() => setTool('sculpt-carve')} />
+          <IconButton disabled={volumeLocked} active={tool === 'sculpt-add'} icon={<Sparkles size={18} />} label="Volume add" onClick={() => setTool('sculpt-add')} />
+          <IconButton disabled={volumeLocked} active={tool === 'sculpt-carve'} icon={<WandSparkles size={18} />} label="Volume carve" onClick={() => setTool('sculpt-carve')} />
         </div>
 
         {isSculptMesh && <><div className="sculpt-subhead"><span>Surface brushes</span></div>
@@ -186,14 +189,14 @@ export function Toolbox() {
           <label><span><Gauge size={13} /> Strength</span><span className="brush-value"><input aria-label="Brush strength" type="number" min="1" max="100" step="1" value={Math.round(brushStrength * 100)} onChange={(event) => setBrushSetting({ brushStrength: Math.max(0.01, Math.min(1, Number(event.target.value) / 100)) })} />%</span><input aria-label="Brush strength slider" type="range" min="0.01" max="1" step="0.01" value={brushStrength} onChange={(event) => setBrushSetting({ brushStrength: Number(event.target.value) })} /></label>
           <details className="advanced-modeling-tools advanced-brush-settings"><summary>Brush settings <ChevronDown size={15} /></summary><div className="advanced-brush-fields">
             <label><span><Blend size={13} /> Spacing</span><span className="brush-value"><input aria-label="Brush spacing" type="number" min="5" max="100" step="1" value={Math.round(brushSpacing * 100)} onChange={(event) => setBrushSetting({ brushSpacing: Math.max(0.05, Math.min(1, Number(event.target.value) / 100)) })} />%</span><input aria-label="Brush spacing slider" type="range" min="0.05" max="1" step="0.01" value={brushSpacing} onChange={(event) => setBrushSetting({ brushSpacing: Number(event.target.value) })} /></label>
-            <div className="falloff-control"><span>Falloff</span><div>{(['smooth', 'sharp', 'flat'] as const).map((falloff) => <button key={falloff} className={brushFalloff === falloff ? 'active' : ''} onClick={() => setBrushSetting({ brushFalloff: falloff })}>{falloff}</button>)}</div></div>
-            <div className="axis-symmetry"><span><FlipHorizontal2 size={14} /> Mirror stroke</span><div>{(['X', 'Y', 'Z'] as const).map((axis) => { const active = axis === 'X' ? brushSymmetryX : axis === 'Y' ? brushSymmetryY : brushSymmetryZ; return <button key={axis} className={active ? 'active' : ''} onClick={() => setBrushSetting(axis === 'X' ? { brushSymmetryX: !active } : axis === 'Y' ? { brushSymmetryY: !active } : { brushSymmetryZ: !active })}>{axis}</button> })}</div></div>
-            <button className={`symmetry-toggle ${brushFrontFacesOnly ? 'active' : ''}`} onClick={() => setBrushSetting({ brushFrontFacesOnly: !brushFrontFacesOnly })}><CircleDot size={15} /><span>Front faces only</span><i>{brushFrontFacesOnly ? 'On' : 'Off'}</i></button>
+            <div className="falloff-control"><span>Falloff</span><div>{(['smooth', 'sharp', 'flat'] as const).map((falloff) => <button key={falloff} aria-pressed={brushFalloff === falloff} className={brushFalloff === falloff ? 'active' : ''} onClick={() => setBrushSetting({ brushFalloff: falloff })}>{falloff}</button>)}</div></div>
+            <div className="axis-symmetry"><span><FlipHorizontal2 size={14} /> Mirror stroke</span><div>{(['X', 'Y', 'Z'] as const).map((axis) => { const active = axis === 'X' ? brushSymmetryX : axis === 'Y' ? brushSymmetryY : brushSymmetryZ; return <button key={axis} aria-label={`Mirror strokes on ${axis}`} aria-pressed={active} className={active ? 'active' : ''} onClick={() => setBrushSetting(axis === 'X' ? { brushSymmetryX: !active } : axis === 'Y' ? { brushSymmetryY: !active } : { brushSymmetryZ: !active })}>{axis}</button> })}</div></div>
+            {!isVolumeBrush && <><button className={`symmetry-toggle ${brushFrontFacesOnly ? 'active' : ''}`} onClick={() => setBrushSetting({ brushFrontFacesOnly: !brushFrontFacesOnly })}><CircleDot size={15} /><span>Front faces only</span><i>{brushFrontFacesOnly ? 'On' : 'Off'}</i></button>
             <button className={`symmetry-toggle ${dynamicTopology ? 'active' : ''}`} onClick={() => setBrushSetting({ dynamicTopology: !dynamicTopology })}><Triangle size={15} /><span>Adaptive detail</span><i>{dynamicTopology ? 'On' : 'Off'}</i></button>
             {dynamicTopology && <label><span><Triangle size={13} /> Detail size</span><span className="brush-value">{Math.round(sculptDetail * 100)}%</span><input aria-label="Sculpt detail size" type="range" min="0.15" max="1" step="0.05" value={sculptDetail} onChange={(event) => setBrushSetting({ sculptDetail: Number(event.target.value) })} /></label>}
-            <div className="sculpt-mesh-actions"><button disabled={!isSculptMesh} onClick={subdivideSelectedMesh}>Subdivide all</button><button disabled={!isSculptMesh} onClick={invertSculptMask}>Invert mask</button><button disabled={!isSculptMesh} onClick={clearSculptMask}>Clear mask</button></div>
+            <div className="sculpt-mesh-actions"><button disabled={!isSculptMesh} onClick={subdivideSelectedMesh}>Subdivide all</button><button disabled={!isSculptMesh} onClick={invertSculptMask}>Invert mask</button><button disabled={!isSculptMesh} onClick={clearSculptMask}>Clear mask</button></div></>}
           </div></details>
-          {isSculptMesh && <small className="sculpt-gesture-tip"><strong>Shift</strong> inverts draw/carve and erases mask. One Undo step is stored per drag.</small>}
+          {(isSculptMesh || isVolumeBrush) && <small className="sculpt-gesture-tip"><strong>Shift</strong> inverts draw/carve and erases mask. One Undo step is stored per drag.</small>}
         </div>
       </div>}
     </aside>
