@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Eye, EyeOff, Focus, Grid3X3, Magnet, Maximize2, Box, Grid2X2, MoreHorizontal, Ruler, SlidersHorizontal, ChevronDown } from 'lucide-react'
 import { useEditor } from '@/store/editor'
+import { useInspection } from '@/store/inspection'
 import './ViewportTools.css'
 
 const snapOptions = [null, 0.1, 0.5, 1, 5, 10] as const
@@ -20,6 +21,9 @@ export function ViewportTools() {
   const displayMode = useEditor((state) => state.displayMode)
   const tool = useEditor((state) => state.tool)
   const measurement = useEditor((state) => state.measurement)
+  const measurementMode = useInspection(state => state.measurementMode)
+  const setMeasurementMode = useInspection(state => state.setMeasurementMode)
+  const sectionEnabled = useInspection(state => state.section.enabled)
   const setShowGrid = useEditor((state) => state.setShowGrid)
   const setShowReferencePlanes = useEditor((state) => state.setShowReferencePlanes)
   const setXrayEnabled = useEditor((state) => state.setXrayEnabled)
@@ -56,10 +60,17 @@ export function ViewportTools() {
         </select>}
       </label>
       <button aria-label={distance === null ? 'Measure' : `Measured distance ${distance.toFixed(2)} mm`} aria-pressed={tool === 'measure'} className={`measure-control ${tool === 'measure' ? 'active' : ''}`} onClick={() => { const nextTool = useEditor.getState().tool === 'measure' ? 'select' : 'measure'; setMeasurement(null); setTool(nextTool) }} title="Measure between two surface points"><Ruler size={15} /><span>{distance === null ? 'Measure' : `${distance.toFixed(2)} mm`}</span></button>
+      {tool === 'measure' && <div className="measurement-details" role="group" aria-label="Measurement settings and results">
+        <div><label>Pick <select aria-label="Measurement picking" value={measurementMode} onChange={event => { setMeasurementMode(event.target.value as 'surface' | 'vertex'); setMeasurement(null) }}><option value="vertex">Mesh vertex</option><option value="surface">Surface point</option></select></label><button onClick={() => setMeasurement(null)}>Clear</button></div>
+        <p>{measurementMode === 'vertex' ? 'Click near a corner to snap to a vertex of the hit triangle.' : 'Click two points on the visible surface.'} Click again to finish.</p>
+        {measurement && <><strong>{distance?.toFixed(3)} mm <small>{measurement.complete ? 'distance' : 'preview'}</small></strong><dl>{(['x', 'y', 'z'] as const).map(axis => <div key={axis}><dt>Δ{axis.toUpperCase()}</dt><dd>{Math.abs(measurement.end[axis] - measurement.start[axis]).toFixed(3)} mm</dd></div>)}</dl></>}
+        <small>Readings clear when geometry changes. Vertices follow the mesh tessellation.</small>
+      </div>}
       <div className="viewport-display" ref={displayRef}>
         <button className={`viewport-display-trigger ${displayOpen ? 'active' : ''}`} aria-label="Display options" aria-expanded={displayOpen} aria-controls="viewport-display-panel" onClick={() => setDisplayOpen((current) => !current)} title="Display options"><SlidersHorizontal size={16} /><ChevronDown size={12} /></button>
         {displayOpen && <div id="viewport-display-panel" className="viewport-display-panel" role="group" aria-label="Display options">
           <span className="viewport-menu-label">Canvas display</span>
+          <button aria-pressed={sectionEnabled} onClick={() => { window.dispatchEvent(new CustomEvent('formforge:open-inspector', { detail: { tab: 'tools', toolkit: 'inspect' } })); setDisplayOpen(false) }}><Box size={16} /><span>Section inspection</span><em>{sectionEnabled ? 'On' : 'Open'}</em></button>
           <button aria-pressed={showGrid} className={showGrid ? 'active' : ''} onClick={() => setShowGrid(!showGrid)}><Grid3X3 size={16} /><span>Build plane</span><em>{showGrid ? 'On' : 'Off'}</em></button>
           <button aria-pressed={showReferencePlanes} className={showReferencePlanes ? 'active' : ''} onClick={() => setShowReferencePlanes(!showReferencePlanes)} title="XY, XZ, and YZ reference planes"><Grid3X3 size={16} /><span>Reference planes</span><em>{showReferencePlanes ? 'On' : 'Off'}</em></button>
           <button aria-pressed={xrayEnabled} className={xrayEnabled ? 'active' : ''} onClick={() => setXrayEnabled(!xrayEnabled)} title="Show source outlines through the solid">{xrayEnabled ? <Eye size={16} /> : <EyeOff size={16} />}<span>X-ray</span><em>{xrayEnabled ? 'On' : 'Off'}</em></button>
@@ -73,6 +84,7 @@ export function ViewportTools() {
           <p>Arrow keys nudge your selection.<br />Shift ×10 · Alt ×0.1</p>
         </div>}
       </div>
+      {sectionEnabled && <button className="active" title="Disable section inspection and show the full model" onClick={() => useInspection.getState().setSection({ enabled: false })}>Section on · ×</button>}
     </div>
   )
 }

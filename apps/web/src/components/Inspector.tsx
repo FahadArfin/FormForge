@@ -13,6 +13,10 @@ import { NumberInput } from './NumberInput'
 import { selectionNeedsUniformScale } from '@/lib/selectionTransforms'
 import { makeSourceGeometry } from '@/lib/modelGeometry'
 import './InspectorReview.css'
+import { CadToolsPanel } from './CadToolsPanel'
+import { SectionPanel } from './SectionPanel'
+import { SplitPanel } from './SplitPanel'
+import { PlatePlacementPanel } from './PlatePlacementPanel'
 
 function VectorFields({ label, value, onChange, suffix }: { label: string; value: Vec3Value; onChange: (value: Vec3Value) => void; suffix?: string }) {
   return (
@@ -75,6 +79,7 @@ function ShapeInspector({ node }: { node: ModelNode }) {
         {Object.values(transform.rotation).some(value => Math.abs(value) > 0.001) && <p className="local-dimensions-note">Along this shape’s own axes, before rotation. Print shows the final overall size.</p>}
         <div className="vector-fields">{(['x', 'y', 'z'] as const).map((axis, index) => <NumberInput key={axis} label={['Width', 'Depth', 'Height'][index]!} value={dimensions[axis]} suffix="mm" min={0.01} onChange={value => resizeDimension(axis, value)} />)}</div>
         <label className="proportions-toggle"><input type="checkbox" checked={proportional} onChange={event => setProportional(event.target.checked)} /> Keep proportions</label>
+        <p className="numeric-entry-tip">Tip: enter 1/2 in, 2 cm, or 25.4 / 2. Values are shown in mm.</p>
       </div>
       <div className="property-group shape-role-editor">
         <h3>Shape role</h3>
@@ -152,7 +157,7 @@ function ShapeInspector({ node }: { node: ModelNode }) {
           <NumberInput label="Simplify" value={node.surface?.simplifyTolerance ?? 0} suffix="mm" onChange={(value) => updateSurface('simplifyTolerance', value)} />
           <NumberInput label="Hollow" value={node.surface?.hollowThickness ?? 0} suffix="mm" onChange={(value) => updateSurface('hollowThickness', value)} />
         </div>
-        <small>Modifiers stay editable in the feature timeline. Set a value to zero to disable it.</small>
+        <small>Set a value to zero to disable it. Hollow subtracts a scaled inner copy; wall thickness varies with shape.</small>
       </div>
       <NodeParameterBindings node={node} />
       <div className="property-group object-actions">
@@ -209,7 +214,8 @@ function SelectionActions({ count }: { count: number }) {
 }
 
 export function Inspector() {
-  const [panel, setPanel] = useState<'model' | 'parameters' | 'print' | 'history'>('model')
+  const [panel, setPanel] = useState<'model' | 'parameters' | 'print' | 'history' | 'tools'>('model')
+  const [toolkitTab, setToolkitTab] = useState<'create' | 'inspect' | 'prepare'>('create')
   const [featureQuery, setFeatureQuery] = useState('')
   const [multiSelect, setMultiSelect] = useState(false)
   const document = useEditor((state) => state.document)
@@ -226,8 +232,10 @@ export function Inspector() {
   useEffect(() => { setFeatureQuery('') }, [document.id])
   useEffect(() => {
     const open = (event: Event) => {
-      const tab = (event as CustomEvent<{ tab: string }>).detail?.tab
-      if (tab === 'model' || tab === 'print' || tab === 'history') setPanel(tab)
+      const detail = (event as CustomEvent<{ tab: string; toolkit?: 'create' | 'inspect' | 'prepare' }>).detail
+      const tab = detail?.tab
+      if (tab === 'model' || tab === 'print' || tab === 'history' || tab === 'tools' || tab === 'parameters') setPanel(tab)
+      if (detail?.toolkit) setToolkitTab(detail.toolkit)
     }
     window.addEventListener('formforge:open-inspector', open)
     return () => window.removeEventListener('formforge:open-inspector', open)
@@ -242,7 +250,11 @@ export function Inspector() {
       <div className="panel-title-row">
         <div className="inspector-tabs" role="group" aria-label="Inspector panels"><button aria-pressed={panel === 'model'} className={panel === 'model' ? 'active' : ''} onClick={() => setPanel('model')}><BoxSelect size={14} /> Model</button>{document.workspaceMode === 'pro' && <button aria-pressed={panel === 'parameters'} aria-label="Parameters" className={panel === 'parameters' ? 'active' : ''} onClick={() => setPanel('parameters')}><span className="parameter-tab-icon" aria-hidden="true">{'{}'}</span> Params</button>}<button aria-pressed={panel === 'print'} className={panel === 'print' ? 'active' : ''} onClick={() => setPanel('print')}><Printer size={14} /> Print</button><button aria-pressed={panel === 'history'} className={panel === 'history' ? 'active' : ''} onClick={() => setPanel('history')}><History size={14} /> History</button></div>
       </div>
-      {panel === 'print' ? <PrintPanel /> : panel === 'history' ? <HistoryPanel /> : panel === 'parameters' ? <ParameterPanel /> : <>
+      <button className={`cad-toolkit-trigger ${panel === 'tools' ? 'active' : ''}`} aria-pressed={panel === 'tools'} onClick={() => setPanel('tools')}><Sparkles size={15} /><strong>CAD toolkit</strong><span>Holes · fits · sections · split</span></button>
+      {panel === 'tools' ? <div className="inspector-workflow cad-toolkit-workflow">
+        <div className="toolkit-navigation" role="group" aria-label="CAD workflow"><button aria-pressed={toolkitTab === 'create'} onClick={() => setToolkitTab('create')}>Create</button><button aria-pressed={toolkitTab === 'inspect'} onClick={() => setToolkitTab('inspect')}>Inspect</button><button aria-pressed={toolkitTab === 'prepare'} onClick={() => setToolkitTab('prepare')}>Prepare</button></div>
+        {toolkitTab === 'create' ? <CadToolsPanel key={document.id} /> : toolkitTab === 'inspect' ? <><SectionPanel /><section className="workflow-card"><h3>Measure the visible mesh</h3><p>Choose mesh vertices for corners or surface points for free measurements. The canvas readout shows distance and X/Y/Z offsets.</p><button className="workflow-action secondary" onClick={() => { useEditor.getState().setTool('measure'); useEditor.getState().setMeasurement(null) }}>Start measuring</button></section></> : <><PlatePlacementPanel /><details className="cad-toolkit-details"><summary>Split into printable pieces</summary><SectionPanel /><SplitPanel /></details></>}
+      </div> : panel === 'print' ? <PrintPanel /> : panel === 'history' ? <HistoryPanel /> : panel === 'parameters' ? <ParameterPanel key={document.id} /> : <>
       <div className="feature-list-heading"><h2>Shapes</h2><span>{document.nodes.length}</span><button className="multi-select-toggle" type="button" aria-label="Select multiple shapes" aria-pressed={multiSelect} onClick={() => setMultiSelect(!multiSelect)}><BoxSelect size={14} /> Multi-select</button></div>
       {document.nodes.length > 0 && <label className="feature-search"><Search size={14} aria-hidden="true" /><input type="search" aria-label="Find shapes by name, type, or layer" placeholder="Find a shape…" value={featureQuery} onChange={(event) => setFeatureQuery(event.target.value)} /></label>}
       <div className="feature-list" role="list" aria-label="Project shapes">

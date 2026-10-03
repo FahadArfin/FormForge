@@ -19,6 +19,9 @@ import {
 import { useEditor } from '@/store/editor'
 import { nonzeroScale, transformSelectionFromPrimary } from '@/lib/selectionTransforms'
 import { extractMeshTopology } from '@/lib/componentMesh'
+import { measurementFromHit } from '@/lib/measurementPicking'
+import { useInspection } from '@/store/inspection'
+import { sectionPlane, sectionPointVisible } from '@/lib/sectionView'
 
 const polygonToolModes: Partial<Record<ToolMode, PolygonBrushMode>> = {
   'sculpt-draw': 'draw',
@@ -133,6 +136,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
   const brushRadius = useEditor((state) => state.brushRadius)
   const brushStrength = useEditor((state) => state.brushStrength)
   const measurement = useEditor((state) => state.measurement)
+  const section = useInspection(state => state.section)
   const meshComponentMode = useEditor((state) => state.meshComponentMode)
   const selectedMeshVertices = useEditor((state) => state.selectedMeshVertices)
   const selectedMeshEdges = useEditor((state) => state.selectedMeshEdges)
@@ -156,6 +160,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     renderer.toneMapping = THREE.ACESFilmicToneMapping
     renderer.toneMappingExposure = 1.05
     renderer.shadowMap.enabled = true
+    renderer.localClippingEnabled = true
     renderer.shadowMap.type = THREE.PCFShadowMap
     host.appendChild(renderer.domElement)
 
@@ -312,7 +317,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       updateRay(event)
       const result = resultGroup.children[0]
       if (!result) return null
-      const hit = raycaster.intersectObject(result, false)[0]
+      const hit = raycaster.intersectObject(result, false).find(hit => sectionPointVisible(hit.point, useInspection.getState().section))
       if (!hit?.face) return null
       const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld).normalize()
       return { point: hit.point, normal }
@@ -324,7 +329,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       const object = node?.kind === 'mesh' && !node.locked ? sourceById.get(node.id) : undefined
       if (!node || !object) return null
       updateRay(event)
-      const hit = raycaster.intersectObject(object, false)[0]
+      const hit = raycaster.intersectObject(object, false).find(hit => sectionPointVisible(hit.point, useInspection.getState().section))
       if (!hit?.face) return null
       const worldNormal = hit.face.normal.clone().transformDirection(object.matrixWorld).normalize()
       const localPoint = object.worldToLocal(hit.point.clone())
@@ -334,10 +339,14 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
 
     const measurementPoint = (event: PointerEvent) => {
       updateRay(event)
-      const targets: THREE.Object3D[] = [...sourceGroup.children]
-      if (resultGroup.children[0]) targets.push(resultGroup.children[0]!)
-      const hit = raycaster.intersectObjects(targets, false)[0]
-      return hit?.point.clone() ?? raycaster.ray.intersectPlane(plane, new THREE.Vector3())
+      const state = useEditor.getState()
+      if (state.showResult && (state.meshDocument !== state.document || state.geometryStatus !== 'ready')) return null
+      const targets: THREE.Object3D[] = state.showResult
+        ? resultGroup.children.filter(object => object.visible)
+        : sourceGroup.children.filter(object => object.visible && state.document.nodes.some(node => node.id === object.userData.nodeId && node.visible && !node.suppressed))
+      const hit = raycaster.intersectObjects(targets, false).find(hit => sectionPointVisible(hit.point, useInspection.getState().section))
+      const point = hit ? measurementFromHit(hit, useInspection.getState().measurementMode) : null
+      return point && sectionPointVisible(point, useInspection.getState().section) ? point : null
     }
 
     const updateBrushCursor = (hit: { point: THREE.Vector3; normal: THREE.Vector3 } | null) => {
@@ -689,7 +698,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
         const node = state.document.nodes.find((candidate) => candidate.id === state.selectedNodeId)
         if (object && node?.mesh) {
           updateRay(event)
-          const hit = raycaster.intersectObject(object, false)[0]
+          const hit = raycaster.intersectObject(object, false).find(hit => sectionPointVisible(hit.point, useInspection.getState().section))
           if (hit?.face && hit.faceIndex != null) {
             if (state.meshComponentMode === 'face') state.selectMeshComponent('face', hit.faceIndex, event.ctrlKey || event.metaKey || event.shiftKey)
             else {
@@ -727,12 +736,12 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
         }
       }
       updateRay(event)
-      const hit = raycaster.intersectObjects(sourceGroup.children, false)[0]
+      const hit = raycaster.intersectObjects(sourceGroup.children, false).find(hit => sectionPointVisible(hit.point, useInspection.getState().section))
       if (hit) {
         const nodeId = hit.object.userData.nodeId as string
         const additive = event.ctrlKey || event.metaKey || event.shiftKey
         if (additive || !state.selectedNodeIds.includes(nodeId)) state.selectNode(nodeId, additive)
-        if (state.tool === 'move' && !(transform as unknown as { axis?: string | null }).axis) {
+        if (state.tool === 'move' && !state.document.sculptStrokes.length && !(transform as unknown as { axis?: string | null }).axis) {
           const node = state.document.nodes.find((item) => item.id === nodeId)
           const point = raycaster.ray.intersectPlane(plane, new THREE.Vector3())
           if (node && !node.locked && point && !additive) {
@@ -1092,12 +1101,12 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       }
     }
     const selectedObject = selectedNodeId ? rt.sourceById.get(selectedNodeId) : undefined
-    if (selectedObject && !document.nodes.find(node => node.id === selectedNodeId)?.locked && ['move', 'rotate', 'scale'].includes(tool)) {
+    if (selectedObject && document.sculptStrokes.length === 0 && !document.nodes.find(node => node.id === selectedNodeId)?.locked && ['move', 'rotate', 'scale'].includes(tool)) {
       rt.transform.setMode(transformModeFor(tool))
       rt.transform.setSpace(tool === 'scale' ? 'local' : 'world')
       rt.transform.attach(selectedObject)
     }
-  }, [document.nodes, selectedNodeId, selectedNodeIds, showResult, tool, xrayEnabled, displayMode])
+  }, [document.nodes, document.sculptStrokes, selectedNodeId, selectedNodeIds, showResult, tool, xrayEnabled, displayMode])
 
   useEffect(() => {
     const rt = runtime.current
@@ -1258,6 +1267,20 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
   useEffect(() => {
     if (runtime.current) runtime.current.referenceGroup.visible = showReferencePlanes
   }, [showReferencePlanes])
+
+  useEffect(() => { useInspection.getState().resetSection() }, [document.id])
+  useEffect(() => { useEditor.getState().setMeasurement(null) }, [document.nodes, document.sculptStrokes, document.id, showResult, section])
+
+  useEffect(() => {
+    const rt = runtime.current
+    if (!rt) return
+    const planes = section.enabled ? [sectionPlane(section)] : []
+    for (const group of [rt.sourceGroup, rt.resultGroup]) group.traverse(object => {
+      const mesh = object as THREE.Mesh
+      const materials = Array.isArray(mesh.material) ? mesh.material : mesh.material ? [mesh.material] : []
+      for (const material of materials) { material.clippingPlanes = planes; material.clipShadows = true; material.needsUpdate = true }
+    })
+  }, [section, document.nodes, selectedNodeIds, meshPayload, displayMode, showResult, tool, xrayEnabled, selectedMeshVertices, selectedMeshEdges, selectedMeshFaces])
 
   useEffect(() => {
     const group = runtime.current?.measurementGroup

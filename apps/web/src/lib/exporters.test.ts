@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { strFromU8, unzipSync } from 'fflate'
-import { createNode, type MeshPayload } from '@formforge/model'
+import { createNode, vec3, type MeshPayload } from '@formforge/model'
 import { export3mf, exportMultiColor3mf, exportObj, exportStl } from './exporters'
 
 const triangle: MeshPayload = {
@@ -36,6 +36,30 @@ describe('model exporters', () => {
     expect(model).toContain('<m:basematerials id="5">')
     expect(model).toContain('name="AMS 2"')
     expect(model.match(/<object id=/g)).toHaveLength(2)
+  })
+
+  it.each([
+    { label: 'one mirrored axis', scale: vec3(-1, 1, 1) },
+    { label: 'two mirrored axes', scale: vec3(-1, -1, 1) },
+    { label: 'three mirrored axes', scale: vec3(-1, -1, -1) },
+  ])('exports outward-facing triangles for $label after compound rotation', async ({ scale }) => {
+    const box = createNode('box', 'add', vec3(4, -6, 8))
+    box.parameters = { ...box.parameters, width: 10, depth: 20, height: 30 }
+    box.transform.rotation = vec3(30, 45, 60)
+    box.transform.scale = scale
+    const source = structuredClone(box)
+    const archive = unzipSync(new Uint8Array(await exportMultiColor3mf([box], 'Mirrored part').arrayBuffer()))
+    const model = strFromU8(archive['3D/3dmodel.model']!)
+    const vertices = [...model.matchAll(/<vertex x="([^"]+)" y="([^"]+)" z="([^"]+)"\/>/g)]
+      .map(match => [Number(match[1]), Number(match[2]), Number(match[3])] as const)
+    const faces = [...model.matchAll(/<triangle v1="(\d+)" v2="(\d+)" v3="(\d+)"/g)]
+    expect(faces).toHaveLength(12)
+    const signedVolume = faces.reduce((volume, match) => {
+      const a = vertices[Number(match[1])]!; const b = vertices[Number(match[2])]!; const c = vertices[Number(match[3])]!
+      return volume + (a[0] * (b[1] * c[2] - b[2] * c[1]) + a[1] * (b[2] * c[0] - b[0] * c[2]) + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6
+    }, 0)
+    expect(signedVolume).toBeCloseTo(6_000, 3)
+    expect(box).toEqual(source)
   })
 
   it('does not silently fill holes in a multi-color export', () => {

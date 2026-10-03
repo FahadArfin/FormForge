@@ -54,3 +54,16 @@
 .inspector.inspector-review .selection-scale-note { font-size: 12px; line-height: 1.5; padding: 8px; background: var(--accent-wash); border-radius: 7px; }
 .viewport-canvas:focus:not(:focus-visible) { outline: none; }
 .viewport-canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+.cad-toolkit-trigger { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding: 10px 14px; color: var(--text); border: 0; border-bottom: 1px solid var(--line); background: var(--surface-raised); text-align: left; cursor: pointer; }
+.cad-toolkit-trigger span { font-size: 11px; color: var(--subtle); margin-left: auto; }
+.cad-toolkit-trigger strong { font-size: 12px; }
+.cad-toolkit-trigger.active { color: var(--accent-bright); background: var(--accent-wash); }
+.numeric-entry-tip { font-size: 11px; color: var(--subtle); line-height: 1.5; margin: 8px 0 0; }
+.cad-toolkit-details { border-top: 1px solid var(--line); padding-top: 12px; }
+.cad-toolkit-details > summary { font-weight: 600; cursor: pointer; padding: 8px 0; }
+.cad-toolkit-details[open] > .workflow-card { margin-top: 12px; }
+.cad-toolkit-workflow .cad-tools-panel { padding: 0; overflow: visible; flex: 0 0 auto; }
+.export-scope-note { color: var(--subtle); font-size: 12px; line-height: 1.5; }
+.toolkit-navigation { display: flex; border: 1px solid var(--line); padding: 3px; border-radius: 9px; background: var(--surface-raised); flex-shrink: 0; position: sticky; top: -2px; z-index: 2; box-shadow: 0 -16px 0 0 var(--surface); }
+.toolkit-navigation button { flex: 1; min-height: 36px; border: 0; border-radius: 6px; color: var(--subtle); background: transparent; cursor: pointer; font-size: 12px; }
+.toolkit-navigation button[aria-pressed=true] { color: var(--accent-bright); background: var(--surface); box-shadow: 0 1px 4px #0001; font-weight: 600; }
