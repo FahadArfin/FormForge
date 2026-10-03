@@ -206,12 +206,8 @@ function shapeForNode(api: ManifoldToplevel, node: ModelNode) {
   return transformed
 }
 
-async function evaluate(document: ModelDocument) {
+export async function evaluate(document: ModelDocument) {
   const api = await getModule()
-  const active = document.nodes.filter((node) => !node.suppressed)
-  const groupedIds = new Set<string>()
-  const operations: { shape: ManifoldType; mode: ModelNode['boolean'] }[] = []
-
   const combine = (nodes: ModelNode[]) => {
     if (!nodes.length) return null
     if (nodes[0]?.groupOperation === 'hull') {
@@ -231,30 +227,33 @@ async function evaluate(document: ModelDocument) {
     return groupResult
   }
 
-  for (const node of active) {
-    if (node.combined && node.groupId) {
-      if (groupedIds.has(node.groupId)) continue
-      groupedIds.add(node.groupId)
-      const grouped = active.filter((candidate) => candidate.combined && candidate.groupId === node.groupId)
-      const shape = combine(grouped)
-      if (shape) operations.push({ shape, mode: 'add' })
-    } else {
-      operations.push({ shape: shapeForNode(api, node), mode: node.boolean })
+  const evaluateScope = (active: ModelNode[]): ManifoldType | null => {
+    const groupedIds=new Set<string>(), assemblies=new Set<string>()
+    const operations: {shape:ManifoldType;mode:ModelNode['boolean']}[]=[]
+    for(const node of active) {
+      const assembly=node.assemblyPath?.[0]
+      if(assembly) {
+        if(assemblies.has(assembly))continue
+        assemblies.add(assembly)
+        const shape=evaluateScope(active.filter(n=>n.assemblyPath?.[0]===assembly).map(n=>({...n,assemblyPath:n.assemblyPath!.slice(1)})))
+        if(shape)operations.push({shape,mode:'add'})
+      } else if(node.combined&&node.groupId) {
+        if(groupedIds.has(node.groupId))continue
+        groupedIds.add(node.groupId)
+        const shape=combine(active.filter(n=>!n.assemblyPath?.length&&n.combined&&n.groupId===node.groupId))
+        if(shape)operations.push({shape,mode:'add'})
+      } else operations.push({shape:shapeForNode(api,node),mode:node.boolean})
     }
-  }
-
-  let result: ManifoldType | null = null
-  for (const operation of operations) {
-    if (!result) {
-      if (operation.mode === 'cut') { operation.shape.delete(); continue }
-      result = operation.shape.asOriginal()
-      operation.shape.delete()
-      continue
+    let result:ManifoldType|null=null
+    for(const op of operations){
+      if(!result){if(op.mode==='cut'){op.shape.delete();continue}result=op.shape.asOriginal();op.shape.delete();continue}
+      const current:ManifoldType=result
+      const next:ManifoldType=op.mode==='cut'?current.subtract(op.shape):op.mode==='intersect'?current.intersect(op.shape):current.add(op.shape)
+      result.delete();op.shape.delete();result=next
     }
-    const current: ManifoldType = result
-    const next: ManifoldType = operation.mode === 'cut' ? current.subtract(operation.shape) : operation.mode === 'intersect' ? current.intersect(operation.shape) : current.add(operation.shape)
-    result.delete(); operation.shape.delete(); result = next
+    return result
   }
+  const result=evaluateScope(document.nodes.filter(n=>!n.suppressed))
 
   if (!result) return { positions: new Float32Array(), indices: new Uint32Array(), volume: 0, triangleCount: 0 }
   let finalResult: ManifoldType = result
@@ -355,7 +354,7 @@ function meshVolume(positions: Float32Array, indices: Uint32Array) {
   return Math.abs(volume / 6)
 }
 
-self.onmessage = async (event: MessageEvent<Request>) => {
+if (typeof self !== 'undefined') self.onmessage = async (event: MessageEvent<Request>) => {
   const { id, document } = event.data
   try {
     const mesh = await evaluate(document)

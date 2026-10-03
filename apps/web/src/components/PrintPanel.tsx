@@ -1,3 +1,4 @@
+import { MaterialProfilesPanel } from './MaterialProfilesPanel'
 import { useEffect, useMemo, useState } from 'react'
 import { AlertCircle, ArrowRight, CheckCircle2, Download, LoaderCircle, Printer, RefreshCw, Settings2, Undo2, Wrench } from 'lucide-react'
 import type { PrinterProfile } from '@formforge/model'
@@ -64,7 +65,7 @@ export function PrintPanel() {
       <dl className="print-summary"><div><dt>Volume</dt><dd>{currentAnalysis.volume.toLocaleString(undefined, { maximumFractionDigits: 0 })} mm³</dd></div><div><dt>Triangles</dt><dd>{currentAnalysis.triangleCount.toLocaleString()}</dd></div></dl>
     </section>}
 
-    <PlatePlacementPanel />
+    <PlatePlacementPanel /><MaterialProfilesPanel key={document.id}/>
     <section className="workflow-card printer-setup">
       <div className="workflow-card-heading"><h3><Printer size={17} /> Printer setup</h3><button className="workflow-icon" aria-label={editingPrinter ? 'Close printer setup' : 'Edit printer setup'} aria-expanded={editingPrinter} onClick={() => setEditingPrinter((value) => !value)}><Settings2 size={17} /></button></div>
       {!editingPrinter && <><strong className="printer-name">{document.printer.name}</strong><p>{document.printer.buildVolume.x} × {document.printer.buildVolume.y} × {document.printer.buildVolume.z} mm build volume</p><p>Wall target: {document.printer.minimumWall} mm · Nozzle: {document.printer.nozzleDiameter} mm</p><button className="workflow-text-action" onClick={() => setEditingPrinter(true)}>Change printer setup</button></>}

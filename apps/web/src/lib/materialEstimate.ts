@@ -1,0 +1,3 @@
+import type {PrintMaterial} from '@formforge/model'
+export const defaultMaterial:PrintMaterial={name:'Custom filament',density:1.24,pricePerKg:0,currency:'USD'}
+export function materialEstimate(volumeMm3:number,material:PrintMaterial){if(!Number.isFinite(volumeMm3)||volumeMm3<0||!Number.isFinite(material.density)||material.density<0.1||material.density>25||!Number.isFinite(material.pricePerKg)||material.pricePerKg<0||material.pricePerKg>100000)throw new Error('Check volume, density, and price.');const grams=volumeMm3/1000*material.density;return {solidGrams:grams,solidCost:grams/1000*material.pricePerKg,slicerCost:material.slicerGrams&&material.slicerGrams>0?material.slicerGrams/1000*material.pricePerKg:null}}

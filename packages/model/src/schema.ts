@@ -54,6 +54,8 @@ const sketchConstraintSchema = z.discriminatedUnion('type', [
 ])
 
 export const modelNodeSchema = z.object({
+  assemblyPath: z.array(z.string().min(1).max(128)).max(8).optional(),
+  text: z.object({ content: z.string().min(1).max(80), size: z.number().min(1).max(200), depth:z.number().min(0.1).max(30),font:z.literal('helvetiker') }).optional(),
   id: z.string().min(1),
   name: z.string().min(1),
   kind: z.enum(['box', 'roundedBox', 'cylinder', 'sphere', 'cone', 'torus', 'capsule', 'tube', 'wedge', 'star', 'gear', 'loft', 'spring', 'extrude', 'revolve', 'mesh']),
@@ -109,7 +111,16 @@ export const modelNodeSchema = z.object({
   createdAt: z.string(),
 })
 
+const workplaneSchema = z.object({ name: z.string().min(1).max(64), origin: vec3Schema, normal: vec3Schema, xAxis: vec3Schema }).refine(p => {
+    const n = Math.hypot(p.normal.x, p.normal.y, p.normal.z); const x = Math.hypot(p.xAxis.x, p.xAxis.y, p.xAxis.z)
+    return Math.abs(n - 1) < 0.001 && Math.abs(x - 1) < 0.001 && Math.abs(p.normal.x*p.xAxis.x + p.normal.y*p.xAxis.y + p.normal.z*p.xAxis.z) < 0.001
+  }, 'Workplane axes must be orthonormal.')
+
 export const modelDocumentSchema = z.object({
+  printMaterial:z.object({name:z.string().trim().min(1).max(80),density:z.number().min(0.1).max(25),pricePerKg:z.number().min(0).max(100000),currency:z.string().regex(/^[A-Z]{3}$/),slicerGrams:z.number().min(0).max(100000).optional(),slicerMinutes:z.number().min(0).max(100000).optional(),slicerGeometryKey:z.string().max(32).optional()}).optional(),
+  annotations: z.array(z.object({id:z.string().min(1),label:z.string().min(1).max(80),kind:z.enum(['distance','angle']),points:z.array(vec3Schema).min(2).max(3),geometryKey:z.string().max(32),visible:z.boolean()}).refine(a=>a.points.length===(a.kind==='angle'?3:2) && (a.kind!=='angle' || [0,2].every(i=>Math.hypot(a.points[i]!.x-a.points[1]!.x,a.points[i]!.y-a.points[1]!.y,a.points[i]!.z-a.points[1]!.z)>1e-6)), 'Complete the measurement with distinct angle endpoints.')).max(64).optional(),
+  workplane: workplaneSchema.optional(),
+  referenceImages: z.array(z.object({id:z.string().min(1),name:z.string().max(120),dataUrl:z.string().max(3000000).regex(/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/),width:z.number().int().min(1).max(2048),height:z.number().int().min(1).max(2048),mmPerPixel:z.number().min(0.0001).max(1000),opacity:z.number().min(0.1).max(1),visible:z.boolean(),plane:workplaneSchema})).max(1).optional(),
   schemaVersion: z.literal(1),
   id: z.string().min(1),
   name: z.string().min(1),
