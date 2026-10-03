@@ -19,7 +19,7 @@ This roadmap targets beginners and intermediate makers designing functional prin
 
 Primitives, sketches and constraints, extrude/revolve, fixed lofts, named parameter formulas, linear/polar patterns, alignment/distribution, mesh cleanup and component editing, polygon/volume sculpting, project checkpoints, local projects, STL/OBJ/3MF/GLB export, import, and print-size checks.
 
-## Next priorities
+## Next priorities — implemented in this continuation
 
 11. Workplanes (XY/XZ/YZ plus offset, then picked planar faces).
 12. Place a picked face on the plate; preserve assembly transforms.
@@ -31,6 +31,8 @@ Primitives, sketches and constraints, extrude/revolve, fixed lofts, named parame
 18. Pinned measurements, three-point angles, and dimension annotations with stale-reference handling.
 19. Printer/material profiles and honest material/cost estimates; actual slicer integration if a supported path is available.
 20. Shared projects, accounts, collaborative review, accessible tutorials, and onboarding task analytics with explicit privacy choices.
+
+The implementation and limits are documented in [the workflow guide](CAD_NEXT_WORKFLOW_GUIDE.md). Priority 19 uses model export and entered slicer results for handoff; FormForge does not generate G-code or estimate slicing time. Priority 20 uses ChatGPT sign-in, private cloud snapshots, revocable review links, and snapshot-specific discussions, rather than simultaneous editing.
 
 ## Advanced modeling roadmap
 

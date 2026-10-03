@@ -1,10 +1,12 @@
+import {LearningPanel} from './LearningPanel'
 import { Box, MousePointer2, SlidersHorizontal, Download, ArrowUpRight } from 'lucide-react'
 import { WorkspaceDialog } from './WorkspaceDialog'
 
 const shortcuts = [['V / G / R / S', 'Select / move / rotate / scale'], ['F / Shift F', 'Frame all / frame selection'], ['Ctrl / ⌘ A', 'Select all shapes'], ['Ctrl / ⌘ K', 'Find a command'], ['Ctrl / ⌘ S', 'Save on this device'], ['Ctrl / ⌘ Z', 'Undo your last change'], ['Ctrl / ⌘ Shift Z', 'Redo a change'], ['Ctrl / ⌘ D', 'Duplicate selection'], ['Arrow keys', 'Nudge selection in X and Y'], ['Page Up / Down', 'Nudge selection in Z'], ['Shift / Alt + nudge', 'Move 10× farther / 10× finer'], ['Delete', 'Remove selection'], ['Esc', 'Cancel placement or close a dialog']]
-export function WorkspaceHelp({ onClose, onExample }: { onClose: () => void; onExample: () => void }) {
+export function WorkspaceHelp({ onClose, onExample, onLaunch }: { onClose: () => void; onExample: () => void; onLaunch:(tab:string,toolkit:string)=>void }) {
   return <WorkspaceDialog title="Make your first idea real." description="A few shapes are all you need to get started." onClose={onClose} className="guide-dialog">
-    <div className="guide-steps">{[
+    <LearningPanel onLaunch={onLaunch}/>
+    <details><summary>Workspace basics</summary><div className="guide-steps">{[
       [Box, '01', 'Start with a shape', 'Open Build and choose a shape. On a small screen, open Build tools first. Measurements use millimeters.'],
       [MousePointer2, '02', 'Place it in the world', 'Click or tap the build plane to place it. Drag on the plane while placing to set a footprint.'],
       [SlidersHorizontal, '03', 'Make it yours', 'Select a shape and open the Model tab in Inspector to edit dimensions, position, color, or its Solid / Hole / Intersect role.'],
@@ -15,6 +17,6 @@ export function WorkspaceHelp({ onClose, onExample }: { onClose: () => void; onE
     <details className="shortcut-details"><summary>Select and move several shapes</summary><div className="guide-camera"><p>Turn on Multi-select in the Shapes header to tap several shapes, or hold Shift, Ctrl, or ⌘ while clicking shapes in the canvas or Model list to add or remove them from the selection. Focus the canvas, then use arrow keys to move the selected unlocked shapes together by the snap step; Page Up and Page Down move them vertically. With snap off, the step is 0.1 mm. Hold Shift for a 10× step or Alt for a 0.1× step.</p><p>Choose a combine action in Model to join selected shapes. The first selected shape is the base for subtraction. A Hole affects its combined group; changing a shape’s role alone does not cut unrelated shapes.</p></div></details>
     <details className="shortcut-details"><summary>Save, restore, and keep a backup</summary><div className="guide-camera"><p>Autosave updates the current project in this browser. Use Project actions → Save a checkpoint before a major change, then restore a checkpoint from History. Checkpoints are snapshots on this device, not cloud backups.</p><p>Export an editable project backup to keep a separate file with your shapes and settings. 3MF and STL are mesh exports for other software; they do not preserve the editable feature history. Print checks catch common issues but cannot certify that a model will print successfully.</p></div></details>
     <details className="shortcut-details"><summary>Keyboard shortcuts <span>{shortcuts.length} essentials</span></summary><dl>{shortcuts.map(([key, label]) => <div key={key}><dt>{label}</dt><dd><kbd>{key}</kbd></dd></div>)}</dl></details>
-    <footer className="dialog-footer"><span>Watch the save status. Download an editable backup if saving fails or before clearing browser data.</span><button className="studio-primary" onClick={onExample}>Try an editable example <ArrowUpRight size={17} /></button></footer>
+    </details><footer className="dialog-footer"><span>Watch the save status. Download an editable backup if saving fails or before clearing browser data.</span><button className="studio-primary" onClick={onExample}>Try an editable example <ArrowUpRight size={17} /></button></footer>
   </WorkspaceDialog>
 }

@@ -9,12 +9,15 @@
   ],
   "scripts": {
     "dev": "concurrently -n web,api -c cyan,magenta \"npm:dev -w @formforge/web\" \"npm:dev -w @formforge/api\"",
-    "build": "npm run build -w @formforge/model && npm run build -w @formforge/web && npm run build -w @formforge/api",
+    "build": "npm run build -w @formforge/model && npm run build -w @formforge/web && npm run build -w @formforge/api && node scripts/build-cloud.mjs",
     "test": "npm run test -w @formforge/model && npm run test -w @formforge/web",
-    "check": "npm run build -w @formforge/model && npm run typecheck -w @formforge/web && npm run typecheck -w @formforge/api"
+    "check": "npm run build -w @formforge/model && npm run typecheck -w @formforge/web && npm run typecheck -w @formforge/api && tsc -p apps/cloud/tsconfig.json",
+    "db:generate": "drizzle-kit generate"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
+    "drizzle-kit": "^0.31.10",
+    "drizzle-orm": "^0.45.2",
     "typescript": "^5.9.3"
   },
   "engines": {

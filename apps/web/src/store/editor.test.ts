@@ -235,3 +235,30 @@ describe('CAD selection editing', () => {
     expect(await useEditor.getState().saveNow()).toBe(true)
   })
 })
+
+
+describe('new CAD workflow recovery',()=>{
+ it('keeps an offset workplane placement above the physical bed',async()=>{
+  const {axisWorkplane}=await import('@/lib/workplanes')
+  useEditor.setState({document:{...createDocument(),nodes:[],workplane:axisWorkplane('xy',37)}})
+  useEditor.getState().addPrimitive('box')
+  const n=useEditor.getState().document.nodes[0]!
+  useEditor.setState({placingNodeId:n.id})
+  useEditor.getState().finishPlacement(n.id,n.transform,n.parameters)
+  expect(nodeWorldBounds(useEditor.getState().document.nodes[0]!).min.z).toBeCloseTo(37,5)
+ })
+ it('keeps the proven mesh when only annotations change',()=>{
+  const state=useEditor.getState(),mesh=evaluatedMesh([0,0,0],[1,1,1])
+  useEditor.setState({mesh,meshDocument:state.document,geometryStatus:'ready'})
+  const next={...state.document,annotations:[],revision:state.document.revision+1}
+  state.dispatch({type:'replace-document',document:next})
+  expect(useEditor.getState().mesh).toBe(mesh);expect(useEditor.getState().meshDocument).toBe(next)
+ })
+ it('patterns an entire Boolean group and assigns fresh group scope',()=>{
+  const state=useEditor.getState(),nodes=state.document.nodes.map((n,i)=>({...n,combined:true,groupId:'g',boolean:i?'cut' as const:'add' as const}))
+  useEditor.setState({document:{...state.document,nodes},selectedNodeIds:[nodes[0]!.id]})
+  useEditor.getState().patternSelected('x',2,100)
+  const copies=useEditor.getState().document.nodes.slice(2)
+  expect(copies).toHaveLength(2);expect(copies[1]!.boolean).toBe('cut');expect(copies[0]!.groupId).not.toBe('g');expect(copies[0]!.groupId).toBe(copies[1]!.groupId)
+ })
+})

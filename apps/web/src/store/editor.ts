@@ -339,6 +339,10 @@ export const useEditor = create<EditorState>((set, get) => {
         else set({ placingNodeId: null, ...(get().tool === 'place' ? { tool: 'move' as const } : {}) })
       }
       const previous = get().document
+      if(command.type==='update-node'&&command.patch.mesh&&!Object.hasOwn(command.patch,'text')) {
+        const nodeId=command.nodeId;const original=previous.nodes.find(n=>n.id===nodeId)
+        if(original?.text&&(command.patch.mesh.positions!==original.mesh?.positions||command.patch.mesh.indices!==original.mesh?.indices)) command={...command,patch:{...command.patch,text:undefined}}
+      }
       const next = executeCommand(previous, command)
       const retainsWorldStrokes = previous.sculptStrokes.length > 0 && JSON.stringify(previous.sculptStrokes) === JSON.stringify(next.sculptStrokes)
       if (retainsWorldStrokes && previous.nodes.some(node => {
@@ -366,7 +370,9 @@ export const useEditor = create<EditorState>((set, get) => {
       // Preserve a proven mesh for metadata and sculpt-mask changes that skip evaluation.
       const previousNode = command.type === 'update-node' ? previous.nodes.find((node) => node.id === command.nodeId) : undefined
       const visualKeys = new Set(['name', 'color', 'materialId', 'materialSlot', 'locked', 'visible'])
-      const geometryNeutral = command.type === 'update-node' && Object.keys(command.patch).every((key) => visualKeys.has(key)
+      const metadataOnly = command.type==='replace-document' && next.id===previous.id && next.nodes===previous.nodes && next.sculptStrokes===previous.sculptStrokes && next.printer===previous.printer && next.namedParameters===previous.namedParameters
+      if(metadataOnly) rebuildGeometry=false
+      const geometryNeutral = metadataOnly || command.type === 'update-node' && Object.keys(command.patch).every((key) => visualKeys.has(key)
         || (key === 'mesh' && command.patch.mesh?.positions === previousNode?.mesh?.positions && command.patch.mesh?.indices === previousNode?.mesh?.indices))
       const canReuseMesh = !rebuildGeometry && geometryNeutral && get().meshDocument === previous
       set((state) => ({
