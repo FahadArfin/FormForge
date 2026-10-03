@@ -1,3 +1,4 @@
+import { completeSelection } from './assemblies'
 import type { MeshPayload, ModelDocument, ParameterBindingTarget, Vec3Value } from '@formforge/model'
 
 export type PlatePlacementScope = 'selection' | 'document'
@@ -11,8 +12,7 @@ export interface PlatePlacementTarget {
 
 export function getPlatePlacementTarget(document: ModelDocument, selectedIds: readonly string[], scope: PlatePlacementScope): PlatePlacementTarget {
   const ids = new Set(scope === 'document' ? document.nodes.map(node => node.id) : selectedIds)
-  const groups = new Set(document.nodes.filter(node => ids.has(node.id) && node.combined && node.groupId).map(node => node.groupId))
-  const nodes = document.nodes.filter(node => ids.has(node.id) || (node.combined && node.groupId && groups.has(node.groupId)))
+  const nodes = completeSelection(document.nodes, [...ids])
   if (!nodes.length) throw new Error(scope === 'selection' ? 'Select a shape or assembly to place.' : 'Add a printable solid before placing the model.')
   if (nodes.some(node => node.locked)) throw new Error('Unlock all affected shapes first. A locked part cannot move with the assembly.')
   const movesWholeDocument = nodes.length === document.nodes.length

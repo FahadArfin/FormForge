@@ -1,3 +1,4 @@
+import { geometryKey,annotationValue } from '@/lib/annotations'
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
@@ -19,6 +20,10 @@ import {
 import { useEditor } from '@/store/editor'
 import { nonzeroScale, transformSelectionFromPrimary } from '@/lib/selectionTransforms'
 import { extractMeshTopology } from '@/lib/componentMesh'
+import { axisWorkplane, faceWorkplane, planeToWorld, worldToPlane, workplaneMatrix, placeNodeOnWorkplane, vector, value } from '@/lib/workplanes'
+import { placeFaceOnPlate } from '@/lib/facePlacement'
+import { evaluateSnapshot } from '@/geometry/evaluateSnapshot'
+import { getPlatePlacementTarget } from '@/lib/platePlacement'
 import { measurementFromHit } from '@/lib/measurementPicking'
 import { useInspection } from '@/store/inspection'
 import { sectionPlane, sectionPointVisible } from '@/lib/sectionView'
@@ -74,7 +79,7 @@ function disposeGroup(group: THREE.Group) {
       const candidate = object as THREE.Mesh
       candidate.geometry?.dispose()
       const materials = Array.isArray(candidate.material) ? candidate.material : candidate.material ? [candidate.material] : []
-      materials.forEach((material) => material.dispose())
+      materials.forEach((material) => { (material as THREE.MeshBasicMaterial).map?.dispose(); material.dispose() })
     })
     group.remove(child)
   }
@@ -112,6 +117,8 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     grid: THREE.GridHelper
     buildPlate: THREE.Mesh
     referenceGroup: THREE.Group
+    constructionGroup: THREE.Group
+    annotationGroup: THREE.Group
     measurementGroup: THREE.Group
     brushCursor: THREE.Group
     sketchGroup: THREE.Group
@@ -136,6 +143,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
   const brushRadius = useEditor((state) => state.brushRadius)
   const brushStrength = useEditor((state) => state.brushStrength)
   const measurement = useEditor((state) => state.measurement)
+  const anglePoints = useInspection(state => state.anglePoints)
   const section = useInspection(state => state.section)
   const meshComponentMode = useEditor((state) => state.meshComponentMode)
   const selectedMeshVertices = useEditor((state) => state.selectedMeshVertices)
@@ -196,6 +204,9 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     buildPlate.position.z = -0.08
     scene.add(buildPlate)
 
+    const annotationGroup = new THREE.Group(); scene.add(annotationGroup)
+    const constructionGroup = new THREE.Group()
+    scene.add(constructionGroup)
     const referenceGroup = new THREE.Group()
     const referenceGrid = (color: string) => {
       const helper = new THREE.GridHelper(180, 18, color, color)
@@ -313,13 +324,20 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       return raycaster.ray.intersectPlane(plane, new THREE.Vector3())
     }
 
+    const pointOnWorkplane = (event: PointerEvent) => {
+      updateRay(event)
+      const wp = useEditor.getState().document.workplane ?? axisWorkplane('xy')
+      const hit = raycaster.ray.intersectPlane(new THREE.Plane().setFromNormalAndCoplanarPoint(vector(wp.normal), vector(wp.origin)), new THREE.Vector3())
+      return hit ? worldToPlane(hit, wp) : null
+    }
+
     const resultHit = (event: PointerEvent) => {
       updateRay(event)
       const result = resultGroup.children[0]
       if (!result) return null
       const hit = raycaster.intersectObject(result, false).find(hit => sectionPointVisible(hit.point, useInspection.getState().section))
       if (!hit?.face) return null
-      const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld).normalize()
+      const normal = hit.face.normal.clone().applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld))
       return { point: hit.point, normal }
     }
 
@@ -331,7 +349,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       updateRay(event)
       const hit = raycaster.intersectObject(object, false).find(hit => sectionPointVisible(hit.point, useInspection.getState().section))
       if (!hit?.face) return null
-      const worldNormal = hit.face.normal.clone().transformDirection(object.matrixWorld).normalize()
+      const worldNormal = hit.face.normal.clone().applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(object.matrixWorld))
       const localPoint = object.worldToLocal(hit.point.clone())
       const localNormal = hit.face.normal.clone().normalize()
       return { point: hit.point, normal: worldNormal, localPoint, localNormal, object, node, seedVertex: hit.face.a }
@@ -369,7 +387,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       if (hover) linePoints.push(hover)
       if (!hover && sketchPoints.length > 2) linePoints.push(sketchPoints[0]!)
       const line = new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints(linePoints.map((point) => point.clone().setZ(0.12))),
+        new THREE.BufferGeometry().setFromPoints(linePoints.map((point) => planeToWorld(point.clone().setZ(0.12), useEditor.getState().document.workplane))),
         new THREE.LineBasicMaterial({ color: '#a9acff', depthTest: false }),
       )
       line.renderOrder = 35
@@ -379,7 +397,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
           new THREE.SphereGeometry(index === 0 ? 1.15 : 0.8, 14, 10),
           new THREE.MeshBasicMaterial({ color: index === 0 ? '#72d9b6' : '#f2f2ff', depthTest: false }),
         )
-        marker.position.copy(point).setZ(0.18)
+        marker.position.copy(planeToWorld(point.clone().setZ(0.18), useEditor.getState().document.workplane))
         marker.renderOrder = 36
         sketchGroup.add(marker)
       })
@@ -432,7 +450,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       if (outline) {
         outline.geometry.dispose()
         const materials = Array.isArray(outline.material) ? outline.material : [outline.material]
-        materials.forEach((material) => material.dispose())
+        materials.forEach((material) => { (material as THREE.MeshBasicMaterial).map?.dispose(); material.dispose() })
         object.remove(outline)
       }
       object.geometry.dispose()
@@ -575,7 +593,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
         const radialScale = distance / node.parameters.radius
         object.scale.set(radialScale, radialScale, node.kind === 'sphere' ? radialScale : 1)
       }
-      transformValue.position.z -= nodeWorldBounds({ ...node, transform: transformValue, parameters }).min.z
+      Object.assign(transformValue, placeNodeOnWorkplane({ ...node, parameters }, state.document.workplane, transformValue.position).transform)
       object.position.set(transformValue.position.x, transformValue.position.y, transformValue.position.z)
       placementPreview = { transform: transformValue, parameters }
     }
@@ -620,8 +638,28 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
         }
         return
       }
+      if(state.tool==='pick-workplane'||state.tool==='place-face') {
+        updateRay(event)
+        if(state.showResult && (state.geometryStatus!=='ready'||state.meshDocument!==state.document)) { state.setNotice('Wait for the current solid to finish building.'); return }
+        const targets = state.showResult ? resultGroup.children : sourceGroup.children.filter(o=>o.visible && state.document.nodes.some(n=>n.id===o.userData.nodeId && !n.suppressed && n.boolean==='add'))
+        const hit=raycaster.intersectObjects(targets,false).find(h=>h.face && sectionPointVisible(h.point,useInspection.getState().section))
+        if(!hit?.face) return
+        const normal=hit.face.normal.clone().applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld))
+        if(state.tool==='pick-workplane') {
+          state.dispatch({type:'replace-document',document:{...state.document,workplane:faceWorkplane(value(hit.point),value(normal)),revision:state.document.revision+1,updatedAt:new Date().toISOString()}})
+          state.setTool('select'); state.setNotice('Fixed workplane created on the picked mesh face.')
+        } else {
+          const selectionKey=JSON.stringify(state.selectedNodeIds), snapshot=state.document, ids=state.showResult ? snapshot.nodes.map(n=>n.id) : state.selectedNodeIds.includes(hit.object.userData.nodeId) ? [...state.selectedNodeIds] : [hit.object.userData.nodeId as string]
+          state.setTool('select'); state.setNotice('Checking face contact…')
+          void (async()=>{ try { const target=getPlatePlacementTarget(snapshot,ids,'selection'); const mesh=await evaluateSnapshot(target.evaluationDocument)
+            if(useEditor.getState().document!==snapshot||JSON.stringify(useEditor.getState().selectedNodeIds)!==selectionKey) throw new Error('The model changed. Pick the face again.')
+            const next=placeFaceOnPlate(snapshot,ids,mesh,value(hit.point),value(normal)); useEditor.getState().dispatch({type:'replace-document',document:next}); useEditor.getState().setNotice('Picked face placed on the plate. Assembly spacing preserved.')
+          } catch(e) { useEditor.getState().setNotice(e instanceof Error?e.message:'Could not place that face.') } })()
+        }
+        return
+      }
       if (state.tool === 'draw-profile') {
-        let point = pointOnPlane(event)
+        let point = pointOnWorkplane(event)
         if (!point) return
         const previous = sketchPoints.at(-1)
         if (previous && event.shiftKey) {
@@ -637,6 +675,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
         event.preventDefault()
         return
       }
+      if(state.tool==='measure-angle'){const point=measurementPoint(event);if(point){const old=useInspection.getState().anglePoints;useInspection.getState().setAnglePoints([...(old.length===3?[]:old),value(point)])}return}
       if (state.tool === 'measure') {
         const point = measurementPoint(event)
         if (!point) return
@@ -652,20 +691,17 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
         return
       }
       if (state.tool === 'place' && state.placingNodeId) {
-        const point = pointOnPlane(event)
+        const point = pointOnWorkplane(event)
         if (!point) return
         placementStart = point
         orbit.enabled = false
         const node = state.document.nodes.find((item) => item.id === state.placingNodeId)
         if (node) {
           const transformValue = structuredClone(node.transform)
-          transformValue.position = {
-            x: point.x,
-            y: point.y,
-            z: node.transform.position.z,
-          }
+          Object.assign(transformValue, placeNodeOnWorkplane(node, state.document.workplane, point).transform)
           const object = sourceById.get(node.id)
           object?.position.set(transformValue.position.x, transformValue.position.y, transformValue.position.z)
+          if (object) object.rotation.set(...[transformValue.rotation.x, transformValue.rotation.y, transformValue.rotation.z].map(THREE.MathUtils.degToRad) as [number,number,number])
           placementPreview = { transform: transformValue, parameters: structuredClone(node.parameters) }
         }
         renderer.domElement.setPointerCapture(event.pointerId)
@@ -758,7 +794,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     const onPointerMove = (event: PointerEvent) => {
       const state = useEditor.getState()
       if (state.tool === 'draw-profile') {
-        const point = pointOnPlane(event)
+        const point = pointOnWorkplane(event)
         refreshSketch(point)
         return
       }
@@ -804,7 +840,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
         return
       }
       if (placementStart && state.tool === 'place') {
-        const point = pointOnPlane(event)
+        const point = pointOnWorkplane(event)
         if (point) updatePlacement(point)
         return
       }
@@ -934,8 +970,10 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
         iso: new THREE.Vector3(1, -1, 0.82), top: new THREE.Vector3(0, 0, 1), bottom: new THREE.Vector3(0, 0, -1),
         front: new THREE.Vector3(0, -1, 0), back: new THREE.Vector3(0, 1, 0), right: new THREE.Vector3(1, 0, 0), left: new THREE.Vector3(-1, 0, 0),
       }
+      if (view === 'workplane') { const wp=useEditor.getState().document.workplane ?? axisWorkplane('xy'); center.copy(vector(wp.origin)); directions.workplane=vector(wp.normal) }
       const direction = (directions[view] ?? directions.iso!).normalize()
       camera.up.set(0, Math.abs(direction.z) > 0.99 ? 1 : 0, Math.abs(direction.z) > 0.99 ? 0 : 1)
+      if(view==='workplane') { const wp=useEditor.getState().document.workplane ?? axisWorkplane('xy'); camera.up.crossVectors(vector(wp.normal),vector(wp.xAxis)) }
       orbit.target.copy(center)
       camera.position.copy(center).addScaledVector(direction, distance)
       camera.updateProjectionMatrix()
@@ -969,7 +1007,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     animate()
 
     const sourceById = new Map<string, THREE.Mesh>()
-    runtime.current = { scene, camera, renderer, orbit, transform, sourceGroup, resultGroup, grid, buildPlate, referenceGroup, measurementGroup, brushCursor, sketchGroup, sourceById, resize, frame }
+    runtime.current = { scene, camera, renderer, orbit, transform, sourceGroup, resultGroup, grid, buildPlate, referenceGroup, constructionGroup, annotationGroup, measurementGroup, brushCursor, sketchGroup, sourceById, resize, frame }
     return () => {
       cancelAnimationFrame(frame)
       resize.disconnect()
@@ -988,6 +1026,8 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       disposeGroup(resultGroup)
       disposeGroup(sketchGroup)
       disposeGroup(referenceGroup)
+      disposeGroup(constructionGroup)
+      disposeGroup(annotationGroup)
       disposeGroup(measurementGroup)
       renderer.dispose()
       host.removeChild(renderer.domElement)
@@ -1020,7 +1060,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       if (visibleIds.has(id)) continue
       object.geometry.dispose()
       const materials = Array.isArray(object.material) ? object.material : [object.material]
-      materials.forEach((material) => material.dispose())
+      materials.forEach((material) => { (material as THREE.MeshBasicMaterial).map?.dispose(); material.dispose() })
       object.children.forEach((child) => {
         const line = child as THREE.LineSegments
         line.geometry?.dispose()
@@ -1269,7 +1309,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
   }, [showReferencePlanes])
 
   useEffect(() => { useInspection.getState().resetSection() }, [document.id])
-  useEffect(() => { useEditor.getState().setMeasurement(null) }, [document.nodes, document.sculptStrokes, document.id, showResult, section])
+  useEffect(() => { useEditor.getState().setMeasurement(null); useInspection.getState().setAnglePoints([]) }, [document.nodes, document.sculptStrokes, document.id, showResult, section])
 
   useEffect(() => {
     const rt = runtime.current
@@ -1315,6 +1355,47 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     const inner = cursor.children.find((child) => child.userData.inner)
     inner?.scale.setScalar(Math.max(0.12, brushStrength))
   }, [brushRadius, brushStrength])
+
+  useEffect(() => {
+    const group=runtime.current?.constructionGroup
+    if(!group) return
+    disposeGroup(group)
+    if(document.workplane) {
+      const grid=new THREE.GridHelper(200,20,'#8b79d9','#b8add9')
+      grid.rotation.x=Math.PI/2
+      const frame=new THREE.Group(); frame.matrixAutoUpdate=false; frame.matrix.copy(workplaneMatrix(document.workplane)); frame.add(grid); group.add(frame)
+    }
+    let cancelled=false
+    for(const image of document.referenceImages??[]) {
+      if(!image.visible)continue
+      const texture=new THREE.TextureLoader().load(image.dataUrl,()=>{if(cancelled)texture.dispose()})
+      texture.colorSpace=THREE.SRGBColorSpace
+      const material=new THREE.MeshBasicMaterial({map:texture,transparent:true,opacity:image.opacity,side:THREE.DoubleSide,depthWrite:false})
+      const mesh=new THREE.Mesh(new THREE.PlaneGeometry(image.width*image.mmPerPixel,image.height*image.mmPerPixel),material)
+      mesh.matrixAutoUpdate=false;mesh.matrix.copy(workplaneMatrix(image.plane).multiply(new THREE.Matrix4().makeTranslation(0,0,0.02)));group.add(mesh)
+    }
+    return ()=>{cancelled=true}
+  },[document.workplane,document.referenceImages])
+
+  useEffect(()=>{
+    const group=runtime.current?.annotationGroup;if(!group)return;disposeGroup(group)
+    if(tool==='measure-angle'&&anglePoints.length){
+      const points=anglePoints.map(vector)
+      if(points.length>1)group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:'#ffd36a',depthTest:false})))
+      for(const point of points){const marker=new THREE.Mesh(new THREE.SphereGeometry(0.6,12,8),new THREE.MeshBasicMaterial({color:'#ffd36a',depthTest:false}));marker.position.copy(point);marker.renderOrder=45;group.add(marker)}
+    }
+    const key=geometryKey(document)
+    for(const a of document.annotations??[]){
+      if(!a.visible||a.geometryKey!==key)continue
+      const points=a.points.map(vector)
+      const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:'#b68518',depthTest:false}));line.renderOrder=42;group.add(line)
+      const canvas=window.document.createElement('canvas');canvas.width=512;canvas.height=64;const ctx=canvas.getContext('2d')!
+      ctx.fillStyle='#201c35';ctx.fillRect(0,0,512,64);ctx.fillStyle='#ffffff';ctx.font='24px sans-serif';ctx.textAlign='center';ctx.fillText(`${a.label}: ${annotationValue(a).toFixed(2)} ${a.kind==='angle'?'deg':'mm'}`,256,42,492)
+      const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(canvas),depthTest:false}));sprite.position.copy(points[1]!).add(new THREE.Vector3(0,0,3));sprite.scale.set(32,4,1);sprite.renderOrder=43;group.add(sprite)
+    }
+  },[document.annotations,document.nodes,document.sculptStrokes,anglePoints,tool])
+
+  useEffect(()=>{window.dispatchEvent(new Event('formforge:cancel-sketch'))},[document.workplane])
 
   return <div ref={hostRef} tabIndex={0} role="region" className={`viewport-canvas ${tool === 'place' || tool === 'draw-profile' || tool === 'measure' ? 'is-placing' : tool.startsWith('sculpt') ? 'is-sculpting' : ''}`} aria-label="3D modeling viewport" />
 }

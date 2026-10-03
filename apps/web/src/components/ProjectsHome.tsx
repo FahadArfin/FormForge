@@ -111,7 +111,7 @@ export function ProjectsHome({ theme, onToggleTheme, currentDocument, onCreate, 
     <aside className="workshop-sidebar" aria-label="Workshop navigation">
       <button className="workshop-brand" onClick={() => setCollection('all')} aria-label="FormForge, my projects"><span className="brand-mark"><span /></span><strong>FormForge<span>Your ideas, in shape.</span></strong></button>
       <span className="workshop-nav-label">WORKSPACE</span>
-      <nav className="workshop-navigation">
+      <nav className="workshop-navigation"><button onClick={()=>window.dispatchEvent(new Event('formforge:open-cloud'))}><Users size={18}/><span>Cloud & review</span></button>
         <button className={activeCollection === 'all' ? 'selected' : ''} onClick={() => setCollection('all')} aria-current={activeCollection === 'all' ? 'page' : undefined}><FolderOpen size={18} /><span>My projects</span><small>{projects.length}</small></button>
         <button onClick={onOpenCommunity}><Globe2 size={18} /><span>Community</span><ArrowRight size={15} /></button>
         {onOpenGuide && <button onClick={onOpenGuide}><BookOpen size={18} /><span>Getting started</span></button>}

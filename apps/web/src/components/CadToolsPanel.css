@@ -23,3 +23,7 @@
 .cad-coupon-summary li { padding: 4px 0; }
 .cad-coupon-summary li small { display: block; color: var(--muted); font-variant-numeric: tabular-nums; }
 @media (max-width: 440px) { .cad-tools-panel { padding: 12px; } }
+
+.reference-preview{display:block;position:relative;width:100%;padding:0;overflow:hidden;border:1px solid var(--border);background:var(--panel)}
+.reference-preview img{display:block;width:100%;height:auto}.reference-preview span{position:absolute;transform:translate(-50%,-50%);background:#6554c0;color:white;border:2px solid white;border-radius:50%;width:22px;height:22px;font-weight:bold}
+.cad-select-label textarea{width:100%;box-sizing:border-box;padding:10px;background:var(--panel);color:inherit;border:1px solid var(--border);border-radius:8px}

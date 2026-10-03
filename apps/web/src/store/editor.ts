@@ -1,3 +1,6 @@
+import { patternAssembly } from '@/lib/assemblyTools'
+import { placeNodeOnWorkplane, planeToWorld, workplaneRotation, workplaneMatrix, value } from '@/lib/workplanes'
+import { Vector3 as PlaneVector, Matrix4 as PlaneMatrix, Euler as PlaneEuler, MathUtils as PlaneMath } from 'three'
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import {
@@ -192,7 +195,7 @@ let rebuildGeneration = 0
 let placementController: AbortController | null = null
 
 function splitDisconnectedMeshNode(node: ModelNode): ModelNode[] {
-  if (node.kind !== 'mesh' || !node.mesh || node.combined || node.groupId) return [node]
+  if (node.kind !== 'mesh' || !node.mesh || node.text || node.combined || node.groupId) return [node]
   const components = splitMeshIntoConnectedComponents(node.mesh)
   if (components.length <= 1) return [node]
   return components.map((component, index) => {
@@ -336,6 +339,10 @@ export const useEditor = create<EditorState>((set, get) => {
         else set({ placingNodeId: null, ...(get().tool === 'place' ? { tool: 'move' as const } : {}) })
       }
       const previous = get().document
+      if(command.type==='update-node'&&command.patch.mesh&&!Object.hasOwn(command.patch,'text')) {
+        const nodeId=command.nodeId;const original=previous.nodes.find(n=>n.id===nodeId)
+        if(original?.text&&(command.patch.mesh.positions!==original.mesh?.positions||command.patch.mesh.indices!==original.mesh?.indices)) command={...command,patch:{...command.patch,text:undefined}}
+      }
       const next = executeCommand(previous, command)
       const retainsWorldStrokes = previous.sculptStrokes.length > 0 && JSON.stringify(previous.sculptStrokes) === JSON.stringify(next.sculptStrokes)
       if (retainsWorldStrokes && previous.nodes.some(node => {
@@ -363,7 +370,9 @@ export const useEditor = create<EditorState>((set, get) => {
       // Preserve a proven mesh for metadata and sculpt-mask changes that skip evaluation.
       const previousNode = command.type === 'update-node' ? previous.nodes.find((node) => node.id === command.nodeId) : undefined
       const visualKeys = new Set(['name', 'color', 'materialId', 'materialSlot', 'locked', 'visible'])
-      const geometryNeutral = command.type === 'update-node' && Object.keys(command.patch).every((key) => visualKeys.has(key)
+      const metadataOnly = command.type==='replace-document' && next.id===previous.id && next.nodes===previous.nodes && next.sculptStrokes===previous.sculptStrokes && next.printer===previous.printer && next.namedParameters===previous.namedParameters
+      if(metadataOnly) rebuildGeometry=false
+      const geometryNeutral = metadataOnly || command.type === 'update-node' && Object.keys(command.patch).every((key) => visualKeys.has(key)
         || (key === 'mesh' && command.patch.mesh?.positions === previousNode?.mesh?.positions && command.patch.mesh?.indices === previousNode?.mesh?.indices))
       const canReuseMesh = !rebuildGeometry && geometryNeutral && get().meshDocument === previous
       set((state) => ({
@@ -381,6 +390,7 @@ export const useEditor = create<EditorState>((set, get) => {
       const node = createNode(kind, boolean, vec3())
       node.parameters = { ...node.parameters, ...parameters }
       node.transform.position.z -= nodeWorldBounds(node).min.z
+      Object.assign(node.transform, placeNodeOnWorkplane(node, get().document.workplane, {x:0,y:0}).transform)
       get().dispatch({ type: 'add-node', node }, true, false)
       set({ selectedNodeId: node.id, selectedNodeIds: [node.id], meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], placingNodeId: node.id, tool: 'place', showResult: false, notice: `Click to place or drag to resize the ${node.name.toLowerCase()}.` })
     },
@@ -457,6 +467,7 @@ export const useEditor = create<EditorState>((set, get) => {
       if (selectedIds.length < 2) { set({ notice: 'Select at least two shapes to combine.' }); return }
       const selected = selectedIds.map(id => get().document.nodes.find(node => node.id === id)).filter((node): node is ModelNode => Boolean(node))
       if (selected.some(node => node.locked)) { set({ notice: 'Unlock selected shapes before combining them.' }); return }
+      if (new Set(selected.map(node => JSON.stringify(node.assemblyPath ?? []))).size > 1) { set({ notice: 'Combine shapes within the same inserted assembly. Convert assemblies to meshes before combining across their boundaries.' }); return }
       const groupId = nanoid()
       const nodes = get().document.nodes.map((node) => {
         const index = selected.findIndex((candidate) => candidate.id === node.id)
@@ -506,7 +517,7 @@ export const useEditor = create<EditorState>((set, get) => {
       if (!node) return
       const placed = { ...node, transform, parameters }
       const grounded = { ...transform, position: { ...transform.position, z: transform.position.z - nodeWorldBounds(placed).min.z } }
-      get().updateNode(nodeId, { transform: grounded, parameters }, false)
+      get().updateNode(nodeId, { transform: get().document.workplane ? transform : grounded, parameters }, false)
       set({ placingNodeId: null, tool: 'move', notice: 'Shape placed. Drag the handles or enter exact values.' })
     },
 
@@ -531,12 +542,11 @@ export const useEditor = create<EditorState>((set, get) => {
       const operation = get().profileOperation
       const center = points.reduce((sum, point) => ({ x: sum.x + point.x / points.length, y: sum.y + point.y / points.length }), { x: 0, y: 0 })
       const minX = Math.min(...points.map((point) => point.x))
-      const minY = Math.min(...points.map((point) => point.y))
       const node = createNode(operation, 'add', operation === 'revolve' ? vec3(minX, center.y, 0) : vec3(center.x, center.y, 5))
       node.name = operation === 'revolve' ? 'Revolved profile' : 'Extruded profile'
       node.parameters.height = 10
       node.profile = operation === 'revolve'
-        ? points.map((point) => ({ x: point.x - minX, y: point.y - minY }))
+        ? points.map((point) => ({ x: point.x - minX, y: point.y - center.y }))
         : points.map((point) => ({ x: point.x - center.x, y: point.y - center.y }))
       node.profileSettings = { curveMode: 'polyline', cornerRadius: 0, offset: 0, tension: 0.5, resolution: 8 }
       const constraints: NonNullable<ModelNode['profileConstraints']> = []
@@ -547,6 +557,12 @@ export const useEditor = create<EditorState>((set, get) => {
       })
       node.profileConstraints = constraints
       node.profile = solveSketchConstraints(node.profile, constraints).points
+      const wp=get().document.workplane
+      node.transform.position=value(planeToWorld(new PlaneVector(operation==='revolve'?minX:center.x,center.y,operation==='revolve'?0:5),wp))
+      if(operation==='revolve') {
+        const e=new PlaneEuler().setFromRotationMatrix(workplaneMatrix(wp).multiply(new PlaneMatrix().makeRotationX(-Math.PI/2)))
+        node.transform.rotation={x:PlaneMath.radToDeg(e.x),y:PlaneMath.radToDeg(e.y),z:PlaneMath.radToDeg(e.z)}
+      } else node.transform.rotation=workplaneRotation(wp)
       get().dispatch({ type: 'add-node', node })
       set({ selectedNodeId: node.id, selectedNodeIds: [node.id], meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], tool: 'move', notice: operation === 'revolve' ? 'Profile revolved around its left edge. Adjust its segment quality in Properties.' : 'Profile extruded. Change its height in Properties.' })
     },
@@ -803,6 +819,11 @@ export const useEditor = create<EditorState>((set, get) => {
     },
 
     mirrorSelected(axis) {
+      const selection = get().document.nodes.filter(n => get().selectedNodeIds.includes(n.id))
+      if (selection.length > 1 || selection.some(n => n.combined || n.assemblyPath?.length)) {
+        set({ notice: 'Convert the complete assembly to a mesh before mirroring, so its holes stay with it.' })
+        return
+      }
       const source = get().document.nodes.find((node) => node.id === get().selectedNodeId)
       if (!source) return
       const mirrored = structuredClone(source)
@@ -816,23 +837,21 @@ export const useEditor = create<EditorState>((set, get) => {
     },
 
     patternSelected(axis, count, spacing) {
-      const source = get().document.nodes.find((node) => node.id === get().selectedNodeId)
-      if (!source) return
-      const safeCount = Math.max(2, Math.min(20, Math.round(count)))
-      const nodes = Array.from({ length: safeCount - 1 }, (_, index) => {
-        const copy = structuredClone(source)
-        copy.id = nanoid()
-        copy.name = `${source.name} pattern ${index + 2}`
-        copy.createdAt = new Date().toISOString()
-        copy.transform.position[axis] += spacing * (index + 1)
-        return copy
-      })
-      get().dispatch({ type: 'add-nodes', nodes })
-      const selectedNodeId = nodes.at(-1)?.id ?? source.id
-      set({ selectedNodeId, selectedNodeIds: [selectedNodeId], meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], notice: `${safeCount}-part ${axis.toUpperCase()} pattern created.` })
+      const state = get()
+      try {
+        const next = patternAssembly(state.document, state.selectedNodeIds, { mode: 'linear', axis, count, spacing, degrees: 360, origin: vec3() })
+        state.dispatch({ type: 'replace-document', document: next })
+        const ids = next.nodes.slice(state.document.nodes.length).map(n => n.id)
+        set({ selectedNodeId: ids[0] ?? null, selectedNodeIds: ids, notice: `${count} independent assembly instances created.` })
+      } catch (error) { set({ notice: (error as Error).message }) }
     },
 
     polarPatternSelected(axis, count, degrees, radius) {
+      const selection = get().document.nodes.filter(n => get().selectedNodeIds.includes(n.id))
+      if (selection.length > 1 || selection.some(n => n.combined || n.assemblyPath?.length)) {
+        set({ notice: 'Use Prepare → Assembly arrangement for a complete assembly pattern with an explicit rotation origin.' })
+        return
+      }
       const source = get().document.nodes.find((node) => node.id === get().selectedNodeId)
       if (!source) return
       const safeCount = Math.max(2, Math.min(36, Math.round(count)))
@@ -1058,6 +1077,9 @@ export const useEditor = create<EditorState>((set, get) => {
 
     duplicateSelected() {
       const ids = get().selectedNodeIds.length ? get().selectedNodeIds : get().selectedNodeId ? [get().selectedNodeId!] : []
+      if(get().document.nodes.some(n=>ids.includes(n.id)&&(n.assemblyPath?.length||n.combined))){
+        try{const previous=get().document,next=patternAssembly(previous,ids,{mode:'linear',axis:'x',count:2,spacing:8,degrees:360,origin:vec3()});const copies=next.nodes.slice(previous.nodes.length);for(const n of copies)n.transform.position.y+=8;get().dispatch({type:'replace-document',document:next});set({selectedNodeIds:copies.map(n=>n.id),selectedNodeId:copies.at(-1)!.id,notice:'Independent assembly duplicated.'})}catch(e){set({notice:(e as Error).message})}return
+      }
       const copies = get().document.nodes.filter((node) => ids.includes(node.id)).map((node) => ({
         ...structuredClone(node), id: nanoid(), name: `${node.name} copy`, createdAt: new Date().toISOString(), groupId: undefined, combined: false,
         transform: { ...structuredClone(node.transform), position: { ...node.transform.position, x: node.transform.position.x + 8, y: node.transform.position.y + 8 } },

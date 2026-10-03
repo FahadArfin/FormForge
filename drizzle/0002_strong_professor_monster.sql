@@ -1,0 +1,1 @@
+ALTER TABLE `cloud_deletions` ADD `bytes` integer DEFAULT 0 NOT NULL;

@@ -196,3 +196,5 @@ kbd { font: 10px 'Segoe UI', sans-serif; border: 1px solid var(--line); border-r
   .studio-secondary-controls .studio-utilities { order: 0; }
   .studio-secondary-controls > .studio-primary { padding: 8px 12px; min-height: 35px; }
 }
+
+.canvas-task-prompt{position:absolute;top:76px;left:50%;transform:translateX(-50%);width:max-content;max-width:calc(100% - 24px);padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--text);box-shadow:var(--soft-shadow);display:flex;align-items:center;gap:14px;font-size:12px;z-index:6}

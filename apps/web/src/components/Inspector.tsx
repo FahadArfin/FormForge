@@ -1,3 +1,10 @@
+import { AnnotationsPanel } from './AnnotationsPanel'
+import { FunctionalRecipesPanel } from './FunctionalRecipesPanel'
+import { AssemblyToolsPanel } from './AssemblyToolsPanel'
+import { PartsLibraryPanel } from './PartsLibraryPanel'
+import { ReferenceImagePanel } from './ReferenceImagePanel'
+import { TextPanel } from './TextPanel'
+import { WorkplanePanel } from './WorkplanePanel'
 import { Copy, Eye, EyeOff, Lock, Search, Trash2, Unlock, BoxSelect, Printer, ArrowDownToLine, FlipHorizontal2, Grid2X2Plus, History, RotateCw, Combine, Scissors, ScanLine, Ungroup, Palette, Spline, ArrowUp, ArrowDown, Power, Layers3, Sparkles } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { ModelNode, TransformValue, Vec3Value } from '@formforge/model'
@@ -159,7 +166,7 @@ function ShapeInspector({ node }: { node: ModelNode }) {
         </div>
         <small>Set a value to zero to disable it. Hollow subtracts a scaled inner copy; wall thickness varies with shape.</small>
       </div>
-      <NodeParameterBindings node={node} />
+      {node.text && <TextPanel node={node}/> }<NodeParameterBindings node={node} />
       <div className="property-group object-actions">
         <h3>Quick actions</h3>
         <button onClick={dropToPlate}><ArrowDownToLine size={14} /> Drop to plate</button>
@@ -253,7 +260,7 @@ export function Inspector() {
       <button className={`cad-toolkit-trigger ${panel === 'tools' ? 'active' : ''}`} aria-pressed={panel === 'tools'} onClick={() => setPanel('tools')}><Sparkles size={15} /><strong>CAD toolkit</strong><span>Holes · fits · sections · split</span></button>
       {panel === 'tools' ? <div className="inspector-workflow cad-toolkit-workflow">
         <div className="toolkit-navigation" role="group" aria-label="CAD workflow"><button aria-pressed={toolkitTab === 'create'} onClick={() => setToolkitTab('create')}>Create</button><button aria-pressed={toolkitTab === 'inspect'} onClick={() => setToolkitTab('inspect')}>Inspect</button><button aria-pressed={toolkitTab === 'prepare'} onClick={() => setToolkitTab('prepare')}>Prepare</button></div>
-        {toolkitTab === 'create' ? <CadToolsPanel key={document.id} /> : toolkitTab === 'inspect' ? <><SectionPanel /><section className="workflow-card"><h3>Measure the visible mesh</h3><p>Choose mesh vertices for corners or surface points for free measurements. The canvas readout shows distance and X/Y/Z offsets.</p><button className="workflow-action secondary" onClick={() => { useEditor.getState().setTool('measure'); useEditor.getState().setMeasurement(null) }}>Start measuring</button></section></> : <><PlatePlacementPanel /><details className="cad-toolkit-details"><summary>Split into printable pieces</summary><SectionPanel /><SplitPanel /></details></>}
+        {toolkitTab === 'create' ? <><WorkplanePanel key={document.id}/><details className="cad-toolkit-details"><summary>Trace an image</summary><ReferenceImagePanel key={document.id}/></details><details className="cad-toolkit-details"><summary>Emboss / deboss text</summary><TextPanel/></details><details className="cad-toolkit-details"><summary>Insert reusable parts</summary><PartsLibraryPanel/></details><details className="cad-toolkit-details"><summary>Enclosures, brackets, adapters and snaps</summary><FunctionalRecipesPanel/></details><CadToolsPanel key={document.id} /></> : toolkitTab === 'inspect' ? <><SectionPanel /><AnnotationsPanel/><section className="workflow-card"><h3>Measure the visible mesh</h3><p>Choose mesh vertices for corners or surface points for free measurements. The canvas readout shows distance and X/Y/Z offsets.</p><button className="workflow-action secondary" onClick={() => { useEditor.getState().setTool('measure'); useEditor.getState().setMeasurement(null) }}>Start measuring</button></section></> : <><section className="workflow-card"><h3>Place a face on the plate</h3><p>Click an outer flat face. In Solid result, the whole model moves. In Edit shapes, the picked selection and its groups move together.</p><button className="workflow-action" onClick={()=>useEditor.getState().setTool('place-face')}>Pick contact face</button></section><PlatePlacementPanel /><details className="cad-toolkit-details"><summary>Align and pattern assemblies</summary><AssemblyToolsPanel/></details><details className="cad-toolkit-details"><summary>Split into printable pieces</summary><SectionPanel /><SplitPanel /></details></>}
       </div> : panel === 'print' ? <PrintPanel /> : panel === 'history' ? <HistoryPanel /> : panel === 'parameters' ? <ParameterPanel key={document.id} /> : <>
       <div className="feature-list-heading"><h2>Shapes</h2><span>{document.nodes.length}</span><button className="multi-select-toggle" type="button" aria-label="Select multiple shapes" aria-pressed={multiSelect} onClick={() => setMultiSelect(!multiSelect)}><BoxSelect size={14} /> Multi-select</button></div>
       {document.nodes.length > 0 && <label className="feature-search"><Search size={14} aria-hidden="true" /><input type="search" aria-label="Find shapes by name, type, or layer" placeholder="Find a shape…" value={featureQuery} onChange={(event) => setFeatureQuery(event.target.value)} /></label>}
