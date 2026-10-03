@@ -8,6 +8,8 @@ import {
 } from '@formforge/model'
 import { evaluateNamedParameters, getParameterTargetInfo, parameterTargets } from '@/lib/modelParameters'
 import { useEditor } from '@/store/editor'
+import { ParameterVariants } from './ParameterVariants'
+import './InspectorWorkflows.css'
 
 const parameterReference = (name: string) => /^[\p{L}_][\p{L}\p{N}_]*$/u.test(name.trim()) ? name.trim() : `[${name.trim()}]`
 
@@ -64,6 +66,7 @@ export function ParameterPanel() {
     </div>
     {!definitions.length && <div className="empty-parameters"><strong>No parameters yet</strong><span>Create named sizes such as Wall, Width, or Handle angle, then bind them to shape dimensions.</span></div>}
     <button className="add-parameter" onClick={add}><Plus size={14} /> Add named parameter</button>
+    <ParameterVariants />
     <aside className="parameter-help"><strong>Expression examples</strong><code>Width / 2</code><code>[Wall Thickness] * 3</code><span>Use square brackets when a name contains spaces. Length and angle parameters cannot be mixed.</span></aside>
   </div>
 }

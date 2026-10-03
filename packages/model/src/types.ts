@@ -139,6 +139,12 @@ export interface PrinterProfile {
   overhangAngle: number
 }
 
+export interface ParameterVariant {
+  id: string
+  name: string
+  parameters: ParameterDefinition[]
+}
+
 export interface ModelDocument {
   schemaVersion: 1
   id: string
@@ -148,6 +154,7 @@ export interface ModelDocument {
   nodes: ModelNode[]
   materialPalette: MaterialPaletteEntry[]
   namedParameters: ParameterDefinition[]
+  parameterVariants?: ParameterVariant[]
   sculptStrokes: SculptStroke[]
   printer: PrinterProfile
   revision: number

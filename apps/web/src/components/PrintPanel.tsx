@@ -5,6 +5,7 @@ import { useEditor } from '@/store/editor'
 import { analyzeMesh } from '@/lib/meshTools'
 import { getPrintReadiness, withPrinterSettings } from '@/lib/printReadiness'
 import './InspectorWorkflows.css'
+import { PlatePlacementPanel } from './PlatePlacementPanel'
 
 function PrinterSettings({ printer, onApply }: { printer: PrinterProfile; onApply: (printer: PrinterProfile) => void }) {
   const toDraft = (value: PrinterProfile) => ({ name: value.name, x: String(value.buildVolume.x), y: String(value.buildVolume.y), z: String(value.buildVolume.z), nozzle: String(value.nozzleDiameter), wall: String(value.minimumWall) })
@@ -63,6 +64,7 @@ export function PrintPanel() {
       <dl className="print-summary"><div><dt>Volume</dt><dd>{currentAnalysis.volume.toLocaleString(undefined, { maximumFractionDigits: 0 })} mm³</dd></div><div><dt>Triangles</dt><dd>{currentAnalysis.triangleCount.toLocaleString()}</dd></div></dl>
     </section>}
 
+    <PlatePlacementPanel />
     <section className="workflow-card printer-setup">
       <div className="workflow-card-heading"><h3><Printer size={17} /> Printer setup</h3><button className="workflow-icon" aria-label={editingPrinter ? 'Close printer setup' : 'Edit printer setup'} aria-expanded={editingPrinter} onClick={() => setEditingPrinter((value) => !value)}><Settings2 size={17} /></button></div>
       {!editingPrinter && <><strong className="printer-name">{document.printer.name}</strong><p>{document.printer.buildVolume.x} × {document.printer.buildVolume.y} × {document.printer.buildVolume.z} mm build volume</p><p>Wall target: {document.printer.minimumWall} mm · Nozzle: {document.printer.nozzleDiameter} mm</p><button className="workflow-text-action" onClick={() => setEditingPrinter(true)}>Change printer setup</button></>}

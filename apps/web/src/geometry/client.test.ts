@@ -1,46 +1,56 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createDocument, type ModelDocument } from '@formforge/model'
+import { createDocument } from '@formforge/model'
 
 class TestWorker {
-  static latest: TestWorker
+  static instances: TestWorker[] = []
   onmessage: ((event: MessageEvent) => void) | null = null
-  messages: { id: number; document: ModelDocument }[] = []
-
-  constructor() { TestWorker.latest = this }
-  postMessage(message: { id: number; document: ModelDocument }) { this.messages.push(message) }
-  finish(triangleCount: number) {
-    this.onmessage?.({ data: { id: this.messages.at(-1)!.id, ok: true, positions: new Float32Array(), indices: new Uint32Array(), volume: triangleCount, triangleCount } } as MessageEvent)
-  }
+  onerror: ((event: ErrorEvent) => void) | null = null
+  onmessageerror: (() => void) | null = null
+  postMessage = vi.fn()
+  terminate = vi.fn()
+  constructor() { TestWorker.instances.push(this) }
 }
-
-beforeEach(() => { vi.resetModules(); vi.stubGlobal('Worker', TestWorker) })
+beforeEach(() => { vi.resetModules(); TestWorker.instances = []; vi.stubGlobal('Worker', TestWorker) })
 afterEach(() => vi.unstubAllGlobals())
 
-describe('geometry snapshot cache', () => {
-  it('reuses evaluated geometry for the identical immutable snapshot', async () => {
-    const { geometryClient } = await import('./client')
-    const document = createDocument()
-    const evaluated = geometryClient.evaluate(document)
-    TestWorker.latest.finish(12)
-    const mesh = await evaluated
-    expect(await geometryClient.evaluate(document)).toBe(mesh)
-    expect(TestWorker.latest.messages).toHaveLength(1)
+describe('isolated geometry client lifecycle', () => {
+  it('cancels active and queued evaluations when disposed and refuses new work', async () => {
+    const { GeometryClient } = await import('./client')
+    const client = new GeometryClient()
+    const worker = TestWorker.instances.at(-1)!
+    const active = client.evaluate(createDocument()).catch(error => error)
+    const queued = client.evaluate(createDocument()).catch(error => error)
+    client.dispose()
+    expect((await active).name).toBe('AbortError')
+    expect((await queued).name).toBe('AbortError')
+    expect(worker.terminate).toHaveBeenCalledOnce()
+    await expect(client.evaluate(createDocument())).rejects.toThrow()
   })
-
-  it('evaluates imported geometry independently when id, revision, and edit time are unchanged', async () => {
-    const { geometryClient } = await import('./client')
-    const document = createDocument()
-    const first = geometryClient.evaluate(document)
-    TestWorker.latest.finish(12)
-    await first
-    const imported = structuredClone(document)
-    imported.nodes[0]!.parameters.width = 64
-    expect([imported.id, imported.revision, imported.updatedAt]).toEqual([document.id, document.revision, document.updatedAt])
-
-    const second = geometryClient.evaluate(imported)
-    expect(TestWorker.latest.messages).toHaveLength(2)
-    expect(TestWorker.latest.messages[1]!.document.nodes[0]!.parameters.width).toBe(64)
-    TestWorker.latest.finish(24)
-    expect((await second).triangleCount).toBe(24)
+  it('rejects pending evaluations when the worker fails instead of waiting forever', async () => {
+    const { GeometryClient } = await import('./client')
+    const client = new GeometryClient()
+    const worker = TestWorker.instances.at(-1)!
+    const active = client.evaluate(createDocument()).catch(error => error)
+    const queued = client.evaluate(createDocument()).catch(error => error)
+    worker.onerror?.({ message: 'Worker could not load', preventDefault() {} } as ErrorEvent)
+    expect((await active).message).toContain('Worker could not load')
+    expect((await queued).message).toContain('Worker could not load')
+    expect(worker.terminate).toHaveBeenCalledOnce()
+  })
+  it('can retry after a worker failure without a late event from the old worker cancelling the retry', async () => {
+    const { GeometryClient } = await import('./client')
+    const client = new GeometryClient()
+    const old = TestWorker.instances.at(-1)!
+    const failure = client.evaluate(createDocument()).catch(error => error)
+    const lateError = old.onerror!
+    lateError({ message: 'Old worker failed', preventDefault() {} } as ErrorEvent)
+    expect((await failure).message).toContain('Old worker failed')
+    const retry = client.evaluate(createDocument()).catch(error => error)
+    const fresh = TestWorker.instances.at(-1)!
+    lateError({ message: 'Late stale failure', preventDefault() {} } as ErrorEvent)
+    const id = fresh.postMessage.mock.calls[0]![0].id
+    fresh.onmessage!({ data: { id, ok: true, positions: new Float32Array([1, 2, 3]), indices: new Uint32Array(), triangleCount: 0, volume: 0 } } as MessageEvent)
+    expect((await retry).positions).toEqual(new Float32Array([1, 2, 3]))
+    client.dispose()
   })
 })

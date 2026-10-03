@@ -71,6 +71,15 @@
   --viewport-border: #d9dfea;
 }
 [data-theme='light'] .viewport-tools.viewport-controls .viewport-display-panel > button.active em { color: #5f50bc; }
+.measurement-details { position: absolute; top: calc(100% + 8px); left: 0; width: min(340px, calc(100vw - 48px)); padding: 14px; color: var(--viewport-text); background: var(--viewport-panel); border: 1px solid var(--viewport-border); border-radius: 12px; box-shadow: 0 8px 24px #0003; }
+.measurement-details > div { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.measurement-details p, .measurement-details > small { display: block; font-size: 12px; color: var(--viewport-muted); line-height: 1.5; margin: 10px 0; }
+.measurement-details button { padding: 7px 10px; border: 1px solid var(--viewport-border); border-radius: 6px; color: var(--viewport-text); background: var(--viewport-control); cursor: pointer; }
+.measurement-details strong { display: block; font-size: 22px; font-variant-numeric: tabular-nums; margin-top: 12px; }
+.measurement-details strong small { font-size: 12px; font-weight: 400; }
+.measurement-details dl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 12px 0; margin: 0; }
+.measurement-details dt { font-size: 11px; color: var(--viewport-muted); }
+.measurement-details dd { margin: 4px 0 0; font-size: 12px; font-variant-numeric: tabular-nums; }
 @media (max-width: 1100px) {
   .viewport-tools.viewport-controls { top: 12px; left: 12px; max-width: calc(100% - 24px); gap: 0; }
   .viewport-tools.viewport-controls > button { padding: 0 7px; }

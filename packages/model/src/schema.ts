@@ -118,6 +118,11 @@ export const modelDocumentSchema = z.object({
   nodes: z.array(modelNodeSchema),
   materialPalette: z.array(materialPaletteEntrySchema).max(256).default([]),
   namedParameters: z.array(namedParameterSchema).default([]),
+  parameterVariants: z.array(z.object({
+    id: z.string().min(1).max(128),
+    name: z.string().trim().min(1).max(64),
+    parameters: z.array(namedParameterSchema.extend({ name: z.string().min(1).max(128), expression: z.string().max(256) })).min(1).max(256),
+  })).max(24).optional(),
   sculptStrokes: z.array(z.object({
     id: z.string(),
     nodeId: z.string(),

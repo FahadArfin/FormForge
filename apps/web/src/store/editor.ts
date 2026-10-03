@@ -22,9 +22,12 @@ import {
   vec3,
 } from '@formforge/model'
 import { geometryClient } from '@/geometry/client'
+import { evaluateSnapshot } from '@/geometry/evaluateSnapshot'
 import { deleteProject as deleteSavedProject, loadMostRecentProject, saveProject } from '@/lib/db'
 import { createProjectPersistence, type ProjectSaveState } from '@/lib/projectPersistence'
-import { makeSourceGeometry, nodeWorldBounds } from '@/lib/modelGeometry'
+import { hasSurfaceModifiers, makeSourceGeometry, nodeWorldBounds } from '@/lib/modelGeometry'
+import { modelPointToWorld } from '@/lib/modelTransforms'
+import { getPlatePlacementTarget, placeDocumentFromMesh, type PlatePlacementAction, type PlatePlacementScope } from '@/lib/platePlacement'
 import { repairMesh } from '@/lib/meshTools'
 import { geometryToSculptMesh, subdivideMesh, type SculptMesh } from '@/lib/polygonSculpt'
 import { resolveDocumentParameterBindings } from '@/lib/modelParameters'
@@ -110,7 +113,8 @@ interface EditorState extends ProjectSaveState {
   selectAll: () => void
   translateSelection: (delta: Vec3Value) => void
   updateSelectionTransforms: (updates: { id: string; transform: ModelNode['transform'] }[]) => void
-  dropSelectionToPlate: () => void
+  dropSelectionToPlate: () => Promise<void>
+  placeOnPlate: (scope: PlatePlacementScope, action: PlatePlacementAction) => Promise<void>
   selectNode: (id: string | null, additive?: boolean) => void
   combineSelected: (mode: 'union' | 'subtract' | 'intersect' | 'hull') => void
   ungroupSelected: () => void
@@ -185,27 +189,13 @@ interface EditorState extends ProjectSaveState {
 let rebuildTimer: ReturnType<typeof setTimeout> | null = null
 let busyTimer: ReturnType<typeof setTimeout> | null = null
 let rebuildGeneration = 0
-
-function rotateLocalOffset(offset: Vec3Value, rotation: Vec3Value): Vec3Value {
-  const x = rotation.x * Math.PI / 180
-  const y = rotation.y * Math.PI / 180
-  const z = rotation.z * Math.PI / 180
-  const aroundX = { x: offset.x, y: offset.y * Math.cos(x) - offset.z * Math.sin(x), z: offset.y * Math.sin(x) + offset.z * Math.cos(x) }
-  const aroundY = { x: aroundX.x * Math.cos(y) + aroundX.z * Math.sin(y), y: aroundX.y, z: -aroundX.x * Math.sin(y) + aroundX.z * Math.cos(y) }
-  return { x: aroundY.x * Math.cos(z) - aroundY.y * Math.sin(z), y: aroundY.x * Math.sin(z) + aroundY.y * Math.cos(z), z: aroundY.z }
-}
+let placementController: AbortController | null = null
 
 function splitDisconnectedMeshNode(node: ModelNode): ModelNode[] {
   if (node.kind !== 'mesh' || !node.mesh || node.combined || node.groupId) return [node]
   const components = splitMeshIntoConnectedComponents(node.mesh)
   if (components.length <= 1) return [node]
   return components.map((component, index) => {
-    const scaledCenter = {
-      x: component.center.x * node.transform.scale.x,
-      y: component.center.y * node.transform.scale.y,
-      z: component.center.z * node.transform.scale.z,
-    }
-    const offset = rotateLocalOffset(scaledCenter, node.transform.rotation)
     return {
       ...structuredClone(node),
       id: index === 0 ? node.id : nanoid(),
@@ -213,11 +203,7 @@ function splitDisconnectedMeshNode(node: ModelNode): ModelNode[] {
       mesh: component.mesh,
       transform: {
         ...structuredClone(node.transform),
-        position: {
-          x: node.transform.position.x + offset.x,
-          y: node.transform.position.y + offset.y,
-          z: node.transform.position.z + offset.z,
-        },
+        position: modelPointToWorld(component.center, node.transform),
       },
       combined: false,
       groupId: undefined,
@@ -273,6 +259,7 @@ export const useEditor = create<EditorState>((set, get) => {
     }
     const resolved = resolveDocumentParameterBindings(touched)
     get().dispatch({ type: 'replace-document', document: resolved.document }, true, true)
+    if (get().document !== resolved.document) return
     set({ parameterErrors: resolved.errors, ...(notice ? { notice } : {}) })
   }
 
@@ -350,6 +337,14 @@ export const useEditor = create<EditorState>((set, get) => {
       }
       const previous = get().document
       const next = executeCommand(previous, command)
+      const retainsWorldStrokes = previous.sculptStrokes.length > 0 && JSON.stringify(previous.sculptStrokes) === JSON.stringify(next.sculptStrokes)
+      if (retainsWorldStrokes && previous.nodes.some(node => {
+        const changed = next.nodes.find(candidate => candidate.id === node.id)
+        return changed && JSON.stringify(changed.transform) !== JSON.stringify(node.transform)
+      })) {
+        set({ notice: 'Object transforms cannot carry existing volume sculpting. Export and reimport the evaluated model to bake it before moving, rotating, or scaling parts.' })
+        return
+      }
       if (previous.sculptStrokes !== next.sculptStrokes && JSON.stringify(previous.sculptStrokes) !== JSON.stringify(next.sculptStrokes) && previous.nodes.some(node => node.locked && !node.suppressed)) {
         set({ notice: 'Unlock all shapes before changing volume sculpting. These changes affect the combined model.' })
         return
@@ -408,7 +403,35 @@ export const useEditor = create<EditorState>((set, get) => {
       get().updateSelectionTransforms(get().document.nodes.filter(node => get().selectedNodeIds.includes(node.id) && !node.locked).map(node => ({ id: node.id, transform: { ...node.transform, position: { x: node.transform.position.x + delta.x, y: node.transform.position.y + delta.y, z: node.transform.position.z + delta.z } } })))
     },
     dropSelectionToPlate() {
-      get().updateSelectionTransforms(get().document.nodes.filter(node => get().selectedNodeIds.includes(node.id) && !node.locked).map(node => ({ id: node.id, transform: { ...node.transform, position: { ...node.transform.position, z: node.transform.position.z - nodeWorldBounds(node).min.z } } })))
+      return get().placeOnPlate('selection', 'drop')
+    },
+    async placeOnPlate(scope, action) {
+      placementController?.abort()
+      const controller = new AbortController()
+      placementController = controller
+      const state = get()
+      const document = state.document
+      const selectedIds = [...state.selectedNodeIds]
+      try {
+        if (state.placingNodeId) throw new Error('Finish placing the current shape before moving the model to the plate.')
+        const target = getPlatePlacementTarget(document, selectedIds, scope)
+        set({ notice: 'Checking the evaluated solid for plate placement…' })
+        const mesh = target.movesWholeDocument && state.geometryStatus === 'ready' && state.meshDocument === document && state.mesh
+          ? state.mesh
+          : await evaluateSnapshot(target.evaluationDocument, controller.signal)
+        if (controller.signal.aborted) return
+        if (get().document !== document) { set({ notice: 'The model changed during placement. Try again with the current model.' }); return }
+        if (scope === 'selection' && JSON.stringify(get().selectedNodeIds) !== JSON.stringify(selectedIds)) { set({ notice: 'The selection changed during placement. Try again with the current selection.' }); return }
+        const next = placeDocumentFromMesh(document, target, mesh, action)
+        if (!next) { set({ notice: 'The model is already in that plate position.' }); return }
+        get().dispatch({ type: 'replace-document', document: next })
+        if (get().document !== next) return
+        set({ notice: `${scope === 'document' ? 'Whole model' : 'Selection and its grouped parts'} ${action === 'center' ? 'centered on the plate' : action === 'drop' ? 'dropped to the plate' : 'centered and dropped to the plate'}. Relative part positions were preserved.` })
+      } catch (error) {
+        if (!controller.signal.aborted) set({ notice: error instanceof Error ? error.message : 'The model could not be placed on the plate.' })
+      } finally {
+        if (placementController === controller) placementController = null
+      }
     },
     selectNode(id, additive = false) {
       if (get().placingNodeId) set({ placingNodeId: null, ...(get().tool === 'place' ? { tool: 'move' as const } : {}) })
@@ -841,7 +864,9 @@ export const useEditor = create<EditorState>((set, get) => {
         return copy
       })
       const documentNodes = get().document.nodes.map((node) => node.id === source.id ? base : node)
-      get().dispatch({ type: 'replace-nodes', nodes: [...documentNodes, ...nodes] })
+      const updatedNodes = [...documentNodes, ...nodes]
+      get().dispatch({ type: 'replace-nodes', nodes: updatedNodes })
+      if (get().document.nodes !== updatedNodes) return
       set({ selectedNodeId: nodes.at(-1)?.id ?? source.id, selectedNodeIds: [source.id, ...nodes.map((node) => node.id)], meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], notice: `${safeCount}-part polar pattern created around the ${axis.toUpperCase()} axis.` })
     },
 
@@ -858,6 +883,7 @@ export const useEditor = create<EditorState>((set, get) => {
       }))
       const nodes = get().document.nodes.map((node) => updates.has(node.id) ? { ...node, transform: { ...node.transform, position: updates.get(node.id)! } } : node)
       get().dispatch({ type: 'replace-nodes', nodes })
+      if (get().document.nodes !== nodes) return
       set({ notice: `Aligned ${selected.length} shapes on ${axis.toUpperCase()} (${alignment}).` })
     },
 
@@ -873,6 +899,7 @@ export const useEditor = create<EditorState>((set, get) => {
       const updates = new Map(sorted.map(({ node, center }, index) => [node.id, { ...node.transform.position, [axis]: node.transform.position[axis] + first + (last - first) * index / (sorted.length - 1) - center }]))
       const nodes = get().document.nodes.map((node) => updates.has(node.id) ? { ...node, transform: { ...node.transform, position: updates.get(node.id)! } } : node)
       get().dispatch({ type: 'replace-nodes', nodes })
+      if (get().document.nodes !== nodes) return
       set({ notice: `Distributed ${selected.length} shapes evenly along ${axis.toUpperCase()}.` })
     },
 
@@ -905,6 +932,14 @@ export const useEditor = create<EditorState>((set, get) => {
       }
       if (!selected) {
         set({ notice: 'Select one shape first, then start Polygon Sculpt.' })
+        return
+      }
+      if (get().document.sculptStrokes.length) {
+        set({ notice: 'Polygon conversion would discard volume sculpting. Export and reimport the evaluated model to bake it first.' })
+        return
+      }
+      if (hasSurfaceModifiers(selected)) {
+        set({ notice: 'Polygon conversion would discard surface modifiers. Export and reimport the evaluated model to bake them first.' })
         return
       }
       const geometry = makeSourceGeometry(selected)

@@ -17,6 +17,17 @@ const type = async (input: HTMLInputElement, text: string) => act(async () => {
 })
 
 describe('precise numeric edits', () => {
+  it('commits inch fractions once and explains invalid arithmetic without changing geometry', async () => {
+    const commit = vi.fn()
+    await act(async () => root.render(<NumberInput label="Width" suffix="mm" value={20} onChange={commit} />))
+    const input = host.querySelector('input')!
+    await act(async () => input.focus()); await type(input, '1/2 in'); await act(async () => input.blur())
+    expect(commit).toHaveBeenCalledExactlyOnceWith(12.7)
+    await act(async () => input.focus()); await type(input, '1/0'); await act(async () => input.blur())
+    expect(commit).toHaveBeenCalledTimes(1)
+    expect(input.getAttribute('aria-invalid')).toBe('true')
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('division by zero')
+  })
   it('keeps a partial negative decimal as a draft and commits once on Enter', async () => {
     const commit = vi.fn()
     await act(async () => root.render(<NumberInput label="X" value={20} onChange={commit} />))

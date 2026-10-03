@@ -1,8 +1,9 @@
 /// <reference lib="webworker" />
 import Module from 'manifold-3d'
-import type { Manifold as ManifoldType, ManifoldToplevel } from 'manifold-3d'
+import type { Manifold as ManifoldType, ManifoldToplevel, Mat4 } from 'manifold-3d'
 import { sampleClosedProfile, type ModelDocument, type ModelNode, type ProfileGeometrySettings, type ProfilePoint } from '@formforge/model'
 import { createLoftMesh, createSpringMesh } from './primitiveMeshes'
+import { modelTransformMatrix } from '../lib/modelTransforms'
 
 const DEFAULT_PROFILE_SETTINGS: ProfileGeometrySettings = {
   curveMode: 'polyline',
@@ -152,9 +153,10 @@ function shapeForNode(api: ManifoldToplevel, node: ModelNode) {
   }
   const deformation = node.deformation
   if (deformation && deformation.kind !== 'none' && Math.abs(deformation.amount) > 0.001) {
-    const height = Math.max(0.1, p.height)
+    const bounds = shape.boundingBox()
+    const height = Math.max(0.001, bounds.max[2] - bounds.min[2])
     const warped = shape.warp((vertex) => {
-      const t = Math.max(0, Math.min(1, vertex[2] / height + 0.5))
+      const t = (vertex[2] - bounds.min[2]) / height
       if (deformation.kind === 'taper') {
         const factor = Math.max(0.05, 1 + (deformation.amount / 100) * (t - 0.5) * 2)
         vertex[0] *= factor; vertex[1] *= factor
@@ -197,14 +199,11 @@ function shapeForNode(api: ManifoldToplevel, node: ModelNode) {
       inner.delete(); shape.delete(); shape = next
     }
   }
-  const t = node.transform
-  const scaled = shape.scale([t.scale.x, t.scale.y, t.scale.z])
+  // Manifold.rotate uses a different Euler order from the viewport. Applying
+  // the shared matrix also preserves mirrored, nonuniform scales exactly.
+  const transformed = shape.transform(modelTransformMatrix(node.transform).elements as Mat4)
   shape.delete()
-  const rotated = scaled.rotate([t.rotation.x, t.rotation.y, t.rotation.z])
-  scaled.delete()
-  const translated = rotated.translate([t.position.x, t.position.y, t.position.z])
-  rotated.delete()
-  return translated
+  return transformed
 }
 
 async function evaluate(document: ModelDocument) {

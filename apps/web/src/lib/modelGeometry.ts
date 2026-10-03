@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { modelTransformMatrix } from './modelTransforms'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { sampleClosedProfile, type ModelNode, type ProfileGeometrySettings, type ProfilePoint } from '@formforge/model'
 
@@ -218,15 +219,11 @@ export function nodeWorldBounds(node: ModelNode) {
 
 export function nodeToWorldGeometry(node: ModelNode) {
   const geometry = makeSourceGeometry(node)
-  const matrix = new THREE.Matrix4().compose(
-    new THREE.Vector3(node.transform.position.x, node.transform.position.y, node.transform.position.z),
-    new THREE.Quaternion().setFromEuler(new THREE.Euler(
-      THREE.MathUtils.degToRad(node.transform.rotation.x),
-      THREE.MathUtils.degToRad(node.transform.rotation.y),
-      THREE.MathUtils.degToRad(node.transform.rotation.z),
-    )),
-    new THREE.Vector3(node.transform.scale.x, node.transform.scale.y, node.transform.scale.z),
-  )
-  geometry.applyMatrix4(matrix)
+  geometry.applyMatrix4(modelTransformMatrix(node.transform))
   return geometry
+}
+
+/** Surface operations are evaluated by Manifold, not the editable source preview. */
+export function hasSurfaceModifiers(node: ModelNode) {
+  return Object.values(node.surface ?? {}).some(value => value > 0)
 }

@@ -94,7 +94,10 @@ export function exportMultiColor3mf(nodes: ModelNode[], name: string) {
     const values = index ? Array.from(index.array) : Array.from({ length: position.count }, (_, value) => value)
     const triangles: string[] = []
     const pindex = materialIndex.get(node.materialSlot ?? 1) ?? 0
-    for (let triangle = 0; triangle < values.length; triangle += 3) triangles.push(`<triangle v1="${values[triangle]}" v2="${values[triangle + 1]}" v3="${values[triangle + 2]}" pid="5" p1="${pindex}"/>`)
+    // World-space vertices already include the reflection; restore outward winding in the exported mesh.
+    const { scale } = node.transform
+    const mirrored = scale.x * scale.y * scale.z < 0
+    for (let triangle = 0; triangle < values.length; triangle += 3) triangles.push(`<triangle v1="${values[triangle]}" v2="${values[triangle + (mirrored ? 2 : 1)]}" v3="${values[triangle + (mirrored ? 1 : 2)]}" pid="5" p1="${pindex}"/>`)
     const id = nodeIndex + 6
     objects.push(`<object id="${id}" name="${xmlEscape(node.name)}" type="model"><mesh><vertices>${vertices.join('')}</vertices><triangles>${triangles.join('')}</triangles></mesh></object>`)
     items.push(`<item objectid="${id}"/>`)
