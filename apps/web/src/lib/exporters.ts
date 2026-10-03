@@ -36,10 +36,18 @@ export function exportObj(payload: MeshPayload) {
 
 export async function exportGlb(payload: MeshPayload) {
   const mesh = createExportMesh(payload)
-  const result = await new GLTFExporter().parseAsync(mesh, { binary: true, onlyVisible: true })
-  mesh.geometry.dispose()
-  if (!(result instanceof ArrayBuffer)) throw new Error('Binary glTF export failed.')
-  return new Blob([result], { type: 'model/gltf-binary' })
+  // glTF uses meters and Y-up; the modeling workspace uses millimeters and Z-up.
+  // Transform the export object rather than mutating the store's shared position buffer.
+  mesh.scale.setScalar(0.001)
+  mesh.rotation.x = -Math.PI / 2
+  try {
+    const result = await new GLTFExporter().parseAsync(mesh, { binary: true, onlyVisible: true })
+    if (!(result instanceof ArrayBuffer)) throw new Error('Binary glTF export failed.')
+    return new Blob([result], { type: 'model/gltf-binary' })
+  } finally {
+    mesh.geometry.dispose()
+    mesh.material.dispose()
+  }
 }
 
 const xmlEscape = (value: string) => value.replace(/[<>&"']/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' })[char]!)
@@ -65,7 +73,9 @@ export function export3mf(payload: MeshPayload, name: string) {
 }
 
 export function exportMultiColor3mf(nodes: ModelNode[], name: string) {
-  const printable = nodes.filter((node) => node.visible && node.boolean === 'add')
+  const active = nodes.filter((node) => !node.suppressed)
+  if (active.some((node) => node.boolean !== 'add' || node.groupOperation === 'hull' || Object.values(node.surface ?? {}).some((value) => value > 0))) throw new Error('Use standard 3MF to preserve holes, intersections, hulls, and surface modifiers. Multi-color export supports separate solid parts.')
+  const printable = active.filter((node) => node.boolean === 'add')
   if (!printable.length) throw new Error('Add at least one visible solid before exporting.')
   const slotColors = new Map<number, string>()
   printable.forEach((node) => slotColors.set(node.materialSlot ?? 1, node.color))
@@ -85,7 +95,7 @@ export function exportMultiColor3mf(nodes: ModelNode[], name: string) {
     const triangles: string[] = []
     const pindex = materialIndex.get(node.materialSlot ?? 1) ?? 0
     for (let triangle = 0; triangle < values.length; triangle += 3) triangles.push(`<triangle v1="${values[triangle]}" v2="${values[triangle + 1]}" v3="${values[triangle + 2]}" pid="5" p1="${pindex}"/>`)
-    const id = nodeIndex + 1
+    const id = nodeIndex + 6
     objects.push(`<object id="${id}" name="${xmlEscape(node.name)}" type="model"><mesh><vertices>${vertices.join('')}</vertices><triangles>${triangles.join('')}</triangles></mesh></object>`)
     items.push(`<item objectid="${id}"/>`)
     geometry.dispose()

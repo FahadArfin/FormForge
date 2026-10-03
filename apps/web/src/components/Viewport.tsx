@@ -4,7 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { TransformControls } from 'three/addons/controls/TransformControls.js'
 import type { ModelNode, ToolMode } from '@formforge/model'
 import { meshPayloadToGeometry } from '@/lib/exporters'
-import { makeSourceGeometry, nodeGeometrySignature } from '@/lib/modelGeometry'
+import { makeSourceGeometry, nodeGeometrySignature, nodeWorldBounds } from '@/lib/modelGeometry'
 import {
   adaptiveSubdivideMesh,
   applyPolygonBrush,
@@ -17,6 +17,7 @@ import {
   type PolygonBrushMode,
 } from '@/lib/polygonSculpt'
 import { useEditor } from '@/store/editor'
+import { nonzeroScale, transformSelectionFromPrimary } from '@/lib/selectionTransforms'
 import { extractMeshTopology } from '@/lib/componentMesh'
 
 const polygonToolModes: Partial<Record<ToolMode, PolygonBrushMode>> = {
@@ -235,19 +236,32 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       transformDragging = Boolean(event.value)
       orbit.enabled = !event.value
     })
+    let transformSnapshot: ModelNode[] = []
+    const snapshotSelection = () => {
+      const state = useEditor.getState()
+      transformSnapshot = state.document.nodes.filter(node => state.selectedNodeIds.includes(node.id) && !node.locked).map(node => structuredClone(node))
+    }
+    const objectTransform = (object: THREE.Object3D, node: ModelNode): ModelNode['transform'] => ({
+      position: { x: object.position.x, y: object.position.y, z: object.position.z },
+      rotation: { x: THREE.MathUtils.radToDeg(object.rotation.x), y: THREE.MathUtils.radToDeg(object.rotation.y), z: THREE.MathUtils.radToDeg(object.rotation.z) },
+      scale: { x: nonzeroScale(object.scale.x, node.transform.scale.x), y: nonzeroScale(object.scale.y, node.transform.scale.y), z: nonzeroScale(object.scale.z, node.transform.scale.z) },
+    })
+    const previewSelection = (object: THREE.Object3D) => {
+      const nodeId = object.userData.nodeId as string
+      const node = transformSnapshot.find(candidate => candidate.id === nodeId)
+      if (!node) return []
+      const updates = transformSelectionFromPrimary(transformSnapshot, nodeId, objectTransform(object, node))
+      for (const update of updates) {
+        const target = sourceById.get(update.id)
+        if (target) applyNodeTransform(target, { ...node, transform: update.transform })
+      }
+      return updates
+    }
+    transform.addEventListener('mouseDown', snapshotSelection)
+    transform.addEventListener('objectChange', () => { if (transform.object) previewSelection(transform.object) })
     transform.addEventListener('mouseUp', () => {
-      const object = transform.object
-      const nodeId = object?.userData.nodeId as string | undefined
-      if (!object || !nodeId) return
-      const current = useEditor.getState().document.nodes.find((node) => node.id === nodeId)
-      if (!current) return
-      useEditor.getState().updateNode(nodeId, {
-        transform: {
-          position: { x: object.position.x, y: object.position.y, z: object.position.z },
-          rotation: { x: THREE.MathUtils.radToDeg(object.rotation.x), y: THREE.MathUtils.radToDeg(object.rotation.y), z: THREE.MathUtils.radToDeg(object.rotation.z) },
-          scale: { x: Math.max(0.05, object.scale.x), y: Math.max(0.05, object.scale.y), z: Math.max(0.05, object.scale.z) },
-        },
-      })
+      if (transform.object && !gizmoDrag) useEditor.getState().updateSelectionTransforms(previewSelection(transform.object))
+      if (!gizmoDrag) transformSnapshot = []
     })
 
     const raycaster = new THREE.Raycaster()
@@ -307,7 +321,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     const polygonHit = (event: PointerEvent) => {
       const state = useEditor.getState()
       const node = state.document.nodes.find((candidate) => candidate.id === state.selectedNodeId)
-      const object = node?.kind === 'mesh' ? sourceById.get(node.id) : undefined
+      const object = node?.kind === 'mesh' && !node.locked ? sourceById.get(node.id) : undefined
       if (!node || !object) return null
       updateRay(event)
       const hit = raycaster.intersectObject(object, false)[0]
@@ -376,10 +390,10 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       if (useEditor.getState().tool === 'draw-profile') useEditor.getState().setTool('select')
     }
 
-    const stampSculpt = (hit: { point: THREE.Vector3; normal: THREE.Vector3 }) => {
+    const stampSculpt = (hit: { point: THREE.Vector3; normal: THREE.Vector3 }, invert = false) => {
       const state = useEditor.getState()
-      const mode = state.tool === 'sculpt-add' ? 'add'
-        : state.tool === 'sculpt-carve' ? 'carve'
+      const mode = state.tool === 'sculpt-add' ? (invert ? 'carve' : 'add')
+        : state.tool === 'sculpt-carve' ? (invert ? 'add' : 'carve')
           : state.tool === 'sculpt-inflate' ? 'inflate'
             : state.tool === 'sculpt-pinch' ? 'pinch'
               : state.tool === 'sculpt-flatten' ? 'flatten'
@@ -389,11 +403,17 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
         const depth = state.brushRadius * (1 - state.brushStrength * 0.92)
         center.addScaledVector(hit.normal, mode === 'carve' ? depth : -depth)
       }
-      const normal = { x: hit.normal.x, y: hit.normal.y, z: hit.normal.z }
-      state.addSculptStroke({ x: center.x, y: center.y, z: center.z }, mode, state.brushRadius, state.brushStrength, state.brushFalloff, normal, !sculptHasHistory)
-      sculptHasHistory = true
-      if (state.brushSymmetryX) {
-        state.addSculptStroke({ x: -center.x, y: center.y, z: center.z }, mode, state.brushRadius, state.brushStrength, state.brushFalloff, { ...normal, x: -normal.x }, false)
+      const symmetry = { x: state.brushSymmetryX, y: state.brushSymmetryY, z: state.brushSymmetryZ }
+      const signs = symmetryPoints(new THREE.Vector3(1, 1, 1), symmetry)
+      const stamped = new Set<string>()
+      for (const sign of signs) {
+        const point = center.clone().multiply(sign)
+        const key = point.toArray().map(value => value.toFixed(5)).join(',')
+        if (stamped.has(key)) continue
+        stamped.add(key)
+        const normal = hit.normal.clone().multiply(sign)
+        state.addSculptStroke({ x: point.x, y: point.y, z: point.z }, mode, state.brushRadius, state.brushStrength, state.brushFalloff, { x: normal.x, y: normal.y, z: normal.z }, !sculptHasHistory)
+        sculptHasHistory = true
       }
       lastSculptPoint = hit.point.clone()
     }
@@ -546,11 +566,16 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
         const radialScale = distance / node.parameters.radius
         object.scale.set(radialScale, radialScale, node.kind === 'sphere' ? radialScale : 1)
       }
+      transformValue.position.z -= nodeWorldBounds({ ...node, transform: transformValue, parameters }).min.z
       object.position.set(transformValue.position.x, transformValue.position.y, transformValue.position.z)
       placementPreview = { transform: transformValue, parameters }
     }
 
+    let emptyPress: { x: number; y: number } | null = null
     const onPointerDown = (event: PointerEvent) => {
+      host.focus({ preventScroll: true })
+      if (event.button !== 0 || !event.isPrimary) return
+      emptyPress = null
       const state = useEditor.getState()
       if (transformDragging) {
         const object = transform.object
@@ -573,6 +598,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
           updateRay(event)
           const startPoint = raycaster.ray.intersectPlane(dragPlane, new THREE.Vector3())
           if (startPoint) {
+            snapshotSelection()
             gizmoDrag = { nodeId: node.id, axis, startPoint, startPosition: object.position.clone(), plane: dragPlane }
             // TransformControls has already captured the handle. Its native
             // pointer-move path is inconsistent in some embedded browsers, so
@@ -627,7 +653,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
           transformValue.position = {
             x: point.x,
             y: point.y,
-            z: node.kind === 'sphere' ? node.parameters.radius : node.kind === 'torus' ? node.parameters.radiusTop : node.parameters.height / 2,
+            z: node.transform.position.z,
           }
           const object = sourceById.get(node.id)
           object?.position.set(transformValue.position.x, transformValue.position.y, transformValue.position.z)
@@ -654,7 +680,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
         sculptHasHistory = false
         lastSculptPoint = null
         renderer.domElement.setPointerCapture(event.pointerId)
-        stampSculpt(hit)
+        stampSculpt(hit, event.shiftKey)
         event.preventDefault()
         return
       }
@@ -704,18 +730,20 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       const hit = raycaster.intersectObjects(sourceGroup.children, false)[0]
       if (hit) {
         const nodeId = hit.object.userData.nodeId as string
-        state.selectNode(nodeId, event.ctrlKey || event.metaKey || event.shiftKey)
+        const additive = event.ctrlKey || event.metaKey || event.shiftKey
+        if (additive || !state.selectedNodeIds.includes(nodeId)) state.selectNode(nodeId, additive)
         if (state.tool === 'move' && !(transform as unknown as { axis?: string | null }).axis) {
           const node = state.document.nodes.find((item) => item.id === nodeId)
           const point = raycaster.ray.intersectPlane(plane, new THREE.Vector3())
-          if (node && !node.locked && point) {
+          if (node && !node.locked && point && !additive) {
+            snapshotSelection()
             directDrag = { nodeId, startPoint: point, startPosition: hit.object.position.clone() }
             orbit.enabled = false
             renderer.domElement.setPointerCapture(event.pointerId)
             event.preventDefault()
           }
         }
-      }
+      } else emptyPress = { x: event.clientX, y: event.clientY }
     }
 
     const onPointerMove = (event: PointerEvent) => {
@@ -748,6 +776,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
             if (gizmoDrag.axis.includes('Z')) next.z = Math.round(next.z / snap) * snap
           }
           object.position.copy(next)
+          previewSelection(object)
         }
         return
       }
@@ -761,6 +790,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
           const nextY = directDrag.startPosition.y + point.y - directDrag.startPoint.y
           object.position.x = snap ? Math.round(nextX / snap) * snap : nextX
           object.position.y = snap ? Math.round(nextY / snap) * snap : nextY
+          previewSelection(object)
         }
         return
       }
@@ -803,7 +833,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
           }
         } else if (sculpting && hit) {
           const minimumSpacing = Math.max(0.15, state.brushRadius * state.brushSpacing)
-          if (!lastSculptPoint || lastSculptPoint.distanceTo(hit.point) >= minimumSpacing) stampSculpt(hit)
+          if (!lastSculptPoint || lastSculptPoint.distanceTo(hit.point) >= minimumSpacing) stampSculpt(hit, event.shiftKey)
         }
       } else {
         brushCursor.visible = false
@@ -816,34 +846,17 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
 
     const onPointerUp = (event: PointerEvent) => {
       const state = useEditor.getState()
-      if (gizmoDrag) {
-        const object = sourceById.get(gizmoDrag.nodeId)
-        const node = state.document.nodes.find((item) => item.id === gizmoDrag!.nodeId)
-        if (object && node) {
-          state.updateNode(node.id, {
-            transform: {
-              position: { x: object.position.x, y: object.position.y, z: object.position.z },
-              rotation: { ...node.transform.rotation },
-              scale: { ...node.transform.scale },
-            },
-          })
-        }
+      if (event.button !== 0 && event.type !== 'pointercancel') return
+      if (emptyPress && Math.hypot(event.clientX - emptyPress.x, event.clientY - emptyPress.y) < 4) state.selectNode(null)
+      emptyPress = null
+      const drag = gizmoDrag ?? directDrag
+      if (drag) {
+        const object = sourceById.get(drag.nodeId)
+        if (object) state.updateSelectionTransforms(previewSelection(object))
       }
       gizmoDrag = null
-      if (directDrag) {
-        const object = sourceById.get(directDrag.nodeId)
-        const node = state.document.nodes.find((item) => item.id === directDrag!.nodeId)
-        if (object && node) {
-          state.updateNode(node.id, {
-            transform: {
-              position: { x: object.position.x, y: object.position.y, z: object.position.z },
-              rotation: { ...node.transform.rotation },
-              scale: { ...node.transform.scale },
-            },
-          })
-        }
-      }
       directDrag = null
+      transformSnapshot = []
       if (placementStart && state.placingNodeId) {
         const node = state.document.nodes.find((item) => item.id === state.placingNodeId)
         if (node) {
@@ -881,14 +894,19 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
 
     const frameObjects = (selectedOnly: boolean) => {
       const state = useEditor.getState()
-      const selected = state.selectedNodeId ? sourceById.get(state.selectedNodeId) : undefined
-      const target = selectedOnly && selected ? selected : resultGroup.children[0] ?? sourceGroup
-      const bounds = new THREE.Box3().setFromObject(target)
+      const bounds = new THREE.Box3()
+      if (selectedOnly) {
+        for (const id of state.selectedNodeIds) {
+          const object = sourceById.get(id)
+          if (object) bounds.expandByObject(object)
+        }
+      } else bounds.setFromObject(state.showResult && resultGroup.children[0] ? resultGroup.children[0] : sourceGroup)
       if (bounds.isEmpty()) return
       const center = bounds.getCenter(new THREE.Vector3())
       const size = bounds.getSize(new THREE.Vector3())
       const direction = camera.position.clone().sub(orbit.target).normalize()
-      const distance = Math.max(12, size.length() / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) * 1.15)
+      const limitingView = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * Math.min(1, camera.aspect)
+      const distance = Math.max(12, size.length() / (2 * limitingView) * 1.15)
       orbit.target.copy(center)
       camera.position.copy(center).addScaledVector(direction, distance)
       camera.near = Math.max(0.01, distance / 1000)
@@ -922,9 +940,14 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     const resize = new ResizeObserver(() => {
       const width = host.clientWidth
       const height = host.clientHeight
+      if (!width || !height) return
       renderer.setSize(width, height, false)
-      camera.aspect = width / Math.max(height, 1)
+      const nextAspect = width / height
+      const framingScale = Math.min(1, camera.aspect) / Math.min(1, nextAspect)
+      camera.position.sub(orbit.target).multiplyScalar(framingScale).add(orbit.target)
+      camera.aspect = nextAspect
       camera.updateProjectionMatrix()
+      orbit.update()
     })
     resize.observe(host)
 
@@ -967,15 +990,15 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     const rt = runtime.current
     if (!rt) return
     const light = theme === 'light'
-    const background = light ? '#e7ebf2' : '#14151d'
+    const background = light ? '#f0eff5' : '#181822'
     rt.scene.background = new THREE.Color(background)
-    rt.scene.fog = new THREE.FogExp2(background, light ? 0.0022 : 0.0028)
+    rt.scene.fog = new THREE.FogExp2(background, light ? 0.0032 : 0.0028)
     const plateMaterial = rt.buildPlate.material as THREE.MeshStandardMaterial
-    plateMaterial.color.set(light ? '#d4dae5' : '#1c1e28')
+    plateMaterial.color.set(light ? '#ebe9f0' : '#1c1e28')
     plateMaterial.opacity = light ? 0.82 : 0.68
     plateMaterial.needsUpdate = true
     const gridMaterials = Array.isArray(rt.grid.material) ? rt.grid.material : [rt.grid.material]
-    gridMaterials.forEach((material) => { material.opacity = light ? 0.3 : 0.42; material.needsUpdate = true })
+    gridMaterials.forEach((material) => { material.opacity = light ? 0.18 : 0.3; material.needsUpdate = true })
   }, [theme])
 
   useEffect(() => {
@@ -1004,11 +1027,10 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       const selected = selectedNodeIds.includes(node.id)
       const suppressed = Boolean(node.suppressed)
       const editing = !showResult
-      const unmerged = !node.combined
       const signature = nodeGeometrySignature(node)
       let object = rt.sourceById.get(node.id)
       if (!object) {
-        object = new THREE.Mesh(makeSourceGeometry(node), new THREE.MeshStandardMaterial())
+        object = new THREE.Mesh(makeSourceGeometry(node), new THREE.MeshStandardMaterial({ fog: false }))
         object.userData.nodeId = node.id
         object.userData.geometrySignature = signature
         rt.sourceGroup.add(object)
@@ -1026,19 +1048,18 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       material.transparent = true
       material.opacity = suppressed ? selected ? 0.28 : 0.1 : editing
         ? node.boolean === 'add' ? 0.88 : 0.28
-        : unmerged ? selected ? 0.24 : 0.1
-          : selected || xrayEnabled ? 0.14 : 0
+        : selected || xrayEnabled ? 0.14 : 0
       material.depthWrite = !suppressed && editing && node.boolean === 'add' && displayMode === 'solid'
       material.wireframe = suppressed || displayMode === 'wireframe' || (node.boolean !== 'add' && editing)
       updateMaskColors(object, suppressed ? '#6d7080' : node.color, node.mesh?.mask)
       material.needsUpdate = true
-      object.visible = suppressed || editing || unmerged || selected || xrayEnabled
+      object.visible = editing || selected || xrayEnabled
       object.castShadow = editing && node.boolean === 'add'
       object.receiveShadow = editing && node.boolean === 'add'
       applyNodeTransform(object, node)
 
       const oldOutline = object.getObjectByName('selection-outline') as THREE.LineSegments | undefined
-      const showOutline = suppressed || unmerged || xrayEnabled || selected || node.boolean !== 'add'
+      const showOutline = selected || xrayEnabled || (editing && (suppressed || node.boolean !== 'add'))
       let outline = oldOutline
       if (outline && !showOutline) {
         outline.geometry.dispose()
@@ -1071,7 +1092,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       }
     }
     const selectedObject = selectedNodeId ? rt.sourceById.get(selectedNodeId) : undefined
-    if (selectedObject && ['move', 'rotate', 'scale'].includes(tool)) {
+    if (selectedObject && !document.nodes.find(node => node.id === selectedNodeId)?.locked && ['move', 'rotate', 'scale'].includes(tool)) {
       rt.transform.setMode(transformModeFor(tool))
       rt.transform.setSpace(tool === 'scale' ? 'local' : 'world')
       rt.transform.attach(selectedObject)
@@ -1203,7 +1224,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     if (!meshPayload?.positions.length) return
     const geometry = meshPayloadToGeometry(meshPayload)
     const material = new THREE.MeshStandardMaterial({
-      color: '#829eff', roughness: 0.32, metalness: 0.08,
+      color: '#829eff', roughness: 0.32, metalness: 0.08, fog: false,
       wireframe: displayMode === 'wireframe',
       transparent: displayMode === 'vertices',
       opacity: displayMode === 'vertices' ? 0.08 : 1,
@@ -1211,7 +1232,8 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     const object = new THREE.Mesh(geometry, material)
     object.castShadow = true
     object.receiveShadow = true
-    object.visible = showResult
+    // The result group owns visibility; a rebuild in Edit shapes must remain
+    // available when the user switches back to Solid result.
     rt.resultGroup.add(object)
     if (displayMode === 'vertices') {
       const points = new THREE.Points(geometry, new THREE.PointsMaterial({ color: '#d9dbff', size: 1.15, sizeAttenuation: true }))
@@ -1259,8 +1281,8 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     const rt = runtime.current
     if (!rt) return
     rt.transform.setTranslationSnap(translationSnap)
-    rt.transform.setRotationSnap(THREE.MathUtils.degToRad(rotationSnap))
-    rt.transform.setScaleSnap(scaleSnap)
+    rt.transform.setRotationSnap(rotationSnap ? THREE.MathUtils.degToRad(rotationSnap) : null)
+    rt.transform.setScaleSnap(scaleSnap || null)
   }, [translationSnap, rotationSnap, scaleSnap])
 
   useEffect(() => {
@@ -1271,5 +1293,5 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     inner?.scale.setScalar(Math.max(0.12, brushStrength))
   }, [brushRadius, brushStrength])
 
-  return <div ref={hostRef} className={`viewport-canvas ${tool === 'place' || tool === 'draw-profile' || tool === 'measure' ? 'is-placing' : tool.startsWith('sculpt') ? 'is-sculpting' : ''}`} aria-label="3D modeling viewport" />
+  return <div ref={hostRef} tabIndex={0} role="region" className={`viewport-canvas ${tool === 'place' || tool === 'draw-profile' || tool === 'measure' ? 'is-placing' : tool.startsWith('sculpt') ? 'is-sculpting' : ''}`} aria-label="3D modeling viewport" />
 }

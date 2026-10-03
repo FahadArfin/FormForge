@@ -33,16 +33,31 @@ Open `http://localhost:8080`. Geometry processing remains on the client; Postgre
 
 ## Interaction
 
+- The workshop opens to your projects, with real model previews, search, sorting, collections, and an editable starter example.
+- Use **Build** to create shapes and **Sculpt** for surface tools. Start with the **Getting started** guide if you are new to modeling.
 - Pick a solid or carve primitive, then click-drag on the build plane to draw its footprint.
 - Select a feature in the viewport or model list, then drag the body or move/rotate/scale handles. Choose a snap step in the viewport toolbar; arrow keys nudge by that step, `Shift` moves 10×, and `Alt` moves 0.1×.
 - In Pro mode, draw polygon profiles and press `Enter` to extrude them, or build mirror and linear patterns from the inspector.
 - Switch between **Edit shapes** and **Solid result** to inspect the evaluated boolean model.
 - Toggle the build plane off for a free-space view, frame all or the selection, and use X-ray outlines to locate hidden features.
 - Paint Add, Carve, or localized Smooth strokes. Radius, strength, spacing, falloff, and X symmetry are adjustable; `[` and `]` resize the brush.
-- Open **Generate** for chat-to-parametric CAD, local private image reliefs, optional TRELLIS.2 image-to-3D, or the safe declarative CAD console.
-- Import STL, OBJ, or GLB. Export standards-based 3MF, binary STL, OBJ, GLB, or editable `.forge.json` from the File menu.
-- Save named local checkpoints from the File menu and restore them from the History tab.
+- Open **Generate** for six editable local recipes, private image reliefs, optional configured TRELLIS.2 image-to-3D, or a declarative CAD script. Recipe generation is not general AI prompt generation.
+- Import STL, OBJ, GLB, or editable project JSON from the workshop or Project actions. The **Export** chooser explains 3MF, STL, OBJ, GLB, editable backups, and multi-color parts. Mesh exports wait for the current geometry and completed placement.
+- The project header reports real device-local saving and errors. Click the save status or press `Ctrl/Cmd+S` to save immediately. Keep a separate editable backup for recovery.
+- Save named local checkpoints from **Project actions** beside the project name; restore them from the **History** tab.
+- Find actions with `Ctrl/Cmd+K`. Use `V`, `G`, `R`, and `S` to select, move, rotate, and scale; `F` frames the model and `Shift+F` frames the selection. `?` opens help.
 - Use `Ctrl/Cmd+Z`, `Ctrl/Cmd+Y`, `Ctrl/Cmd+D`, and `Delete` for common editing operations.
+
+The Community page is a local showcase with labeled inspiration examples. Collections, reactions, and your showcase entries remain in this browser; this interface does not publish to a public service. Only entries with an attached project can provide an editable copy or download.
+
+Research, design decisions, and before/after evidence are in [`docs/UX_REDESIGN.md`](docs/UX_REDESIGN.md).
+The detailed October review, fixes, and acceptance evidence are in [`docs/UX_REVIEW_2026-10-03.md`](docs/UX_REVIEW_2026-10-03.md).
+
+## Public release
+
+Every push and pull request runs `.github/workflows/validate.yml`: type checks, regression tests, a production build, and an archived `dist/` output. Work is reviewed on a `codex/` feature branch before merging. The public Sites manifest uses the same root `dist/` build; publish the validated merged revision through the Sites workflow.
+
+The public site runs client-side CAD, local saving, recipes, relief generation, and file exchange. It does not include account sync, a shared community backend, or a hosted GPU generation service. Print checks cover basic geometry and configured dimensions; review wall thickness, bed contact, supports, and sliced layers in a slicer before printing.
 
 ## Current scope
 

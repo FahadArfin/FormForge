@@ -20,5 +20,5 @@ COPY packages/model/package.json packages/model/package.json
 CMD ["node", "apps/api/dist/server.js"]
 
 FROM caddy:2-alpine AS web
-COPY --from=build /app/apps/web/dist /srv
+COPY --from=build /app/dist /srv
 COPY Caddyfile /etc/caddy/Caddyfile

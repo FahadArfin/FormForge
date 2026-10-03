@@ -22,7 +22,8 @@ import {
   vec3,
 } from '@formforge/model'
 import { geometryClient } from '@/geometry/client'
-import { loadMostRecentProject, saveProject } from '@/lib/db'
+import { deleteProject as deleteSavedProject, loadMostRecentProject, saveProject } from '@/lib/db'
+import { createProjectPersistence, type ProjectSaveState } from '@/lib/projectPersistence'
 import { makeSourceGeometry, nodeWorldBounds } from '@/lib/modelGeometry'
 import { repairMesh } from '@/lib/meshTools'
 import { geometryToSculptMesh, subdivideMesh, type SculptMesh } from '@/lib/polygonSculpt'
@@ -59,7 +60,7 @@ export type ProfileRecipePlacement = {
   settings: NonNullable<ModelNode['profileSettings']>
 }
 
-interface EditorState {
+interface EditorState extends ProjectSaveState {
   document: ModelDocument
   selectedNodeId: string | null
   selectedNodeIds: string[]
@@ -97,6 +98,7 @@ interface EditorState {
   geometryBusyVisible: boolean
   geometryError: string | null
   mesh: MeshPayload | null
+  meshDocument: ModelDocument | null
   analysis: PrintAnalysis | null
   undoStack: ModelDocument[]
   redoStack: ModelDocument[]
@@ -105,6 +107,10 @@ interface EditorState {
   dispatch: (command: ModelCommand, remember?: boolean, rebuildGeometry?: boolean) => void
   addPrimitive: (kind: PrimitiveKind, boolean?: ModelNode['boolean'], parameters?: Partial<ModelNode['parameters']>) => void
   updateNode: (nodeId: string, patch: Partial<Omit<ModelNode, 'id' | 'createdAt'>>, remember?: boolean) => void
+  selectAll: () => void
+  translateSelection: (delta: Vec3Value) => void
+  updateSelectionTransforms: (updates: { id: string; transform: ModelNode['transform'] }[]) => void
+  dropSelectionToPlate: () => void
   selectNode: (id: string | null, additive?: boolean) => void
   combineSelected: (mode: 'union' | 'subtract' | 'intersect' | 'hull') => void
   ungroupSelected: () => void
@@ -115,6 +121,8 @@ interface EditorState {
   setXrayEnabled: (show: boolean) => void
   setDisplayMode: (mode: DisplayMode) => void
   setTranslationSnap: (value: number | null) => void
+  setRotationSnap: (value: number) => void
+  setScaleSnap: (value: number) => void
   setBrushSetting: (patch: Partial<Pick<EditorState, 'brushRadius' | 'brushStrength' | 'brushFalloff' | 'brushSpacing' | 'brushSymmetryX' | 'brushSymmetryY' | 'brushSymmetryZ' | 'brushFrontFacesOnly' | 'dynamicTopology' | 'sculptDetail'>>) => void
   finishPlacement: (nodeId: string, transform: ModelNode['transform'], parameters: ModelNode['parameters']) => void
   cancelPlacement: () => void
@@ -169,11 +177,12 @@ interface EditorState {
   loadDemo: () => void
   importDocument: (value: unknown) => void
   hydrate: () => Promise<void>
+  saveNow: () => Promise<boolean>
+  deleteProject: (projectId: string) => Promise<void>
   rebuild: () => Promise<void>
 }
 
 let rebuildTimer: ReturnType<typeof setTimeout> | null = null
-let saveTimer: ReturnType<typeof setTimeout> | null = null
 let busyTimer: ReturnType<typeof setTimeout> | null = null
 let rebuildGeneration = 0
 
@@ -234,13 +243,25 @@ function separateDisconnectedMeshNodes(document: ModelDocument) {
 }
 
 export const useEditor = create<EditorState>((set, get) => {
+  let hydrationPromise: Promise<void> | null = null
+  const persistence = createProjectPersistence(saveProject, (document, state) => {
+    if (get().document === document) set(state)
+    else if (state.saveStatus === 'error' && get().document.id !== document.id) {
+      set({ notice: `Could not save “${document.name || 'Untitled project'}” on this device: ${state.saveError}` })
+    }
+  })
+  const resetDocumentTransientState = {
+    tool: 'select' as const, placingNodeId: null, measurement: null, profileOperation: 'extrude' as const,
+    mesh: null, meshDocument: null, analysis: null, geometryStatus: 'idle' as const,
+    geometryBusyVisible: false, geometryError: null, showResult: true,
+  }
+
   const scheduleSideEffects = (rebuildGeometry = true) => {
     if (rebuildGeometry) {
       if (rebuildTimer) clearTimeout(rebuildTimer)
       rebuildTimer = setTimeout(() => void get().rebuild(), 90)
     }
-    if (saveTimer) clearTimeout(saveTimer)
-    saveTimer = setTimeout(() => void saveProject(get().document), 500)
+    persistence.schedule(get().document)
   }
 
   const commitParameterizedDocument = (draft: ModelDocument, notice?: string) => {
@@ -311,28 +332,60 @@ export const useEditor = create<EditorState>((set, get) => {
     geometryBusyVisible: false,
     geometryError: null,
     mesh: null,
+    meshDocument: null,
     analysis: null,
     undoStack: [],
     redoStack: [],
     notice: null,
     hydrated: false,
+    saveStatus: 'saving',
+    saveError: null,
+    lastSavedAt: null,
 
     dispatch(command, remember = true, rebuildGeometry = true) {
+      if (command.type === 'add-sculpt-stroke' && get().document.nodes.some(node => node.locked && !node.suppressed)) { set({ notice: 'Unlock all shapes before volume sculpting. Volume brushes affect the combined model.' }); return }
+      if (get().placingNodeId) {
+        if (command.type === 'update-node' && command.nodeId === get().placingNodeId) remember = false
+        else set({ placingNodeId: null, ...(get().tool === 'place' ? { tool: 'move' as const } : {}) })
+      }
       const previous = get().document
       const next = executeCommand(previous, command)
+      if (previous.sculptStrokes !== next.sculptStrokes && JSON.stringify(previous.sculptStrokes) !== JSON.stringify(next.sculptStrokes) && previous.nodes.some(node => node.locked && !node.suppressed)) {
+        set({ notice: 'Unlock all shapes before changing volume sculpting. These changes affect the combined model.' })
+        return
+      }
+      const unlockOrVisibility = command.type === 'update-node' && Object.keys(command.patch).every(key => key === 'locked' || key === 'visible')
+      const changedLocked = previous.nodes.some(node => node.locked && (
+        (!unlockOrVisibility && next.nodes.find(candidate => candidate.id === node.id) !== node && JSON.stringify(next.nodes.find(candidate => candidate.id === node.id)) !== JSON.stringify(node))
+        || (command.type === 'add-sculpt-stroke' && command.stroke.nodeId === node.id)
+      ))
+      if (changedLocked) { set({ notice: 'Unlock the selected shape before editing it.' }); return }
+      if (command.type === 'replace-nodes' && next.nodes.length === previous.nodes.length && next.nodes.every((node, index) => node === previous.nodes[index])) return
+      if (command.type === 'update-node') {
+        const before = previous.nodes.find(node => node.id === command.nodeId)
+        if (!before || Object.entries(command.patch).every(([key, value]) => JSON.stringify(before[key as keyof ModelNode]) === JSON.stringify(value))) return
+      }
+      // Preserve a proven mesh for metadata and sculpt-mask changes that skip evaluation.
+      const previousNode = command.type === 'update-node' ? previous.nodes.find((node) => node.id === command.nodeId) : undefined
+      const visualKeys = new Set(['name', 'color', 'materialId', 'materialSlot', 'locked', 'visible'])
+      const geometryNeutral = command.type === 'update-node' && Object.keys(command.patch).every((key) => visualKeys.has(key)
+        || (key === 'mesh' && command.patch.mesh?.positions === previousNode?.mesh?.positions && command.patch.mesh?.indices === previousNode?.mesh?.indices))
+      const canReuseMesh = !rebuildGeometry && geometryNeutral && get().meshDocument === previous
       set((state) => ({
         document: next,
+        ...(canReuseMesh ? { meshDocument: next, geometryStatus: 'ready' as const, geometryBusyVisible: false } : {}),
         undoStack: remember ? [...state.undoStack.slice(-49), previous] : state.undoStack,
         redoStack: remember ? [] : state.redoStack,
       }))
-      scheduleSideEffects(rebuildGeometry)
+      // A metadata edit during an unfinished build still needs a new snapshot evaluated.
+      scheduleSideEffects(rebuildGeometry || (geometryNeutral && !canReuseMesh))
     },
 
     addPrimitive(kind, boolean = 'add', parameters) {
+      if (get().placingNodeId) get().cancelPlacement()
       const node = createNode(kind, boolean, vec3())
       node.parameters = { ...node.parameters, ...parameters }
-      const height = kind === 'sphere' ? node.parameters.radius * 2 : kind === 'torus' ? node.parameters.radiusTop * 2 : node.parameters.height
-      node.transform.position.z = Math.max(0.5, height / 2)
+      node.transform.position.z -= nodeWorldBounds(node).min.z
       get().dispatch({ type: 'add-node', node }, true, false)
       set({ selectedNodeId: node.id, selectedNodeIds: [node.id], meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], placingNodeId: node.id, tool: 'place', showResult: false, notice: `Click to place or drag to resize the ${node.name.toLowerCase()}.` })
     },
@@ -342,14 +395,31 @@ export const useEditor = create<EditorState>((set, get) => {
       const needsGeometry = Object.keys(patch).some((key) => !visualOnlyKeys.has(key))
       get().dispatch({ type: 'update-node', nodeId, patch }, remember, needsGeometry)
     },
+    selectAll() {
+      const ids = get().document.nodes.filter(node => node.visible && !node.suppressed).map(node => node.id)
+      set({ selectedNodeIds: ids, selectedNodeId: ids.at(-1) ?? null, showResult: false, placingNodeId: null, ...(get().tool === 'place' ? { tool: 'move' as const } : {}) })
+    },
+    updateSelectionTransforms(updates) {
+      const patches = new Map(updates.filter(({ transform }) => Object.values(transform).every(vector => Object.values(vector).every(Number.isFinite)) && Object.values(transform.scale).every(value => Math.abs(value) >= 0.0001)).map(update => [update.id, update.transform]))
+      const nodes = get().document.nodes.map(node => !node.locked && patches.has(node.id) && JSON.stringify(patches.get(node.id)) !== JSON.stringify(node.transform) ? { ...node, transform: patches.get(node.id)! } : node)
+      get().dispatch({ type: 'replace-nodes', nodes })
+    },
+    translateSelection(delta) {
+      get().updateSelectionTransforms(get().document.nodes.filter(node => get().selectedNodeIds.includes(node.id) && !node.locked).map(node => ({ id: node.id, transform: { ...node.transform, position: { x: node.transform.position.x + delta.x, y: node.transform.position.y + delta.y, z: node.transform.position.z + delta.z } } })))
+    },
+    dropSelectionToPlate() {
+      get().updateSelectionTransforms(get().document.nodes.filter(node => get().selectedNodeIds.includes(node.id) && !node.locked).map(node => ({ id: node.id, transform: { ...node.transform, position: { ...node.transform.position, z: node.transform.position.z - nodeWorldBounds(node).min.z } } })))
+    },
     selectNode(id, additive = false) {
+      if (get().placingNodeId) set({ placingNodeId: null, ...(get().tool === 'place' ? { tool: 'move' as const } : {}) })
       if (!id) { set({ selectedNodeId: null, selectedNodeIds: [], meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [] }); return }
       if (!additive) {
         const changed = get().selectedNodeId !== id
         set({
           selectedNodeId: id,
           selectedNodeIds: [id],
-          tool: 'move',
+          tool: get().tool === 'place' ? 'move' : get().tool,
+          placingNodeId: null,
           showResult: false,
           ...(changed ? { meshComponentMode: 'object' as const, selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [] } : {}),
         })
@@ -362,7 +432,8 @@ export const useEditor = create<EditorState>((set, get) => {
     combineSelected(mode) {
       const selectedIds = get().selectedNodeIds
       if (selectedIds.length < 2) { set({ notice: 'Select at least two shapes to combine.' }); return }
-      const selected = get().document.nodes.filter((node) => selectedIds.includes(node.id))
+      const selected = selectedIds.map(id => get().document.nodes.find(node => node.id === id)).filter((node): node is ModelNode => Boolean(node))
+      if (selected.some(node => node.locked)) { set({ notice: 'Unlock selected shapes before combining them.' }); return }
       const groupId = nanoid()
       const nodes = get().document.nodes.map((node) => {
         const index = selected.findIndex((candidate) => candidate.id === node.id)
@@ -370,7 +441,11 @@ export const useEditor = create<EditorState>((set, get) => {
         const boolean: ModelNode['boolean'] = index === 0 || mode === 'union' || mode === 'hull' ? 'add' : mode === 'subtract' ? 'cut' : 'intersect'
         return { ...node, boolean, combined: true, groupId, groupOperation: mode === 'hull' ? 'hull' as const : 'boolean' as const }
       })
-      get().dispatch({ type: 'replace-nodes', nodes })
+      const groupNodes = selected.map(node => nodes.find(candidate => candidate.id === node.id)!)
+      const firstIndex = nodes.findIndex(node => selectedIds.includes(node.id))
+      const orderedNodes = nodes.filter(node => !selectedIds.includes(node.id))
+      orderedNodes.splice(firstIndex, 0, ...groupNodes)
+      get().dispatch({ type: 'replace-nodes', nodes: orderedNodes })
       set({ selectedNodeId: selected[0]?.id ?? null, selectedNodeIds: selected.map((node) => node.id), showResult: true, notice: `${mode === 'union' ? 'Union' : mode === 'subtract' ? 'Subtract' : mode === 'hull' ? 'Convex hull' : 'Intersection'} created. Ungroup to edit the parts separately.` })
     },
     ungroupSelected() {
@@ -381,8 +456,11 @@ export const useEditor = create<EditorState>((set, get) => {
       set({ showResult: false, notice: 'Group separated into editable shapes.' })
     },
     setTool(tool) {
+      if ((tool === 'sculpt-add' || tool === 'sculpt-carve') && get().document.nodes.some(node => node.locked && !node.suppressed)) { set({ notice: 'Unlock all shapes before volume sculpting. Volume brushes affect the combined model.' }); return }
+      if (tool !== 'place' && get().placingNodeId) set({ placingNodeId: null })
       const polygonTools: ToolMode[] = ['sculpt-draw', 'sculpt-clay', 'sculpt-smooth', 'sculpt-inflate', 'sculpt-pinch', 'sculpt-flatten', 'sculpt-crease', 'sculpt-grab', 'sculpt-snake', 'sculpt-relax', 'sculpt-mask']
       const selected = get().document.nodes.find((node) => node.id === get().selectedNodeId)
+      if (tool.startsWith('sculpt') && selected?.locked) { set({ notice: 'Unlock the selected shape before sculpting.' }); return }
       if (polygonTools.includes(tool) && selected?.kind !== 'mesh') {
         set({ notice: 'Start Polygon Sculpt first to turn the visible model into an editable mesh.' })
         return
@@ -395,21 +473,33 @@ export const useEditor = create<EditorState>((set, get) => {
     setXrayEnabled(xrayEnabled) { set({ xrayEnabled }) },
     setDisplayMode(displayMode) { set({ displayMode }) },
     setTranslationSnap(translationSnap) { set({ translationSnap }) },
+    setRotationSnap(rotationSnap) { set({ rotationSnap: Math.max(0, rotationSnap) }) },
+    setScaleSnap(scaleSnap) { set({ scaleSnap: Math.max(0, scaleSnap) }) },
     setBrushSetting(patch) { set(patch) },
 
     finishPlacement(nodeId, transform, parameters) {
-      get().updateNode(nodeId, { transform, parameters })
+      if (get().placingNodeId !== nodeId) return
+      const node = get().document.nodes.find(candidate => candidate.id === nodeId)
+      if (!node) return
+      const placed = { ...node, transform, parameters }
+      const grounded = { ...transform, position: { ...transform.position, z: transform.position.z - nodeWorldBounds(placed).min.z } }
+      get().updateNode(nodeId, { transform: grounded, parameters }, false)
       set({ placingNodeId: null, tool: 'move', notice: 'Shape placed. Drag the handles or enter exact values.' })
     },
 
     cancelPlacement() {
       const nodeId = get().placingNodeId
       if (!nodeId) return
-      get().dispatch({ type: 'remove-node', nodeId })
+      const beforePlacement = get().undoStack.at(-1)
+      if (beforePlacement && !beforePlacement.nodes.some(node => node.id === nodeId)) {
+        set({ document: beforePlacement, undoStack: get().undoStack.slice(0, -1) })
+        scheduleSideEffects()
+      } else get().dispatch({ type: 'remove-node', nodeId }, false)
       set({ placingNodeId: null, selectedNodeId: null, selectedNodeIds: [], tool: 'select', notice: 'Placement cancelled.' })
     },
 
     beginProfileDrawing(profileOperation = 'extrude') {
+      if (get().placingNodeId) get().cancelPlacement()
       set({ tool: 'draw-profile', profileOperation, showResult: false, selectedNodeId: null, selectedNodeIds: [], meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], placingNodeId: null, notice: `Click points on the plane. Hold Shift for horizontal/vertical edges, then click the first point or press Enter to ${profileOperation}.` })
     },
 
@@ -439,6 +529,7 @@ export const useEditor = create<EditorState>((set, get) => {
     },
 
     addProfileRecipe(recipe, operation = 'extrude') {
+      if (get().placingNodeId) get().cancelPlacement()
       if (recipe.points.length < 3) { set({ notice: 'A recipe needs at least three outline points.' }); return }
       const minX = Math.min(...recipe.points.map((point) => point.x))
       const maxX = Math.max(...recipe.points.map((point) => point.x))
@@ -807,6 +898,11 @@ export const useEditor = create<EditorState>((set, get) => {
 
     makeSculptable(subdivisionLevels = 2) {
       const selected = get().document.nodes.find((node) => node.id === get().selectedNodeId)
+      if (selected?.locked) { set({ notice: 'Unlock the selected shape before sculpting.' }); return }
+      if (get().document.sculptStrokes.length && get().document.nodes.some(node => node.locked && !node.suppressed)) {
+        set({ notice: 'Unlock all shapes before converting a model with volume strokes. Conversion resets those strokes on the combined model.' })
+        return
+      }
       if (!selected) {
         set({ notice: 'Select one shape first, then start Polygon Sculpt.' })
         return
@@ -837,7 +933,7 @@ export const useEditor = create<EditorState>((set, get) => {
         revision: previous.revision + 1,
         updatedAt: new Date().toISOString(),
       }
-      get().dispatch({ type: 'replace-document', document }, true, false)
+      get().dispatch({ type: 'replace-document', document }, true, true)
       set({
         selectedNodeId: node.id,
         selectedNodeIds: [node.id],
@@ -886,6 +982,8 @@ export const useEditor = create<EditorState>((set, get) => {
       const parameterErrors = resolveDocumentParameterBindings(previous).errors
       set((state) => ({
         document: previous,
+        placingNodeId: null,
+        tool: state.tool === 'place' ? 'move' : state.tool,
         selectedNodeId: previous.nodes.some((node) => node.id === state.selectedNodeId) ? state.selectedNodeId : null,
         selectedNodeIds: state.selectedNodeIds.filter((id) => previous.nodes.some((node) => node.id === id)),
         undoStack: stack.slice(0, -1),
@@ -902,6 +1000,8 @@ export const useEditor = create<EditorState>((set, get) => {
       const parameterErrors = resolveDocumentParameterBindings(next).errors
       set((state) => ({
         document: next,
+        placingNodeId: null,
+        tool: state.tool === 'place' ? 'move' : state.tool,
         selectedNodeId: next.nodes.some((node) => node.id === state.selectedNodeId) ? state.selectedNodeId : null,
         selectedNodeIds: state.selectedNodeIds.filter((id) => next.nodes.some((node) => node.id === id)),
         undoStack: [...state.undoStack, state.document].slice(-50),
@@ -915,8 +1015,10 @@ export const useEditor = create<EditorState>((set, get) => {
     removeSelected() {
       const ids = get().selectedNodeIds.length ? get().selectedNodeIds : get().selectedNodeId ? [get().selectedNodeId!] : []
       if (!ids.length) return
-      get().dispatch({ type: 'remove-nodes', nodeIds: ids })
-      set({ selectedNodeId: null, selectedNodeIds: [], meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], notice: `${ids.length} shape${ids.length === 1 ? '' : 's'} removed.` })
+      const editableIds = ids.filter(id => !get().document.nodes.find(node => node.id === id)?.locked)
+      if (!editableIds.length) { set({ notice: 'Unlock selected shapes before deleting them.' }); return }
+      get().dispatch({ type: 'remove-nodes', nodeIds: editableIds })
+      set({ selectedNodeId: null, selectedNodeIds: [], meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], notice: `${editableIds.length} shape${editableIds.length === 1 ? '' : 's'} removed.${editableIds.length < ids.length ? ' Locked shapes were kept.' : ''}` })
     },
 
     duplicateSelected() {
@@ -940,38 +1042,66 @@ export const useEditor = create<EditorState>((set, get) => {
 
     newDocument() {
       const document = createDocument()
-      const selectedNodeId = document.nodes[0]?.id ?? null
-      set({ document, selectedNodeId, selectedNodeIds: selectedNodeId ? [selectedNodeId] : [], meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], parameterErrors: {}, undoStack: [], redoStack: [], notice: 'New project created.' })
+      document.nodes = []
+      const selectedNodeId = null
+      set({ ...resetDocumentTransientState, document, selectedNodeId, selectedNodeIds: selectedNodeId ? [selectedNodeId] : [], meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], parameterErrors: {}, undoStack: [], redoStack: [], notice: 'New project created.' })
       scheduleSideEffects()
     },
 
     loadDemo() {
       const document = createDemoDocument()
-      set({ document, selectedNodeId: null, selectedNodeIds: [], meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], parameterErrors: {}, undoStack: [], redoStack: [], showResult: true, notice: 'Demo project loaded.' })
+      set({ ...resetDocumentTransientState, document, selectedNodeId: null, selectedNodeIds: [], meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], parameterErrors: {}, undoStack: [], redoStack: [], notice: 'Demo project loaded.' })
       scheduleSideEffects()
     },
 
     importDocument(value) {
       const resolved = resolveDocumentParameterBindings(parseModelDocument(value))
       const separated = separateDisconnectedMeshNodes(resolved.document)
-      set({ document: separated.document, selectedNodeId: null, selectedNodeIds: [], meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], parameterErrors: resolved.errors, undoStack: [], redoStack: [], notice: separated.separatedParts ? `Project opened · separated ${separated.separatedParts} disconnected mesh parts.` : 'Project imported.' })
+      set({ ...resetDocumentTransientState, document: separated.document, selectedNodeId: null, selectedNodeIds: [], meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], parameterErrors: resolved.errors, undoStack: [], redoStack: [], notice: separated.separatedParts ? `Project opened · separated ${separated.separatedParts} disconnected mesh parts.` : 'Project imported.' })
       scheduleSideEffects()
     },
 
-    async hydrate() {
-      if (get().hydrated) return
-      try {
-        const saved = await loadMostRecentProject()
-        if (saved) {
-          const resolved = resolveDocumentParameterBindings(parseModelDocument(saved.document))
-          const separated = separateDisconnectedMeshNodes(resolved.document)
-          set({ document: separated.document, meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], parameterErrors: resolved.errors, notice: separated.separatedParts ? `Project restored · separated ${separated.separatedParts} disconnected mesh parts.` : 'Local project restored.' })
-          if (separated.separatedParts) await saveProject(separated.document)
+    hydrate() {
+      if (get().hydrated) return Promise.resolve()
+      if (hydrationPromise) return hydrationPromise
+      const initialDocument = get().document
+      hydrationPromise = (async () => {
+        try {
+          const saved = await loadMostRecentProject()
+          // An import or new project started during startup takes precedence over restored data.
+          if (get().document !== initialDocument) return
+          if (saved) {
+            const resolved = resolveDocumentParameterBindings(parseModelDocument(saved.document))
+            const separated = separateDisconnectedMeshNodes(resolved.document)
+            set({ document: separated.document, meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], parameterErrors: resolved.errors, notice: separated.separatedParts ? `Project restored · separated ${separated.separatedParts} disconnected mesh parts.` : 'Local project restored.' })
+            if (separated.separatedParts) persistence.schedule(separated.document)
+            else persistence.restored(separated.document)
+          } else persistence.schedule(get().document)
+        } catch (error) {
+          if (get().document === initialDocument) set({ saveStatus: 'error', saveError: error instanceof Error ? error.message : 'Could not open projects stored on this device.', lastSavedAt: null })
+        } finally {
+          set({ hydrated: true })
+          await get().rebuild()
         }
-      } finally {
-        set({ hydrated: true })
-        await get().rebuild()
+      })()
+      return hydrationPromise
+    },
+
+    async saveNow() {
+      const document = get().document
+      try {
+        await persistence.saveNow(document)
+        if (get().document === document && get().saveStatus === 'saved') set({ notice: `“${document.name || 'Untitled project'}” saved on this device.` })
+        return true
+      } catch {
+        if (get().document === document && get().saveStatus === 'error') set({ notice: 'Save failed. Retry saving or download an editable project backup.' })
+        return false
       }
+    },
+
+    async deleteProject(projectId) {
+      await persistence.remove(projectId, () => deleteSavedProject(projectId))
+      if (get().document.id === projectId) get().newDocument()
     },
 
     async rebuild() {
@@ -984,7 +1114,7 @@ export const useEditor = create<EditorState>((set, get) => {
       }, 450)
       try {
         const mesh = await geometryClient.evaluate(document)
-        if (rebuildGeneration !== generation || get().document.updatedAt !== document.updatedAt || get().document.id !== document.id) return
+        if (rebuildGeneration !== generation || get().document !== document) return
         let dimensions = vec3()
         if (mesh.positions.length) {
           let minX = Infinity; let minY = Infinity; let minZ = Infinity
@@ -997,10 +1127,10 @@ export const useEditor = create<EditorState>((set, get) => {
           dimensions = vec3(maxX - minX, maxY - minY, maxZ - minZ)
         }
         if (busyTimer) clearTimeout(busyTimer)
-        set({ mesh, geometryStatus: 'ready', geometryBusyVisible: false, analysis: analyzeForPrint(document, mesh, dimensions) })
+        set({ mesh, meshDocument: document, geometryStatus: 'ready', geometryBusyVisible: false, analysis: analyzeForPrint(document, mesh, dimensions) })
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return
-        if (rebuildGeneration !== generation || get().document.updatedAt !== document.updatedAt || get().document.id !== document.id) return
+        if (rebuildGeneration !== generation || get().document !== document) return
         if (busyTimer) clearTimeout(busyTimer)
         set({ geometryStatus: 'error', geometryBusyVisible: false, geometryError: error instanceof Error ? error.message : 'Could not rebuild model' })
       }

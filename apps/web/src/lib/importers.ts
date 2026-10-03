@@ -64,9 +64,10 @@ export async function importMeshFile(file: File): Promise<MeshData> {
 export async function importGlbData(data: ArrayBuffer): Promise<MeshData> {
   const result = await new GLTFLoader().parseAsync(data, '')
   result.scene.updateMatrixWorld(true)
+  const toWorkspace = new THREE.Matrix4().makeRotationX(Math.PI / 2).scale(new THREE.Vector3(1000, 1000, 1000))
   const geometries: { geometry: THREE.BufferGeometry; matrix: THREE.Matrix4 }[] = []
   result.scene.traverse((object) => {
-    if ((object as THREE.Mesh).isMesh) geometries.push({ geometry: (object as THREE.Mesh).geometry, matrix: object.matrixWorld.clone() })
+    if ((object as THREE.Mesh).isMesh) geometries.push({ geometry: (object as THREE.Mesh).geometry, matrix: toWorkspace.clone().multiply(object.matrixWorld) })
   })
   return geometryToMeshData(geometries)
 }
