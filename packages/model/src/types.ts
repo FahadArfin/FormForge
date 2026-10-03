@@ -152,7 +152,9 @@ export interface ParameterVariant {
   parameters: ParameterDefinition[]
 }
 
+export interface SavedCameraView { id:string;name:string;position:Vec3Value;target:Vec3Value;up:Vec3Value;zoom:number }
 export interface ModelDocument {
+  savedViews?: SavedCameraView[]
   workplane?: Workplane
   referenceImages?: ReferenceImage[]
   annotations?: DimensionAnnotation[]

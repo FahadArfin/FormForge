@@ -1,3 +1,4 @@
+import { rememberOpenedProject } from '@/lib/projectResume'
 import { patternAssembly } from '@/lib/assemblyTools'
 import { placeNodeOnWorkplane, planeToWorld, workplaneRotation, workplaneMatrix, value } from '@/lib/workplanes'
 import { Vector3 as PlaneVector, Matrix4 as PlaneMatrix, Euler as PlaneEuler, MathUtils as PlaneMath } from 'three'
@@ -1099,6 +1100,7 @@ export const useEditor = create<EditorState>((set, get) => {
 
     newDocument() {
       const document = createDocument()
+      rememberOpenedProject(document.id)
       document.nodes = []
       const selectedNodeId = null
       set({ ...resetDocumentTransientState, document, selectedNodeId, selectedNodeIds: selectedNodeId ? [selectedNodeId] : [], meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], parameterErrors: {}, undoStack: [], redoStack: [], notice: 'New project created.' })
@@ -1107,6 +1109,7 @@ export const useEditor = create<EditorState>((set, get) => {
 
     loadDemo() {
       const document = createDemoDocument()
+      rememberOpenedProject(document.id)
       set({ ...resetDocumentTransientState, document, selectedNodeId: null, selectedNodeIds: [], meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], parameterErrors: {}, undoStack: [], redoStack: [], notice: 'Demo project loaded.' })
       scheduleSideEffects()
     },
@@ -1114,6 +1117,7 @@ export const useEditor = create<EditorState>((set, get) => {
     importDocument(value) {
       const resolved = resolveDocumentParameterBindings(parseModelDocument(value))
       const separated = separateDisconnectedMeshNodes(resolved.document)
+      rememberOpenedProject(separated.document.id)
       set({ ...resetDocumentTransientState, document: separated.document, selectedNodeId: null, selectedNodeIds: [], meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], parameterErrors: resolved.errors, undoStack: [], redoStack: [], notice: separated.separatedParts ? `Project opened · separated ${separated.separatedParts} disconnected mesh parts.` : 'Project imported.' })
       scheduleSideEffects()
     },
@@ -1130,6 +1134,7 @@ export const useEditor = create<EditorState>((set, get) => {
           if (saved) {
             const resolved = resolveDocumentParameterBindings(parseModelDocument(saved.document))
             const separated = separateDisconnectedMeshNodes(resolved.document)
+            rememberOpenedProject(separated.document.id)
             set({ document: separated.document, meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], parameterErrors: resolved.errors, notice: separated.separatedParts ? `Project restored · separated ${separated.separatedParts} disconnected mesh parts.` : 'Local project restored.' })
             if (separated.separatedParts) persistence.schedule(separated.document)
             else persistence.restored(separated.document)

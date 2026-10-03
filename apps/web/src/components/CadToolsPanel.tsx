@@ -105,7 +105,7 @@ function FitCouponBuilder() {
       setDraft(current => ({ ...current, [key]: event.target.value })); setError(null)
     }} />
   </label>
-  return <section className="cad-recipe-card" aria-labelledby="fit-coupon-heading">
+  return <section className="cad-recipe-card" data-cad-tool="coupon" aria-labelledby="fit-coupon-heading">
     <header><h3 id="fit-coupon-heading">Fit-test coupon</h3><p>Print a hole strip and a separate pin gauge to test your printer and material.</p></header>
     <form noValidate onSubmit={event => {
       event.preventDefault()

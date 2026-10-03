@@ -198,3 +198,25 @@ kbd { font: 10px 'Segoe UI', sans-serif; border: 1px solid var(--line); border-r
 }
 
 .canvas-task-prompt{position:absolute;top:76px;left:50%;transform:translateX(-50%);width:max-content;max-width:calc(100% - 24px);padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--text);box-shadow:var(--soft-shadow);display:flex;align-items:center;gap:14px;font-size:12px;z-index:6}
+
+/* Reviewed CAD handoffs */
+.mesh-preview{height:220px;width:100%;border-radius:14px;background:linear-gradient(145deg,#eef2fb,#e6ecf7);overflow:hidden;margin:16px 0 4px;touch-action:none}
+.mesh-preview canvas{display:block;width:100%;height:100%}
+.review-fields{display:flex;gap:12px;flex-wrap:wrap;margin:14px 0}
+.review-fields label{flex:1;min-width:140px;font-size:12px;font-weight:600;display:grid;gap:7px}
+.review-fields input,.review-fields select{width:100%;padding:10px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:inherit;min-height:42px}
+.review-dimensions{font-size:22px;letter-spacing:-.5px;display:block;margin-top:12px}
+.command-results button[aria-disabled=true]{opacity:.55;cursor:not-allowed}
+.export-dialog p{line-height:1.6}
+
+.starter-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.starter-grid button{display:grid;gap:8px;text-align:left;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:inherit}.starter-grid button[aria-pressed=true]{border-color:#617bea;box-shadow:inset 0 0 0 1px #617bea}.starter-grid span{font-size:12px;line-height:1.5;opacity:.8}[hidden]{display:none!important}@media(max-width:480px){.starter-grid{grid-template-columns:1fr}.mesh-preview{height:180px}}
+
+.saved-views{display:grid;gap:10px;margin:18px 0}.saved-views>div{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid var(--line);border-radius:10px}.saved-views small{display:block;font-size:11px;opacity:.7;margin-top:5px}.saved-views button{border:1px solid var(--line);padding:9px 12px;border-radius:8px;color:inherit;background:var(--surface)}.export-layout{padding:12px;border:1px solid var(--line);border-radius:12px;margin:14px 0}.export-layout>label{display:flex;gap:10px;align-items:center;font-weight:600;font-size:13px}
+
+.export-dialog{width:min(760px,calc(100vw - 32px))}.export-dialog .dialog-footer{position:sticky;bottom:0;margin:16px 0 0;padding:14px 0;background:var(--surface);border-top:1px solid var(--line);z-index:2}.export-dialog .mesh-preview{height:200px}.review-fields{margin:10px 0}.export-layout .workflow-caption{margin-bottom:8px}.export-layout .review-fields{margin-bottom:0}.export-dialog .review-fields label{color:var(--subtle)}.export-dialog .review-fields input,.export-dialog .review-fields select{color:var(--text)}@media(max-width:600px){.export-dialog .dialog-footer{bottom:0;margin-left:0;margin-right:0;margin-bottom:0;padding:12px 0;gap:12px}.export-dialog .dialog-footer>span{display:none}}
+
+.export-dialog .workflow-caption{font-size:12px;color:var(--subtle);line-height:1.5;margin:6px 0}.export-dialog .dialog-inner>p{font-size:13px;line-height:1.6}@media(max-width:440px){.review-fields{flex-direction:column}.export-dialog .mesh-preview{height:160px}}
+
+.saved-views input{min-width:0;width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;color:var(--text);background:var(--surface)}.saved-views>div{flex-wrap:wrap}.saved-views input{flex:1 1 160px}
+
+.workspace-dialog .cad-select-label{display:grid;gap:7px;font-size:12px;color:var(--subtle);margin:12px 0}.workspace-dialog .cad-select-label input{padding:10px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--text)}.workspace-dialog .workflow-action{border:1px solid var(--line);padding:10px 14px;border-radius:8px;background:var(--accent);color:var(--surface);font-weight:600}.export-dialog .workflow-text-action{border:0;padding:10px 0;background:transparent;color:var(--accent);font:inherit;font-size:12px;text-decoration:underline;text-underline-offset:3px}.export-dialog details{font-size:12px;line-height:1.6}.export-dialog details summary{cursor:pointer;padding:8px 0}

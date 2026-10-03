@@ -1,3 +1,6 @@
+import { StarterDialog } from './components/StarterDialog'
+import { ImportReview } from './components/ImportReview'
+import type { ImportMesh } from './lib/importReview'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { BoxSelect, Eye, EyeOff, MousePointerClick, X, Box, CircleHelp, PanelLeft, PanelRight } from 'lucide-react'
 import { parseModelDocument } from '@formforge/model'
@@ -33,6 +36,8 @@ export function App() {
   const setArea = (next: Area) => { updateArea(next); if (window.location.hash !== `#${next}`) window.location.hash = next }
   const [cloudOpen,setCloudOpen]=useState(()=>window.location.hash.includes('review='))
   const [cloudLink,setCloudLink]=useState<CloudLink|null>(null)
+  const [startersOpen,setStartersOpen]=useState(false)
+  const starterGeneration=useRef(0)
   const [helpOpen, setHelpOpen] = useState(false)
   const [commandsOpen, setCommandsOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
@@ -40,6 +45,7 @@ export function App() {
   const fileRef = useRef<HTMLInputElement>(null)
   const importAsNew = useRef(false)
   const importGeneration = useRef(0)
+  const [importReview, setImportReview] = useState<{name:string;mesh:ImportMesh;confirm:(mesh:ImportMesh)=>Promise<void>} | null>(null)
   const [publishRequest, setPublishRequest] = useState(0)
   const [generateOpen, setGenerateOpen] = useState(false)
   const [saveBlocked, setSaveBlocked] = useState(false)
@@ -76,7 +82,6 @@ export function App() {
   const deleteSelectedMeshComponents = useEditor((state) => state.deleteSelectedMeshComponents)
   const saveNow = useEditor((state) => state.saveNow)
   const addPrimitive = useEditor((state) => state.addPrimitive)
-  const loadDemo = useEditor((state) => state.loadDemo)
   const openImport = (asNew = false) => { importAsNew.current = asNew; fileRef.current?.click() }
   const safelyContinue = async (action: () => void, isCurrent = () => true) => {
     const outcome = await saveBeforeReplace(() => useEditor.getState().document, saveNow, action, isCurrent)
@@ -86,7 +91,7 @@ export function App() {
   }
   const openProjects = () => safelyContinue(() => setArea('projects'))
   const createProject = () => void safelyContinue(() => { newDocument(); setArea('studio') })
-  const startExample = () => void safelyContinue(() => { loadDemo(); setHelpOpen(false); setArea('studio') })
+  const startExample = () => {starterGeneration.current++;setHelpOpen(false);setStartersOpen(true)}
 
   useEffect(() => { void hydrate() }, [hydrate])
   useEffect(() => { window.document.title = area === 'studio' ? `${document.name || 'Untitled project'} · FormForge` : area === 'community' ? 'Community · FormForge' : 'Your workshop · FormForge' }, [area, document.name])
@@ -94,12 +99,14 @@ export function App() {
   useEffect(() => { setCommandsOpen(false); setGenerateOpen(false); setExportOpen(false); setMobilePanel(null) }, [area])
   useEffect(() => {
     const openInspector = () => { if (window.innerWidth <= 980) setMobilePanel('inspector') }
+    const openStarters=()=>{starterGeneration.current++;setStartersOpen(true)}
+    window.addEventListener('formforge:starters',openStarters)
     const openCloud = () => setCloudOpen(true)
     window.addEventListener('formforge:open-cloud',openCloud)
     const openExport = () => { setMobilePanel(null); setExportOpen(true) }
     window.addEventListener('formforge:open-inspector', openInspector)
     window.addEventListener('formforge:open-export', openExport)
-    return () => { window.removeEventListener('formforge:open-cloud',openCloud); window.removeEventListener('formforge:open-inspector', openInspector); window.removeEventListener('formforge:open-export', openExport) }
+    return () => { window.removeEventListener('formforge:starters',openStarters);window.removeEventListener('formforge:open-cloud',openCloud); window.removeEventListener('formforge:open-inspector', openInspector); window.removeEventListener('formforge:open-export', openExport) }
   }, [])
   useEffect(() => { if (['place','draw-profile','pick-workplane','place-face','measure-angle','measure'].includes(tool)) setMobilePanel(null) }, [tool])
   useEffect(() => {
@@ -190,7 +197,7 @@ export function App() {
   if (!hydrated) return <div className="app-loading"><span className="brand-mark large"><span /></span><strong>Heating up the forge…</strong><div className="loading-line"><i /></div></div>
 
   const remix = (model: CommunityModel) => void safelyContinue(() => {
-    if (!model.document) { newDocument(); useEditor.getState().dispatch({ type: 'rename-document', name: `${model.title} — My version` }); setNotice('Start your own version from a blank canvas. This inspiration preview has no editable file.'); setArea('studio'); return }
+    if (!model.document) { starterGeneration.current++;setStartersOpen(true); return }
     const source = structuredClone(model.document)
     source.id = crypto.randomUUID()
     source.name = `${model.title} — Remix`
@@ -203,19 +210,20 @@ export function App() {
   })
 
   const shared = <>
-    <input ref={fileRef} hidden type="file" accept=".json,.forge.json,.stl,.obj,.glb,.gltf" aria-label="Import a model or project" onChange={async (event) => {
+    <input ref={fileRef} hidden type="file" accept=".json,.forge.json,.3mf,.stl,.obj,.glb,.gltf" aria-label="Import a model or project" onChange={async (event) => {
       const file = event.target.files?.[0]
       event.target.value = ''
       if (!file) return
       const asNew = importAsNew.current
-      const targetId = useEditor.getState().document.id
+      const targetDocument = useEditor.getState().document
       const generation = ++importGeneration.current
       const canApply = () => {
         if (generation !== importGeneration.current) return false
-        if (useEditor.getState().document.id !== targetId) { setNotice('You switched projects while this file was opening. Import it again into your chosen project.'); return false }
+        if (useEditor.getState().document !== targetDocument) { setNotice('Your project changed while this file was opening. Import it again to use the current project.'); return false }
         return true
       }
       try {
+        if (file.size > 25 * 1024 * 1024) throw new Error('Choose a file smaller than 25 MB.')
         if (file.name.toLowerCase().endsWith('.json')) {
           const source = parseModelDocument(JSON.parse(await file.text()))
           if (!canApply()) return
@@ -225,16 +233,18 @@ export function App() {
         else {
           const mesh = await importMeshFile(file)
           if (!canApply()) return
-          const apply = () => {
-            if (asNew) { newDocument(); useEditor.getState().dispatch({ type: 'rename-document', name: file.name.replace(/\.[^.]+$/, '') }) }
-            useEditor.getState().importMesh(file.name.replace(/\.[^.]+$/, ''), mesh)
-            setArea('studio')
-          }
-          if (asNew) { if (!await safelyContinue(apply, canApply)) return } else apply()
+          setImportReview({name:file.name,mesh,confirm:async(reviewed)=>{
+            if(!canApply())throw new Error('Project changed. Cancel and import again.')
+            const apply=()=>{if(asNew){newDocument();useEditor.getState().dispatch({type:'rename-document',name:file.name.replace(/\.[^.]+$/, '')})}useEditor.getState().importMesh(file.name.replace(/\.[^.]+$/, ''),reviewed);setImportReview(null);setArea('studio')}
+            if(asNew){await safelyContinue(apply,canApply)}else apply()
+          }})
+          return
         }
         setArea('studio')
       } catch (error) { setNotice(error instanceof Error ? error.message : 'That file could not be opened.') }
     }} />
+    {startersOpen&&<StarterDialog onClose={()=>{starterGeneration.current++;setStartersOpen(false)}} onCreate={async doc=>{const generation=starterGeneration.current;await safelyContinue(()=>{importDocument(doc);setStartersOpen(false);setArea('studio')},()=>generation===starterGeneration.current)}}/>}
+    {importReview && <ImportReview name={importReview.name} mesh={importReview.mesh} onClose={()=>{importGeneration.current++;setImportReview(null)}} onConfirm={importReview.confirm}/>}
     {notice && <div className="toast" role="status"><span>{notice}</span><button aria-label="Dismiss notification" onClick={() => setNotice(null)}><X size={17} /></button></div>}
     {helpOpen && <WorkspaceHelp onClose={() => setHelpOpen(false)} onExample={startExample} onLaunch={(tab,toolkit)=>{setHelpOpen(false);if(tab==='cloud')setCloudOpen(true);else{setArea('studio');setTimeout(()=>window.dispatchEvent(new CustomEvent('formforge:open-inspector',{detail:{tab,toolkit}})),100)}}}/> }
     {cloudOpen&&<CloudWorkspace onClose={()=>setCloudOpen(false)} link={cloudLink} onLink={setCloudLink} onOpen={async(doc,project)=>{const now=new Date().toISOString(),copy={...doc,id:crypto.randomUUID(),createdAt:now,updatedAt:now};await safelyContinue(()=>{importDocument(copy);setCloudLink({projectId:project.id,localId:copy.id,revision:project.revision});setCloudOpen(false);setArea('studio');setNotice('Editable local copy opened. Cloud snapshots update only when you save them explicitly.');})}}/>}

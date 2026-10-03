@@ -1,3 +1,4 @@
+import { readLastOpenedProject,forgetOpenedProject } from './projectResume'
 import Dexie, { type EntityTable } from 'dexie'
 import type { ModelDocument } from '@formforge/model'
 
@@ -5,6 +6,7 @@ export interface SavedProject {
   id: string
   name: string
   document: ModelDocument
+  deletedAt?: string
   thumbnail?: string
   updatedAt: string
   collectionId?: string
@@ -37,6 +39,7 @@ class FormForgeDatabase extends Dexie {
       projects: 'id, name, updatedAt',
       versions: 'id, projectId, createdAt',
     })
+    this.version(3).stores({projects:'id, name, collectionId, updatedAt, deletedAt',versions:'id, projectId, createdAt',collections:'id, name, createdAt'})
     this.version(2).stores({
       projects: 'id, name, collectionId, updatedAt',
       versions: 'id, projectId, createdAt',
@@ -48,7 +51,9 @@ class FormForgeDatabase extends Dexie {
 export const db = new FormForgeDatabase()
 
 export async function saveProject(document: ModelDocument) {
+  await db.transaction('rw',db.projects,async()=>{
   const existing = await db.projects.get(document.id)
+  if(existing?.deletedAt)throw new Error('This project is in Trash. Restore it before saving.')
   await db.projects.put({
     id: document.id,
     name: document.name,
@@ -57,25 +62,31 @@ export async function saveProject(document: ModelDocument) {
     collectionId: existing?.collectionId,
     publicModelId: existing?.publicModelId,
   })
+  })
 }
 
 export async function loadMostRecentProject() {
-  return db.projects.orderBy('updatedAt').last()
+  const id=readLastOpenedProject()
+  if(id){const project=await loadProject(id);if(project)return project}
+  return db.projects.orderBy('updatedAt').filter(p=>!p.deletedAt).last()
 }
 
 export async function listProjects() {
-  return db.projects.orderBy('updatedAt').reverse().toArray()
+  return db.projects.orderBy('updatedAt').reverse().filter(p=>!p.deletedAt).toArray()
 }
 
 export async function loadProject(projectId: string) {
-  return db.projects.get(projectId)
+  const project=await db.projects.get(projectId)
+  return project?.deletedAt?undefined:project
 }
 
 export async function deleteProject(projectId: string) {
-  await db.transaction('rw', db.projects, db.versions, async () => {
-    await db.projects.delete(projectId)
-    await db.versions.where('projectId').equals(projectId).delete()
-  })
+  await db.projects.update(projectId,{deletedAt:new Date().toISOString()})
+  forgetOpenedProject(projectId)
+}
+export async function listTrashedProjects(){return db.projects.orderBy('deletedAt').reverse().filter(p=>!!p.deletedAt).toArray()}
+export async function restoreProject(projectId:string){
+ await db.transaction('rw',db.projects,async()=>{const project=await db.projects.get(projectId);if(!project?.deletedAt)throw new Error('This project is no longer in Trash.');await db.projects.update(projectId,{deletedAt:undefined})})
 }
 
 export async function listProjectCollections() {
