@@ -1,3 +1,5 @@
+import { savedCameraViewSchema } from '@formforge/model'
+import { overlapChoices } from '@/lib/selectionFocus'
 import { geometryKey,annotationValue } from '@/lib/annotations'
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
@@ -131,6 +133,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
   const selectedNodeId = useEditor((state) => state.selectedNodeId)
   const selectedNodeIds = useEditor((state) => state.selectedNodeIds)
   const tool = useEditor((state) => state.tool)
+  const focus = useInspection(s=>s.focus)
   const showResult = useEditor((state) => state.showResult)
   const showGrid = useEditor((state) => state.showGrid)
   const showReferencePlanes = useEditor((state) => state.showReferencePlanes)
@@ -772,7 +775,9 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
         }
       }
       updateRay(event)
-      const hit = raycaster.intersectObjects(sourceGroup.children, false).find(hit => sectionPointVisible(hit.point, useInspection.getState().section))
+      const hits = raycaster.intersectObjects(sourceGroup.children.filter(o=>{const focus=useInspection.getState().focus;return state.document.nodes.some(n=>n.id===o.userData.nodeId&&n.visible)&&(!focus||focus.documentId!==state.document.id||focus.ids.includes(o.userData.nodeId))}), false).filter(hit => sectionPointVisible(hit.point, useInspection.getState().section))
+      if(useInspection.getState().pickOverlaps){const ids=overlapChoices(state.document.nodes,hits.map(h=>h.object.userData.nodeId as string));window.dispatchEvent(new CustomEvent('formforge:overlaps',{detail:{documentId:state.document.id,ids}}));event.preventDefault();return}
+      const hit = hits[0]
       if (hit) {
         const nodeId = hit.object.userData.nodeId as string
         const additive = event.ctrlKey || event.metaKey || event.shiftKey
@@ -979,6 +984,10 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       camera.updateProjectionMatrix()
       orbit.update()
     }
+    const captureCamera=(event:Event)=>{(event as CustomEvent).detail?.receive?.({position:{x:camera.position.x,y:camera.position.y,z:camera.position.z},target:{x:orbit.target.x,y:orbit.target.y,z:orbit.target.z},up:{x:camera.up.x,y:camera.up.y,z:camera.up.z},zoom:camera.zoom})}
+    const restoreCamera=(event:Event)=>{const result=savedCameraViewSchema.safeParse((event as CustomEvent).detail);if(!result.success)return;const v=result.data;camera.position.set(v.position.x,v.position.y,v.position.z);orbit.target.set(v.target.x,v.target.y,v.target.z);camera.up.set(v.up.x,v.up.y,v.up.z).normalize();camera.zoom=v.zoom;const distance=camera.position.distanceTo(orbit.target);camera.near=Math.max(.001,distance/1000);camera.far=Math.max(1000,distance*20);camera.updateProjectionMatrix();orbit.update()}
+    window.addEventListener('formforge:capture-camera',captureCamera)
+    window.addEventListener('formforge:restore-camera',restoreCamera)
     window.addEventListener('formforge:frame', frameListener)
     window.addEventListener('formforge:view', viewListener)
     window.addEventListener('formforge:finish-sketch', completeSketch)
@@ -1016,6 +1025,8 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       renderer.domElement.removeEventListener('pointerup', onPointerUp)
       renderer.domElement.removeEventListener('pointercancel', onPointerUp)
       renderer.domElement.removeEventListener('pointerleave', onPointerLeave)
+      window.removeEventListener('formforge:capture-camera',captureCamera)
+      window.removeEventListener('formforge:restore-camera',restoreCamera)
       window.removeEventListener('formforge:frame', frameListener)
       window.removeEventListener('formforge:view', viewListener)
       window.removeEventListener('formforge:finish-sketch', completeSketch)
@@ -1102,7 +1113,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       material.wireframe = suppressed || displayMode === 'wireframe' || (node.boolean !== 'add' && editing)
       updateMaskColors(object, suppressed ? '#6d7080' : node.color, node.mesh?.mask)
       material.needsUpdate = true
-      object.visible = editing || selected || xrayEnabled
+      object.visible = (editing || selected || xrayEnabled) && (!focus || focus.documentId !== document.id || focus.ids.includes(node.id))
       object.castShadow = editing && node.boolean === 'add'
       object.receiveShadow = editing && node.boolean === 'add'
       applyNodeTransform(object, node)
@@ -1146,7 +1157,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       rt.transform.setSpace(tool === 'scale' ? 'local' : 'world')
       rt.transform.attach(selectedObject)
     }
-  }, [document.nodes, document.sculptStrokes, selectedNodeId, selectedNodeIds, showResult, tool, xrayEnabled, displayMode])
+  }, [document.nodes, document.sculptStrokes, selectedNodeId, selectedNodeIds, showResult, tool, xrayEnabled, displayMode, focus])
 
   useEffect(() => {
     const rt = runtime.current

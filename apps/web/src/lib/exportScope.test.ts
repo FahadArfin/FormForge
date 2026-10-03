@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { createDocument, createNode } from '@formforge/model'
-import { createExportDocument } from './exportScope'
+import { createExportDocument, createVisibleExportDocument } from './exportScope'
 
 describe('selected assembly export scope', () => {
+  it('visible export retains hidden cutters in a visible combined group',()=>{const a={...createNode('box'),combined:true,groupId:'g'},b={...createNode('cylinder','cut'),combined:true,groupId:'g',visible:false},c={...createNode('box'),visible:false};expect(createVisibleExportDocument({...createDocument(),nodes:[a,b,c]}).nodes).toEqual([a,b])})
   it('includes the complete explicit boolean group and excludes unrelated shapes', () => {
     const solid = { ...createNode('box'), combined: true, groupId: 'assembly' }
     const hole = { ...createNode('cylinder', 'cut'), combined: true, groupId: 'assembly' }

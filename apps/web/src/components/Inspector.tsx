@@ -151,12 +151,12 @@ function ShapeInspector({ node }: { node: ModelNode }) {
         <div className="color-row"><input aria-label="Custom object color" type="color" value={node.color} onChange={(event) => updateNode(node.id, { color: event.target.value })} />{swatches.map((color) => <button key={color} aria-label={`Set shape color to ${color}`} aria-pressed={node.color === color} className={node.color === color ? 'active' : ''} style={{ background: color }} title={color} onClick={() => updateNode(node.id, { color })} />)}</div>
         <div className="ams-slots"><span>Print color</span>{[1, 2, 3, 4].map((slot) => <button key={slot} aria-label={`Print material slot ${slot}`} aria-pressed={node.materialSlot === slot} className={node.materialSlot === slot ? 'active' : ''} onClick={() => updateNode(node.id, { materialSlot: slot })}><i style={{ background: node.materialSlot === slot ? node.color : undefined }} />{slot}</button>)}</div>
       </div>
-      <div className="property-group pro-property deform-editor">
+      <div data-cad-tool="deform" className="property-group pro-property deform-editor">
         <h3><Spline size={13} /> Deform mesh</h3>
         <div className="deform-row"><select aria-label="Mesh deformation type" value={node.deformation?.kind ?? 'none'} onChange={(event) => updateNode(node.id, { deformation: { kind: event.target.value as NonNullable<ModelNode['deformation']>['kind'], amount: node.deformation?.amount ?? 0 } })}><option value="none">None</option><option value="taper">Taper</option><option value="twist">Twist</option><option value="bend">Bend</option></select><input aria-label={`Deformation amount (${node.deformation?.kind === 'twist' ? 'degrees' : 'percent'})`} type="number" value={node.deformation?.amount ?? 0} step="5" onChange={(event) => updateNode(node.id, { deformation: { kind: node.deformation?.kind ?? 'taper', amount: Number(event.target.value) } })} /><em>{node.deformation?.kind === 'twist' ? '°' : '%'}</em></div>
         <input aria-label="Deformation amount" type="range" min="-180" max="180" step="1" value={node.deformation?.amount ?? 0} onChange={(event) => updateNode(node.id, { deformation: { kind: node.deformation?.kind ?? 'taper', amount: Number(event.target.value) } }, false)} />
       </div>
-      <div className="property-group pro-property surface-editor">
+      <div data-cad-tool="surface" className="property-group pro-property surface-editor">
         <h3><Sparkles size={13} /> Surface modifiers</h3>
         <div className="size-fields">
           <NumberInput label="Smooth angle" value={node.surface?.smoothAngle ?? 0} suffix="°" onChange={(value) => updateSurface('smoothAngle', value)} />
@@ -171,7 +171,7 @@ function ShapeInspector({ node }: { node: ModelNode }) {
         <h3>Quick actions</h3>
         <button onClick={dropToPlate}><ArrowDownToLine size={14} /> Drop to plate</button>
       </div>
-      <div className="property-group pro-property repeat-tools">
+      <div data-cad-tool="pattern" className="property-group pro-property repeat-tools">
         <h3>Mirror & pattern</h3>
         <div className="axis-actions">
           {(['x', 'y', 'z'] as const).map((axis) => <button key={axis} onClick={() => mirrorSelected(axis)}><FlipHorizontal2 size={13} /> Mirror {axis.toUpperCase()}</button>)}
@@ -223,6 +223,7 @@ function SelectionActions({ count }: { count: number }) {
 export function Inspector() {
   const [panel, setPanel] = useState<'model' | 'parameters' | 'print' | 'history' | 'tools'>('model')
   const [toolkitTab, setToolkitTab] = useState<'create' | 'inspect' | 'prepare'>('create')
+  const [toolTarget, setToolTarget] = useState<{id: string} | null>(null)
   const [featureQuery, setFeatureQuery] = useState('')
   const [multiSelect, setMultiSelect] = useState(false)
   const document = useEditor((state) => state.document)
@@ -239,34 +240,42 @@ export function Inspector() {
   useEffect(() => { setFeatureQuery('') }, [document.id])
   useEffect(() => {
     const open = (event: Event) => {
-      const detail = (event as CustomEvent<{ tab: string; toolkit?: 'create' | 'inspect' | 'prepare' }>).detail
+      const detail = (event as CustomEvent<{ tab: string; pro?:boolean; nodeId?: string; tool?: string; toolkit?: 'create' | 'inspect' | 'prepare' }>).detail
+      if(detail?.pro&&useEditor.getState().document.workspaceMode!=='pro')useEditor.getState().dispatch({type:'set-workspace-mode',mode:'pro'})
       const tab = detail?.tab
       if (tab === 'model' || tab === 'print' || tab === 'history' || tab === 'tools' || tab === 'parameters') setPanel(tab)
       if (detail?.toolkit) setToolkitTab(detail.toolkit)
+      if (detail?.tool) setToolTarget({id: detail.tool})
+      if(detail?.nodeId){setFeatureQuery('');requestAnimationFrame(()=>window.document.querySelector<HTMLElement>(`[data-node-id="${CSS.escape(detail.nodeId!)}"]`)?.scrollIntoView({block:'nearest'}))}
     }
     window.addEventListener('formforge:open-inspector', open)
     return () => window.removeEventListener('formforge:open-inspector', open)
   }, [])
 
   useEffect(() => {
-    if (document.workspaceMode === 'simple' && panel === 'parameters') setPanel('model')
-  }, [document.workspaceMode, panel])
+    if (!toolTarget) return
+    const target = window.document.querySelector<HTMLElement>(`[data-cad-tool="${toolTarget.id.replace(/[^a-z-]/g, '')}"]`)
+    if (!target) return
+    if (target instanceof HTMLDetailsElement) target.open = true
+    target.scrollIntoView({block: 'nearest'})
+    target.querySelector<HTMLElement>('summary, button, input, select')?.focus({preventScroll: true})
+  }, [toolTarget, panel, toolkitTab])
 
   return (
     <aside aria-label="Model inspector" className={`inspector inspector-review panel-surface ${document.workspaceMode === 'simple' ? 'simple-inspector' : ''}`}>
       <div className="panel-title-row">
-        <div className="inspector-tabs" role="group" aria-label="Inspector panels"><button aria-pressed={panel === 'model'} className={panel === 'model' ? 'active' : ''} onClick={() => setPanel('model')}><BoxSelect size={14} /> Model</button>{document.workspaceMode === 'pro' && <button aria-pressed={panel === 'parameters'} aria-label="Parameters" className={panel === 'parameters' ? 'active' : ''} onClick={() => setPanel('parameters')}><span className="parameter-tab-icon" aria-hidden="true">{'{}'}</span> Params</button>}<button aria-pressed={panel === 'print'} className={panel === 'print' ? 'active' : ''} onClick={() => setPanel('print')}><Printer size={14} /> Print</button><button aria-pressed={panel === 'history'} className={panel === 'history' ? 'active' : ''} onClick={() => setPanel('history')}><History size={14} /> History</button></div>
+        <div className="inspector-tabs" role="group" aria-label="Inspector panels"><button aria-pressed={panel === 'model'} className={panel === 'model' ? 'active' : ''} onClick={() => setPanel('model')}><BoxSelect size={14} /> Model</button>{<button aria-pressed={panel === 'parameters'} aria-label="Parameters" className={panel === 'parameters' ? 'active' : ''} onClick={() => setPanel('parameters')}><span className="parameter-tab-icon" aria-hidden="true">{'{}'}</span> Params</button>}<button aria-pressed={panel === 'print'} className={panel === 'print' ? 'active' : ''} onClick={() => setPanel('print')}><Printer size={14} /> Print</button><button aria-pressed={panel === 'history'} className={panel === 'history' ? 'active' : ''} onClick={() => setPanel('history')}><History size={14} /> History</button></div>
       </div>
       <button className={`cad-toolkit-trigger ${panel === 'tools' ? 'active' : ''}`} aria-pressed={panel === 'tools'} onClick={() => setPanel('tools')}><Sparkles size={15} /><strong>CAD toolkit</strong><span>Holes · fits · sections · split</span></button>
       {panel === 'tools' ? <div className="inspector-workflow cad-toolkit-workflow">
         <div className="toolkit-navigation" role="group" aria-label="CAD workflow"><button aria-pressed={toolkitTab === 'create'} onClick={() => setToolkitTab('create')}>Create</button><button aria-pressed={toolkitTab === 'inspect'} onClick={() => setToolkitTab('inspect')}>Inspect</button><button aria-pressed={toolkitTab === 'prepare'} onClick={() => setToolkitTab('prepare')}>Prepare</button></div>
-        {toolkitTab === 'create' ? <><WorkplanePanel key={document.id}/><details className="cad-toolkit-details"><summary>Trace an image</summary><ReferenceImagePanel key={document.id}/></details><details className="cad-toolkit-details"><summary>Emboss / deboss text</summary><TextPanel/></details><details className="cad-toolkit-details"><summary>Insert reusable parts</summary><PartsLibraryPanel/></details><details className="cad-toolkit-details"><summary>Enclosures, brackets, adapters and snaps</summary><FunctionalRecipesPanel/></details><CadToolsPanel key={document.id} /></> : toolkitTab === 'inspect' ? <><SectionPanel /><AnnotationsPanel/><section className="workflow-card"><h3>Measure the visible mesh</h3><p>Choose mesh vertices for corners or surface points for free measurements. The canvas readout shows distance and X/Y/Z offsets.</p><button className="workflow-action secondary" onClick={() => { useEditor.getState().setTool('measure'); useEditor.getState().setMeasurement(null) }}>Start measuring</button></section></> : <><section className="workflow-card"><h3>Place a face on the plate</h3><p>Click an outer flat face. In Solid result, the whole model moves. In Edit shapes, the picked selection and its groups move together.</p><button className="workflow-action" onClick={()=>useEditor.getState().setTool('place-face')}>Pick contact face</button></section><PlatePlacementPanel /><details className="cad-toolkit-details"><summary>Align and pattern assemblies</summary><AssemblyToolsPanel/></details><details className="cad-toolkit-details"><summary>Split into printable pieces</summary><SectionPanel /><SplitPanel /></details></>}
-      </div> : panel === 'print' ? <PrintPanel /> : panel === 'history' ? <HistoryPanel /> : panel === 'parameters' ? <ParameterPanel key={document.id} /> : <>
+        {toolkitTab === 'create' ? <><div data-cad-tool="workplane"><WorkplanePanel key={document.id}/></div><details data-cad-tool="image" className="cad-toolkit-details"><summary>Trace an image</summary><ReferenceImagePanel key={document.id}/></details><details data-cad-tool="text" className="cad-toolkit-details"><summary>Emboss / deboss text</summary><TextPanel/></details><details data-cad-tool="parts" className="cad-toolkit-details"><summary>Insert reusable parts</summary><PartsLibraryPanel/></details><details data-cad-tool="recipes" className="cad-toolkit-details"><summary>Enclosures, brackets, adapters and snaps</summary><FunctionalRecipesPanel/></details><div data-cad-tool="holes"><CadToolsPanel key={document.id} /></div></> : toolkitTab === 'inspect' ? <><div data-cad-tool="section"><SectionPanel /></div><div data-cad-tool="annotations"><AnnotationsPanel/></div><section data-cad-tool="measure" className="workflow-card"><h3>Measure the visible mesh</h3><p>Choose mesh vertices for corners or surface points for free measurements. The canvas readout shows distance and X/Y/Z offsets.</p><button className="workflow-action secondary" onClick={() => { useEditor.getState().setTool('measure'); useEditor.getState().setMeasurement(null) }}>Start measuring</button></section></> : <><section data-cad-tool="face" className="workflow-card"><h3>Place a face on the plate</h3><p>Click an outer flat face. In Solid result, the whole model moves. In Edit shapes, the picked selection and its groups move together.</p><button className="workflow-action" onClick={()=>useEditor.getState().setTool('place-face')}>Pick contact face</button></section><div data-cad-tool="plate"><PlatePlacementPanel /></div><details data-cad-tool="assembly" className="cad-toolkit-details"><summary>Align and pattern assemblies</summary><AssemblyToolsPanel/></details><details data-cad-tool="split" className="cad-toolkit-details"><summary>Split into printable pieces</summary><SectionPanel /><SplitPanel /></details></>}
+      </div> : panel === 'print' ? <div data-cad-tool="material"><PrintPanel /></div> : panel === 'history' ? <HistoryPanel /> : panel === 'parameters' ? <div data-cad-tool="parameters"><ParameterPanel key={document.id} /></div> : <>
       <div className="feature-list-heading"><h2>Shapes</h2><span>{document.nodes.length}</span><button className="multi-select-toggle" type="button" aria-label="Select multiple shapes" aria-pressed={multiSelect} onClick={() => setMultiSelect(!multiSelect)}><BoxSelect size={14} /> Multi-select</button></div>
       {document.nodes.length > 0 && <label className="feature-search"><Search size={14} aria-hidden="true" /><input type="search" aria-label="Find shapes by name, type, or layer" placeholder="Find a shape…" value={featureQuery} onChange={(event) => setFeatureQuery(event.target.value)} /></label>}
       <div className="feature-list" role="list" aria-label="Project shapes">
         {matchingNodes.map(({ node, index }) => (
-          <div key={node.id} role="listitem" className={`feature-row ${selectedNodeIds.includes(node.id) ? 'selected' : ''} ${node.suppressed ? 'suppressed' : ''}`}>
+          <div key={node.id} data-node-id={node.id} role="listitem" className={`feature-row ${selectedNodeIds.includes(node.id) ? 'selected' : ''} ${node.suppressed ? 'suppressed' : ''}`}>
             <button type="button" className="feature-select" aria-label={`Select ${node.name}`} aria-pressed={selectedNodeIds.includes(node.id)} onClick={(event) => selectNode(node.id, multiSelect || event.ctrlKey || event.metaKey || event.shiftKey)}>
               <span aria-hidden="true" className={`feature-icon ${node.boolean}`}>{node.boolean === 'add' ? index + 1 : node.boolean === 'cut' ? '−' : '∩'}</span>
               <span className="feature-name"><strong>{node.name}</strong><small>{node.kind} · {node.suppressed ? 'suppressed' : node.combined ? 'combined' : node.boolean === 'add' ? 'solid' : node.boolean === 'cut' ? 'hole' : 'overlap'}</small></span>

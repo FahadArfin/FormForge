@@ -1,7 +1,7 @@
 import { ArrowRight, BookOpen, Box, Check, ChevronDown, Clock3, Copy, Ellipsis, Folder, FolderOpen, Globe2, Grid2X2, HardDrive, Layers3, List, LoaderCircle, LockKeyhole, Plus, Search, Sparkles, Trash2, Upload, Users, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ModelDocument } from '@formforge/model'
-import { assignProjectCollection, createProjectCollection, deleteProjectCollection, duplicateProject, listProjectCollections, listProjects, type ProjectCollection, type SavedProject } from '@/lib/db'
+import { listTrashedProjects, restoreProject, assignProjectCollection, createProjectCollection, deleteProjectCollection, duplicateProject, listProjectCollections, listProjects, type ProjectCollection, type SavedProject } from '@/lib/db'
 import { useEditor } from '@/store/editor'
 import { cachedProjectThumbnail, renderProjectThumbnails, thumbnailKey } from '@/lib/projectThumbnails'
 import { ThemeToggle, type AppearanceTheme } from './ThemeToggle'
@@ -33,6 +33,7 @@ function projectDate(value: string) {
 
 export function ProjectsHome({ theme, onToggleTheme, currentDocument, onCreate, onOpen, onPublish, onOpenCommunity, onImport, onContinue, onOpenGuide, onStartExample }: ProjectsHomeProps) {
   const deleteProject = useEditor((state) => state.deleteProject)
+  const [trashOpen,setTrashOpen]=useState(false),[trashed,setTrashed]=useState<SavedProject[]>([])
   const [projects, setProjects] = useState<SavedProject[]>([])
   const [collections, setCollections] = useState<ProjectCollection[]>([])
   const [activeCollection, setActiveCollection] = useState('all')
@@ -51,7 +52,8 @@ export function ProjectsHome({ theme, onToggleTheme, currentDocument, onCreate, 
   const [thumbnails, setThumbnails] = useState<Record<string, string | null>>({})
   const refresh = useCallback(async () => {
     try {
-      const [nextProjects, nextCollections] = await Promise.all([listProjects(), listProjectCollections()])
+      const [nextProjects, nextCollections, trash] = await Promise.all([listProjects(), listProjectCollections(),listTrashedProjects()])
+      setTrashed(trash)
       setProjects(nextProjects)
       setCollections(nextCollections)
       setError('')
@@ -112,6 +114,7 @@ export function ProjectsHome({ theme, onToggleTheme, currentDocument, onCreate, 
       <button className="workshop-brand" onClick={() => setCollection('all')} aria-label="FormForge, my projects"><span className="brand-mark"><span /></span><strong>FormForge<span>Your ideas, in shape.</span></strong></button>
       <span className="workshop-nav-label">WORKSPACE</span>
       <nav className="workshop-navigation"><button onClick={()=>window.dispatchEvent(new Event('formforge:open-cloud'))}><Users size={18}/><span>Cloud & review</span></button>
+        <button onClick={()=>setTrashOpen(true)}><Trash2 size={18}/><span>Trash</span><small>{trashed.length}</small></button>
         <button className={activeCollection === 'all' ? 'selected' : ''} onClick={() => setCollection('all')} aria-current={activeCollection === 'all' ? 'page' : undefined}><FolderOpen size={18} /><span>My projects</span><small>{projects.length}</small></button>
         <button onClick={onOpenCommunity}><Globe2 size={18} /><span>Community</span><ArrowRight size={15} /></button>
         {onOpenGuide && <button onClick={onOpenGuide}><BookOpen size={18} /><span>Getting started</span></button>}
@@ -156,7 +159,7 @@ export function ProjectsHome({ theme, onToggleTheme, currentDocument, onCreate, 
                   <div className="workshop-project-details"><button className="workshop-project-title" onClick={() => onOpen(project)}><strong>{project.name || 'Untitled project'}</strong><span><Clock3 size={12} />{projectDate(project.updatedAt)}<i />{project.document.nodes.length} shape{project.document.nodes.length === 1 ? '' : 's'}</span></button>
                     <details name="workshop-project-actions" className="workshop-project-menu"><summary aria-label={`Actions for ${project.name || 'Untitled project'}`} title="Project actions"><Ellipsis size={20} /></summary><div className="workshop-project-menu-content"><button disabled={!!busyId} onClick={() => void perform(project.id, () => duplicateProject(project), 'Project duplicated. Your original is unchanged.')}><Copy size={16} /> Duplicate project</button><button onClick={() => onPublish(project)}><Globe2 size={16} />{project.publicModelId ? 'Update local showcase' : 'Save to local showcase'}</button><label><Folder size={16} /><span>Collection</span><select aria-label={`Collection for ${project.name}`} value={project.collectionId ?? ''} disabled={!!busyId} onChange={(event) => { const value = event.target.value; void perform(project.id, () => assignProjectCollection(project.id, value || undefined), 'Project moved.') }}><option value="">Unfiled</option>{collections.map((collection) => <option key={collection.id} value={collection.id}>{collection.name}</option>)}</select></label><button className="workshop-delete-action" disabled={!!busyId} onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); setDeleteTarget(project.id) }}><Trash2 size={16} />Delete project</button></div></details>
                   </div>
-                  {deleteTarget === project.id && <div className="workshop-delete-confirm" role="alert"><strong>Delete “{project.name || 'Untitled project'}”?</strong><p>This removes the local project and its checkpoints.</p><div><button autoFocus className="workshop-button workshop-button-secondary" onClick={(event) => { event.currentTarget.closest('article')?.querySelector('summary')?.focus(); setDeleteTarget(null) }}>Keep project</button><button className="workshop-button workshop-button-danger" disabled={!!busyId} onClick={() => void perform(project.id, () => deleteProject(project.id), 'Project deleted from this device.')}>{busyId === project.id ? 'Deleting…' : 'Delete'}</button></div></div>}
+                  {deleteTarget === project.id && <div className="workshop-delete-confirm" role="alert"><strong>Delete “{project.name || 'Untitled project'}”?</strong><p>Move this project to Trash. You can restore it with its checkpoints.</p><div><button autoFocus className="workshop-button workshop-button-secondary" onClick={(event) => { event.currentTarget.closest('article')?.querySelector('summary')?.focus(); setDeleteTarget(null) }}>Keep project</button><button className="workshop-button workshop-button-danger" disabled={!!busyId} onClick={() => void perform(project.id, () => deleteProject(project.id), 'Project moved to Trash.')}>{busyId === project.id ? 'Moving…' : 'Move to Trash'}</button></div></div>}
                 </article>
               })}
               {view === 'grid' && !query && <button className="workshop-new-card" onClick={onCreate}><span><Plus size={24} /></span><strong>Your next idea</strong><p>Start a new project</p></button>}
@@ -164,7 +167,8 @@ export function ProjectsHome({ theme, onToggleTheme, currentDocument, onCreate, 
             {visibleProjects.length > limit && <button className="workshop-button workshop-button-secondary workshop-show-more" onClick={() => setLimit((value) => value + 24)}>Show more projects <ChevronDown size={16} /></button>}
           </> : !error && <div className="workshop-empty"><span className="workshop-empty-icon">{query ? <Search size={28} /> : <FolderOpen size={30} />}</span><strong>{query ? 'No projects found' : activeCollection === 'all' ? 'Your next idea belongs here.' : 'A little room for your ideas.'}</strong><span>{query ? 'Try another name, or clear your search to see every project in this collection.' : activeCollection === 'all' ? 'Start with a simple shape, or bring in a model to make your own.' : 'Move a project here using its collection menu, or create something new.'}</span><button className="workshop-button workshop-button-primary" onClick={query ? () => setQuery('') : onCreate}>{query ? 'Clear search' : <><Plus size={17} />Create a project</>}</button></div>}
         </section>
-        <section className="workshop-discover"><span className="workshop-discover-icon"><Users size={24} /></span><div><strong>Good ideas are worth sharing.</strong><p>Explore community models, find inspiration, and make something your own.</p></div><button className="workshop-button workshop-button-secondary" onClick={onOpenCommunity}>Explore community<ArrowRight size={17} /></button></section>
+        <section className="workshop-discover"><span className="workshop-discover-icon"><Users size={24} /></span><div><strong>Good ideas are worth sharing.</strong><p>Browse concept illustrations and keep a local showcase of your own projects.</p></div><button className="workshop-button workshop-button-secondary" onClick={onOpenCommunity}>Browse inspiration<ArrowRight size={17} /></button></section>
+        {trashOpen&&<WorkspaceDialog title="Project Trash" description="Restore projects and their checkpoints. Trash stays in this browser; clearing browser storage removes it too." onClose={()=>setTrashOpen(false)}><div className="saved-views">{trashed.map(project=><div key={project.id}><span><strong>{project.name}</strong><small>Moved {new Date(project.deletedAt!).toLocaleDateString()}</small></span><button disabled={!!busyId} onClick={()=>void perform(project.id,()=>restoreProject(project.id),'Project restored with its checkpoints.')}>Restore</button></div>)}</div>{!trashed.length&&<p>Trash is empty.</p>}{error&&<p role="alert">{error}</p>}</WorkspaceDialog>}
         <footer className="workshop-main-footer"><span><HardDrive size={14} />Saved in this browser. Export a backup to keep a copy.</span><span>From first shape to final print.</span></footer>
       </div>
     </main>

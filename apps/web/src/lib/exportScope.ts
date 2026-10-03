@@ -1,6 +1,10 @@
 import { completeSelection } from './assemblies'
 import type { ModelDocument } from '@formforge/model'
 
+export function createVisibleExportDocument(document: ModelDocument) {
+  return createExportDocument(document, document.nodes.filter(n=>n.visible&&!n.suppressed).map(n=>n.id))
+}
+
 /** Preserve feature order and explicit group semantics. Global cutters are included only when selected. */
 export function createExportDocument(document: ModelDocument, selectedIds: readonly string[]): ModelDocument {
   if (!selectedIds.length) throw new Error('Select shapes before choosing selected-part export.')

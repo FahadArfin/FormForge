@@ -1,3 +1,5 @@
+import { printReport } from '@/lib/printReport'
+import { downloadBlob,safeFilename } from '@/lib/download'
 import { MaterialProfilesPanel } from './MaterialProfilesPanel'
 import { useEffect, useMemo, useState } from 'react'
 import { AlertCircle, ArrowRight, CheckCircle2, Download, LoaderCircle, Printer, RefreshCw, Settings2, Undo2, Wrench } from 'lucide-react'
@@ -65,6 +67,7 @@ export function PrintPanel() {
       <dl className="print-summary"><div><dt>Volume</dt><dd>{currentAnalysis.volume.toLocaleString(undefined, { maximumFractionDigits: 0 })} mm³</dd></div><div><dt>Triangles</dt><dd>{currentAnalysis.triangleCount.toLocaleString()}</dd></div></dl>
     </section>}
 
+    {currentAnalysis&&<button className="workflow-action secondary" onClick={()=>downloadBlob(new Blob([printReport(document,currentAnalysis)],{type:'text/plain'}),`${safeFilename(document.name)}-print-report.txt`)}>Download print report</button>}
     <PlatePlacementPanel /><MaterialProfilesPanel key={document.id}/>
     <section className="workflow-card printer-setup">
       <div className="workflow-card-heading"><h3><Printer size={17} /> Printer setup</h3><button className="workflow-icon" aria-label={editingPrinter ? 'Close printer setup' : 'Edit printer setup'} aria-expanded={editingPrinter} onClick={() => setEditingPrinter((value) => !value)}><Settings2 size={17} /></button></div>
@@ -78,8 +81,8 @@ export function PrintPanel() {
 
     {currentAnalysis && <section className="workflow-card print-findings">
       <h3>Geometry checks</h3>
-      {currentAnalysis.issues.length ? <ul>{currentAnalysis.issues.map((issue) => <li className={`print-finding ${issue.severity}`} key={issue.id}><AlertCircle size={17} /><div><strong>{issue.title}</strong><p>{issue.description}</p>{issue.id === 'build-volume' && <button className="workflow-text-action" onClick={() => setEditingPrinter(true)}>Check printer dimensions</button>}</div></li>)}</ul> : <p className="workflow-passed"><CheckCircle2 size={17} /> Nonempty mesh within the configured size limits.</p>}
-      <p className="workflow-caption">These checks use overall dimensions and mesh presence. They do not certify printability.</p>
+      {currentAnalysis.issues.length ? <ul>{currentAnalysis.issues.map((issue) => <li className={`print-finding ${issue.severity}`} key={issue.id}><AlertCircle size={17} /><div><strong>{issue.title}</strong><p>{issue.description}</p>{['bed-position','floating','below-bed'].includes(issue.id)&&<button className="workflow-text-action" onClick={()=>void useEditor.getState().placeOnPlate('document','center-and-drop')}>Center and drop model</button>}{issue.id === 'build-volume' && <button className="workflow-text-action" onClick={() => setEditingPrinter(true)}>Check printer dimensions</button>}</div></li>)}</ul> : <p className="workflow-passed"><CheckCircle2 size={17} /> Nonempty mesh within the configured size limits.</p>}
+      <p className="workflow-caption">These checks use overall dimensions, bed position and mesh presence. They do not certify printability.</p>
     </section>}
 
     {diagnostics && <section className="workflow-card selected-mesh-checks">

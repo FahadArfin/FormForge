@@ -5,6 +5,10 @@ import type { SectionSettings } from '@/lib/sectionView'
 const defaultSection: SectionSettings = { enabled: false, axis: 'z', offset: 10, inverted: false }
 
 export const useInspection = create<{
+  focus: {documentId:string;ids:string[];wasResult:boolean}|null
+  setFocus:(focus:{documentId:string;ids:string[];wasResult:boolean}|null)=>void
+  pickOverlaps:boolean
+  setPickOverlaps:(enabled:boolean)=>void
   anglePoints:Vec3Value[]
   setAnglePoints:(points:Vec3Value[])=>void
   measurementMode: 'surface' | 'vertex'
@@ -13,6 +17,7 @@ export const useInspection = create<{
   setSection: (patch: Partial<SectionSettings>) => void
   resetSection: () => void
 }>((set) => ({
+  focus:null,setFocus:focus=>set({focus}),pickOverlaps:false,setPickOverlaps:pickOverlaps=>set({pickOverlaps}),
   anglePoints:[],setAnglePoints:anglePoints=>set({anglePoints}),
   measurementMode: 'vertex', setMeasurementMode: measurementMode => set({ measurementMode }),
   section: { ...defaultSection },

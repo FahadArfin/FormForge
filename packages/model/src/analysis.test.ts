@@ -6,6 +6,11 @@ import type { MeshPayload } from './types.js'
 const mesh: MeshPayload = { positions: new Float32Array(), indices: new Uint32Array(), triangleCount: 12, volume: 80 }
 
 describe('basic print analysis', () => {
+  it('detects position outside the bed, floating models and below-bed geometry',()=>{
+    const doc=createDocument();doc.printer.buildVolume={x:100,y:100,z:100}
+    const at=(x:number,z:number)=>analyzeForPrint(doc,{...mesh,positions:new Float32Array([x,0,z,x+10,10,z+10])},{x:10,y:10,z:10}).issues.map(i=>i.id)
+    expect(at(60,0)).toContain('bed-position');expect(at(0,5)).toContain('floating');expect(at(0,-5)).toContain('below-bed');expect(at(0,0)).toEqual([])
+  })
   it('warns when a flat plate is thinner than the configured dimension target', () => {
     const result = analyzeForPrint(createDocument(), mesh, { x: 20, y: 20, z: 0.2 })
     expect(result.status).toBe('warning')

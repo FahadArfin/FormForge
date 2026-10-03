@@ -116,7 +116,13 @@ const workplaneSchema = z.object({ name: z.string().min(1).max(64), origin: vec3
     return Math.abs(n - 1) < 0.001 && Math.abs(x - 1) < 0.001 && Math.abs(p.normal.x*p.xAxis.x + p.normal.y*p.xAxis.y + p.normal.z*p.xAxis.z) < 0.001
   }, 'Workplane axes must be orthonormal.')
 
+const cameraVector= z.object({x:z.number().finite().min(-1e6).max(1e6),y:z.number().finite().min(-1e6).max(1e6),z:z.number().finite().min(-1e6).max(1e6)})
+export const savedCameraViewSchema=z.object({id:z.string().min(1).max(128),name:z.string().trim().min(1).max(60),position:cameraVector,target:cameraVector,up:cameraVector,zoom:z.number().finite().min(.01).max(100)}).refine(v=>{
+ const d={x:v.target.x-v.position.x,y:v.target.y-v.position.y,z:v.target.z-v.position.z},u=v.up
+ return Math.hypot(d.x,d.y,d.z)>.001&&Math.hypot(d.y*u.z-d.z*u.y,d.z*u.x-d.x*u.z,d.x*u.y-d.y*u.x)>.000001
+},'Camera position, target and up direction must define a valid view.')
 export const modelDocumentSchema = z.object({
+  savedViews:z.array(savedCameraViewSchema).max(12).refine(views=>new Set(views.map(v=>v.id)).size===views.length,'View IDs must be unique.').optional(),
   printMaterial:z.object({name:z.string().trim().min(1).max(80),density:z.number().min(0.1).max(25),pricePerKg:z.number().min(0).max(100000),currency:z.string().regex(/^[A-Z]{3}$/),slicerGrams:z.number().min(0).max(100000).optional(),slicerMinutes:z.number().min(0).max(100000).optional(),slicerGeometryKey:z.string().max(32).optional()}).optional(),
   annotations: z.array(z.object({id:z.string().min(1),label:z.string().min(1).max(80),kind:z.enum(['distance','angle']),points:z.array(vec3Schema).min(2).max(3),geometryKey:z.string().max(32),visible:z.boolean()}).refine(a=>a.points.length===(a.kind==='angle'?3:2) && (a.kind!=='angle' || [0,2].every(i=>Math.hypot(a.points[i]!.x-a.points[1]!.x,a.points[i]!.y-a.points[1]!.y,a.points[i]!.z-a.points[1]!.z)>1e-6)), 'Complete the measurement with distinct angle endpoints.')).max(64).optional(),
   workplane: workplaneSchema.optional(),

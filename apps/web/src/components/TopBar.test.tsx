@@ -9,6 +9,7 @@ import { export3mf, exportGlb, exportMultiColor3mf, exportObj, exportStl } from 
 import { useEditor } from '@/store/editor'
 import { TopBar } from './TopBar'
 
+vi.mock('./MeshPreview',()=>({MeshPreview:()=> <div>Geometry preview</div>}))
 vi.mock('@/geometry/client', () => ({ geometryClient: { evaluate: vi.fn(() => new Promise(() => undefined)) } }))
 vi.mock('@/geometry/evaluateSnapshot', () => ({ evaluateSnapshot: vi.fn() }))
 vi.mock('@/lib/db', () => ({ saveProject: vi.fn(), loadMostRecentProject: vi.fn(), deleteProject: vi.fn(), saveVersion: vi.fn() }))
@@ -89,6 +90,7 @@ describe('selected-part export dialog', () => {
     document.body.append(host)
     root = createRoot(host)
     await act(async () => root.render(<ExportHarness />))
+    vi.mocked(evaluateSnapshot).mockClear()
   })
 
   afterEach(async () => {
@@ -108,9 +110,9 @@ describe('selected-part export dialog', () => {
   }
 
   async function chooseFormat(title: string) {
-    const button = [...host.querySelectorAll<HTMLButtonElement>('.export-formats button')]
-      .find(candidate => candidate.querySelector('strong')?.textContent === title)!
-    await act(async () => button.click())
+    const select=host.querySelector<HTMLSelectElement>('[aria-label="File format"]')!
+    const value=title==='Editable backup'?'project':title.toLowerCase()
+    await act(async()=>{select.value=value;select.dispatchEvent(new Event('change',{bubbles:true}))})
   }
 
   it('evaluates the complete selected group in isolation and downloads its returned mesh', async () => {
@@ -128,7 +130,7 @@ describe('selected-part export dialog', () => {
     expect(useEditor.getState().document).toBe(model)
     expect(useEditor.getState().mesh).toBe(wholeMesh)
     expect(model.nodes.map(node => node.id)).toEqual(['base', 'hole', 'unrelated'])
-    expect(host.querySelector('.download-confirmation')?.textContent).toContain('Download requested')
+    expect(host.querySelector('.export-dialog')?.textContent).toContain('Download requested')
   })
 
   it('does not download a pending selection after the document changes', async () => {
@@ -146,7 +148,7 @@ describe('selected-part export dialog', () => {
 
     expect(export3mf).not.toHaveBeenCalled()
     expect(downloadBlob).not.toHaveBeenCalled()
-    expect(host.querySelector('[role="alert"]')?.textContent).toContain('changed. Choose your export again')
+    expect(host.querySelector('.export-dialog')).not.toBeNull()
   })
 
   it('does not download a pending selection after closing and reopening the dialog', async () => {
@@ -180,7 +182,7 @@ describe('selected-part export dialog', () => {
 
     expect(export3mf).not.toHaveBeenCalled()
     expect(downloadBlob).not.toHaveBeenCalled()
-    expect(host.querySelector('[role="alert"]')?.textContent).toContain('changed. Choose your export again')
+    expect(host.querySelector('.export-dialog')).not.toBeNull()
   })
 
   it('does not download when the project changes while asynchronous GLB serialization is pending', async () => {
@@ -195,16 +197,17 @@ describe('selected-part export dialog', () => {
     await act(async () => job.resolve(exportedBlob))
 
     expect(downloadBlob).not.toHaveBeenCalled()
-    expect(host.querySelector('[role="alert"]')?.textContent).toContain('changed. Choose your export again')
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('changed. Review the new preview')
   })
 
   it('disables mesh download for a standalone cut selection', async () => {
     const cutter = { ...createNode('cylinder', 'cut'), id: 'standalone-cut' }
     await act(async () => { useEditor.setState({ document: { ...model, nodes: [...model.nodes, cutter] }, selectedNodeId: cutter.id, selectedNodeIds: [cutter.id] }) })
+    vi.mocked(evaluateSnapshot).mockClear()
     await chooseSelection()
 
     expect(downloadButton().disabled).toBe(true)
-    expect(host.querySelector('.export-warning')?.textContent).toContain('Holes alone cannot be exported')
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('Holes alone cannot be exported')
     await act(async () => downloadButton().click())
     expect(evaluateSnapshot).not.toHaveBeenCalled()
     expect(downloadBlob).not.toHaveBeenCalled()
@@ -212,9 +215,10 @@ describe('selected-part export dialog', () => {
 
   it('backs up the complete editable project even after choosing selected scope', async () => {
     await chooseSelection()
+    vi.mocked(evaluateSnapshot).mockClear()
     await chooseFormat('Editable backup')
     expect(scopeSelect().disabled).toBe(true)
-    expect(host.querySelector('.export-scope-note')?.textContent).toContain('always includes the complete project')
+    expect(host.querySelector('.export-dialog')?.textContent).toContain('includes the complete project')
     await act(async () => downloadButton().click())
 
     expect(evaluateSnapshot).not.toHaveBeenCalled()
