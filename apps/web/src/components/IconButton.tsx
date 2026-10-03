@@ -9,7 +9,7 @@ interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 export function IconButton({ icon, label, active, compact, className = '', ...props }: IconButtonProps) {
   return (
-    <button className={`icon-button ${active ? 'is-active' : ''} ${compact ? 'is-compact' : ''} ${className}`} title={label} aria-label={label} {...props}>
+    <button type="button" className={`icon-button ${active ? 'is-active' : ''} ${compact ? 'is-compact' : ''} ${className}`} title={label} aria-label={label} aria-pressed={active} {...props}>
       {icon}
       {!compact && <span>{label}</span>}
     </button>

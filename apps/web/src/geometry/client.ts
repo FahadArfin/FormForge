@@ -7,7 +7,7 @@ class GeometryClient {
   private requestId = 0
   private active: Job | null = null
   private queued: Job | null = null
-  private cache = new Map<string, MeshPayload>()
+  private cache = new Map<ModelDocument, MeshPayload>()
 
   constructor() {
     this.worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
@@ -16,7 +16,7 @@ class GeometryClient {
       this.active = null
       if (event.data.ok) {
         const mesh: MeshPayload = event.data
-        this.cache.set(job.key, mesh)
+        this.cache.set(job.document, mesh)
         while (this.cache.size > 12) this.cache.delete(this.cache.keys().next().value!)
         job.resolve(mesh)
       } else job.reject(new Error(event.data.error))
@@ -25,16 +25,14 @@ class GeometryClient {
   }
 
   evaluate(document: ModelDocument) {
-    // Revision numbers can repeat after Undo followed by a new edit. The
-    // timestamp is part of the immutable document snapshot, so including it
-    // prevents a branched history from receiving an unrelated cached mesh.
-    const key = `${document.id}:${document.revision}:${document.updatedAt}`
-    const cached = this.cache.get(key)
+    // Imports and branched edits may reuse all metadata. Only the identical
+    // immutable document snapshot can safely reuse its evaluated geometry.
+    const cached = this.cache.get(document)
     if (cached) return Promise.resolve(cached)
     const id = ++this.requestId
     return new Promise<MeshPayload>((resolve, reject) => {
       if (this.queued) this.queued.reject(new DOMException('Superseded by a newer model revision', 'AbortError'))
-      this.queued = { id, key, document, resolve, reject }
+      this.queued = { id, document, resolve, reject }
       this.pump()
     })
   }
@@ -49,7 +47,6 @@ class GeometryClient {
 
 interface Job {
   id: number
-  key: string
   document: ModelDocument
   resolve: (mesh: MeshPayload) => void
   reject: (error: Error) => void

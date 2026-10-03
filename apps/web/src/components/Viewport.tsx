@@ -888,7 +888,8 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       const center = bounds.getCenter(new THREE.Vector3())
       const size = bounds.getSize(new THREE.Vector3())
       const direction = camera.position.clone().sub(orbit.target).normalize()
-      const distance = Math.max(12, size.length() / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) * 1.15)
+      const limitingView = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * Math.min(1, camera.aspect)
+      const distance = Math.max(12, size.length() / (2 * limitingView) * 1.15)
       orbit.target.copy(center)
       camera.position.copy(center).addScaledVector(direction, distance)
       camera.near = Math.max(0.01, distance / 1000)
@@ -922,9 +923,14 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     const resize = new ResizeObserver(() => {
       const width = host.clientWidth
       const height = host.clientHeight
+      if (!width || !height) return
       renderer.setSize(width, height, false)
-      camera.aspect = width / Math.max(height, 1)
+      const nextAspect = width / height
+      const framingScale = Math.min(1, camera.aspect) / Math.min(1, nextAspect)
+      camera.position.sub(orbit.target).multiplyScalar(framingScale).add(orbit.target)
+      camera.aspect = nextAspect
       camera.updateProjectionMatrix()
+      orbit.update()
     })
     resize.observe(host)
 
@@ -967,15 +973,15 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     const rt = runtime.current
     if (!rt) return
     const light = theme === 'light'
-    const background = light ? '#e7ebf2' : '#14151d'
+    const background = light ? '#f0eff5' : '#181822'
     rt.scene.background = new THREE.Color(background)
-    rt.scene.fog = new THREE.FogExp2(background, light ? 0.0022 : 0.0028)
+    rt.scene.fog = new THREE.FogExp2(background, light ? 0.0032 : 0.0028)
     const plateMaterial = rt.buildPlate.material as THREE.MeshStandardMaterial
-    plateMaterial.color.set(light ? '#d4dae5' : '#1c1e28')
+    plateMaterial.color.set(light ? '#ebe9f0' : '#1c1e28')
     plateMaterial.opacity = light ? 0.82 : 0.68
     plateMaterial.needsUpdate = true
     const gridMaterials = Array.isArray(rt.grid.material) ? rt.grid.material : [rt.grid.material]
-    gridMaterials.forEach((material) => { material.opacity = light ? 0.3 : 0.42; material.needsUpdate = true })
+    gridMaterials.forEach((material) => { material.opacity = light ? 0.18 : 0.3; material.needsUpdate = true })
   }, [theme])
 
   useEffect(() => {
@@ -1004,11 +1010,10 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       const selected = selectedNodeIds.includes(node.id)
       const suppressed = Boolean(node.suppressed)
       const editing = !showResult
-      const unmerged = !node.combined
       const signature = nodeGeometrySignature(node)
       let object = rt.sourceById.get(node.id)
       if (!object) {
-        object = new THREE.Mesh(makeSourceGeometry(node), new THREE.MeshStandardMaterial())
+        object = new THREE.Mesh(makeSourceGeometry(node), new THREE.MeshStandardMaterial({ fog: false }))
         object.userData.nodeId = node.id
         object.userData.geometrySignature = signature
         rt.sourceGroup.add(object)
@@ -1026,19 +1031,18 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       material.transparent = true
       material.opacity = suppressed ? selected ? 0.28 : 0.1 : editing
         ? node.boolean === 'add' ? 0.88 : 0.28
-        : unmerged ? selected ? 0.24 : 0.1
-          : selected || xrayEnabled ? 0.14 : 0
+        : selected || xrayEnabled ? 0.14 : 0
       material.depthWrite = !suppressed && editing && node.boolean === 'add' && displayMode === 'solid'
       material.wireframe = suppressed || displayMode === 'wireframe' || (node.boolean !== 'add' && editing)
       updateMaskColors(object, suppressed ? '#6d7080' : node.color, node.mesh?.mask)
       material.needsUpdate = true
-      object.visible = suppressed || editing || unmerged || selected || xrayEnabled
+      object.visible = editing || selected || xrayEnabled
       object.castShadow = editing && node.boolean === 'add'
       object.receiveShadow = editing && node.boolean === 'add'
       applyNodeTransform(object, node)
 
       const oldOutline = object.getObjectByName('selection-outline') as THREE.LineSegments | undefined
-      const showOutline = suppressed || unmerged || xrayEnabled || selected || node.boolean !== 'add'
+      const showOutline = selected || xrayEnabled || (editing && (suppressed || node.boolean !== 'add'))
       let outline = oldOutline
       if (outline && !showOutline) {
         outline.geometry.dispose()
@@ -1203,7 +1207,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     if (!meshPayload?.positions.length) return
     const geometry = meshPayloadToGeometry(meshPayload)
     const material = new THREE.MeshStandardMaterial({
-      color: '#829eff', roughness: 0.32, metalness: 0.08,
+      color: '#829eff', roughness: 0.32, metalness: 0.08, fog: false,
       wireframe: displayMode === 'wireframe',
       transparent: displayMode === 'vertices',
       opacity: displayMode === 'vertices' ? 0.08 : 1,
@@ -1211,7 +1215,8 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     const object = new THREE.Mesh(geometry, material)
     object.castShadow = true
     object.receiveShadow = true
-    object.visible = showResult
+    // The result group owns visibility; a rebuild in Edit shapes must remain
+    // available when the user switches back to Solid result.
     rt.resultGroup.add(object)
     if (displayMode === 'vertices') {
       const points = new THREE.Points(geometry, new THREE.PointsMaterial({ color: '#d9dbff', size: 1.15, sizeAttenuation: true }))

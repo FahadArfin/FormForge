@@ -22,7 +22,8 @@ import {
   vec3,
 } from '@formforge/model'
 import { geometryClient } from '@/geometry/client'
-import { loadMostRecentProject, saveProject } from '@/lib/db'
+import { deleteProject as deleteSavedProject, loadMostRecentProject, saveProject } from '@/lib/db'
+import { createProjectPersistence, type ProjectSaveState } from '@/lib/projectPersistence'
 import { makeSourceGeometry, nodeWorldBounds } from '@/lib/modelGeometry'
 import { repairMesh } from '@/lib/meshTools'
 import { geometryToSculptMesh, subdivideMesh, type SculptMesh } from '@/lib/polygonSculpt'
@@ -59,7 +60,7 @@ export type ProfileRecipePlacement = {
   settings: NonNullable<ModelNode['profileSettings']>
 }
 
-interface EditorState {
+interface EditorState extends ProjectSaveState {
   document: ModelDocument
   selectedNodeId: string | null
   selectedNodeIds: string[]
@@ -97,6 +98,7 @@ interface EditorState {
   geometryBusyVisible: boolean
   geometryError: string | null
   mesh: MeshPayload | null
+  meshDocument: ModelDocument | null
   analysis: PrintAnalysis | null
   undoStack: ModelDocument[]
   redoStack: ModelDocument[]
@@ -169,11 +171,12 @@ interface EditorState {
   loadDemo: () => void
   importDocument: (value: unknown) => void
   hydrate: () => Promise<void>
+  saveNow: () => Promise<void>
+  deleteProject: (projectId: string) => Promise<void>
   rebuild: () => Promise<void>
 }
 
 let rebuildTimer: ReturnType<typeof setTimeout> | null = null
-let saveTimer: ReturnType<typeof setTimeout> | null = null
 let busyTimer: ReturnType<typeof setTimeout> | null = null
 let rebuildGeneration = 0
 
@@ -234,13 +237,25 @@ function separateDisconnectedMeshNodes(document: ModelDocument) {
 }
 
 export const useEditor = create<EditorState>((set, get) => {
+  let hydrationPromise: Promise<void> | null = null
+  const persistence = createProjectPersistence(saveProject, (document, state) => {
+    if (get().document === document) set(state)
+    else if (state.saveStatus === 'error' && get().document.id !== document.id) {
+      set({ notice: `Could not save “${document.name || 'Untitled project'}” on this device: ${state.saveError}` })
+    }
+  })
+  const resetDocumentTransientState = {
+    tool: 'select' as const, placingNodeId: null, measurement: null, profileOperation: 'extrude' as const,
+    mesh: null, meshDocument: null, analysis: null, geometryStatus: 'idle' as const,
+    geometryBusyVisible: false, geometryError: null, showResult: true,
+  }
+
   const scheduleSideEffects = (rebuildGeometry = true) => {
     if (rebuildGeometry) {
       if (rebuildTimer) clearTimeout(rebuildTimer)
       rebuildTimer = setTimeout(() => void get().rebuild(), 90)
     }
-    if (saveTimer) clearTimeout(saveTimer)
-    saveTimer = setTimeout(() => void saveProject(get().document), 500)
+    persistence.schedule(get().document)
   }
 
   const commitParameterizedDocument = (draft: ModelDocument, notice?: string) => {
@@ -311,21 +326,33 @@ export const useEditor = create<EditorState>((set, get) => {
     geometryBusyVisible: false,
     geometryError: null,
     mesh: null,
+    meshDocument: null,
     analysis: null,
     undoStack: [],
     redoStack: [],
     notice: null,
     hydrated: false,
+    saveStatus: 'saving',
+    saveError: null,
+    lastSavedAt: null,
 
     dispatch(command, remember = true, rebuildGeometry = true) {
       const previous = get().document
       const next = executeCommand(previous, command)
+      // Preserve a proven mesh for metadata and sculpt-mask changes that skip evaluation.
+      const previousNode = command.type === 'update-node' ? previous.nodes.find((node) => node.id === command.nodeId) : undefined
+      const visualKeys = new Set(['name', 'color', 'materialId', 'materialSlot', 'locked', 'visible'])
+      const geometryNeutral = command.type === 'update-node' && Object.keys(command.patch).every((key) => visualKeys.has(key)
+        || (key === 'mesh' && command.patch.mesh?.positions === previousNode?.mesh?.positions && command.patch.mesh?.indices === previousNode?.mesh?.indices))
+      const canReuseMesh = !rebuildGeometry && geometryNeutral && get().meshDocument === previous
       set((state) => ({
         document: next,
+        ...(canReuseMesh ? { meshDocument: next, geometryStatus: 'ready' as const, geometryBusyVisible: false } : {}),
         undoStack: remember ? [...state.undoStack.slice(-49), previous] : state.undoStack,
         redoStack: remember ? [] : state.redoStack,
       }))
-      scheduleSideEffects(rebuildGeometry)
+      // A metadata edit during an unfinished build still needs a new snapshot evaluated.
+      scheduleSideEffects(rebuildGeometry || (geometryNeutral && !canReuseMesh))
     },
 
     addPrimitive(kind, boolean = 'add', parameters) {
@@ -837,7 +864,7 @@ export const useEditor = create<EditorState>((set, get) => {
         revision: previous.revision + 1,
         updatedAt: new Date().toISOString(),
       }
-      get().dispatch({ type: 'replace-document', document }, true, false)
+      get().dispatch({ type: 'replace-document', document }, true, true)
       set({
         selectedNodeId: node.id,
         selectedNodeIds: [node.id],
@@ -940,38 +967,64 @@ export const useEditor = create<EditorState>((set, get) => {
 
     newDocument() {
       const document = createDocument()
-      const selectedNodeId = document.nodes[0]?.id ?? null
-      set({ document, selectedNodeId, selectedNodeIds: selectedNodeId ? [selectedNodeId] : [], meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], parameterErrors: {}, undoStack: [], redoStack: [], notice: 'New project created.' })
+      document.nodes = []
+      const selectedNodeId = null
+      set({ ...resetDocumentTransientState, document, selectedNodeId, selectedNodeIds: selectedNodeId ? [selectedNodeId] : [], meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], parameterErrors: {}, undoStack: [], redoStack: [], notice: 'New project created.' })
       scheduleSideEffects()
     },
 
     loadDemo() {
       const document = createDemoDocument()
-      set({ document, selectedNodeId: null, selectedNodeIds: [], meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], parameterErrors: {}, undoStack: [], redoStack: [], showResult: true, notice: 'Demo project loaded.' })
+      set({ ...resetDocumentTransientState, document, selectedNodeId: null, selectedNodeIds: [], meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], parameterErrors: {}, undoStack: [], redoStack: [], notice: 'Demo project loaded.' })
       scheduleSideEffects()
     },
 
     importDocument(value) {
       const resolved = resolveDocumentParameterBindings(parseModelDocument(value))
       const separated = separateDisconnectedMeshNodes(resolved.document)
-      set({ document: separated.document, selectedNodeId: null, selectedNodeIds: [], meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], parameterErrors: resolved.errors, undoStack: [], redoStack: [], notice: separated.separatedParts ? `Project opened · separated ${separated.separatedParts} disconnected mesh parts.` : 'Project imported.' })
+      set({ ...resetDocumentTransientState, document: separated.document, selectedNodeId: null, selectedNodeIds: [], meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], parameterErrors: resolved.errors, undoStack: [], redoStack: [], notice: separated.separatedParts ? `Project opened · separated ${separated.separatedParts} disconnected mesh parts.` : 'Project imported.' })
       scheduleSideEffects()
     },
 
-    async hydrate() {
-      if (get().hydrated) return
-      try {
-        const saved = await loadMostRecentProject()
-        if (saved) {
-          const resolved = resolveDocumentParameterBindings(parseModelDocument(saved.document))
-          const separated = separateDisconnectedMeshNodes(resolved.document)
-          set({ document: separated.document, meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], parameterErrors: resolved.errors, notice: separated.separatedParts ? `Project restored · separated ${separated.separatedParts} disconnected mesh parts.` : 'Local project restored.' })
-          if (separated.separatedParts) await saveProject(separated.document)
+    hydrate() {
+      if (get().hydrated) return Promise.resolve()
+      if (hydrationPromise) return hydrationPromise
+      const initialDocument = get().document
+      hydrationPromise = (async () => {
+        try {
+          const saved = await loadMostRecentProject()
+          // An import or new project started during startup takes precedence over restored data.
+          if (get().document !== initialDocument) return
+          if (saved) {
+            const resolved = resolveDocumentParameterBindings(parseModelDocument(saved.document))
+            const separated = separateDisconnectedMeshNodes(resolved.document)
+            set({ document: separated.document, meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], parameterErrors: resolved.errors, notice: separated.separatedParts ? `Project restored · separated ${separated.separatedParts} disconnected mesh parts.` : 'Local project restored.' })
+            if (separated.separatedParts) persistence.schedule(separated.document)
+            else persistence.restored(separated.document)
+          } else persistence.schedule(get().document)
+        } catch (error) {
+          if (get().document === initialDocument) set({ saveStatus: 'error', saveError: error instanceof Error ? error.message : 'Could not open projects stored on this device.', lastSavedAt: null })
+        } finally {
+          set({ hydrated: true })
+          await get().rebuild()
         }
-      } finally {
-        set({ hydrated: true })
-        await get().rebuild()
+      })()
+      return hydrationPromise
+    },
+
+    async saveNow() {
+      const document = get().document
+      try {
+        await persistence.saveNow(document)
+        if (get().document === document && get().saveStatus === 'saved') set({ notice: `“${document.name || 'Untitled project'}” saved on this device.` })
+      } catch {
+        if (get().document === document && get().saveStatus === 'error') set({ notice: 'Save failed. Retry saving or download an editable project backup.' })
       }
+    },
+
+    async deleteProject(projectId) {
+      await persistence.remove(projectId, () => deleteSavedProject(projectId))
+      if (get().document.id === projectId) get().newDocument()
     },
 
     async rebuild() {
@@ -984,7 +1037,7 @@ export const useEditor = create<EditorState>((set, get) => {
       }, 450)
       try {
         const mesh = await geometryClient.evaluate(document)
-        if (rebuildGeneration !== generation || get().document.updatedAt !== document.updatedAt || get().document.id !== document.id) return
+        if (rebuildGeneration !== generation || get().document !== document) return
         let dimensions = vec3()
         if (mesh.positions.length) {
           let minX = Infinity; let minY = Infinity; let minZ = Infinity
@@ -997,10 +1050,10 @@ export const useEditor = create<EditorState>((set, get) => {
           dimensions = vec3(maxX - minX, maxY - minY, maxZ - minZ)
         }
         if (busyTimer) clearTimeout(busyTimer)
-        set({ mesh, geometryStatus: 'ready', geometryBusyVisible: false, analysis: analyzeForPrint(document, mesh, dimensions) })
+        set({ mesh, meshDocument: document, geometryStatus: 'ready', geometryBusyVisible: false, analysis: analyzeForPrint(document, mesh, dimensions) })
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return
-        if (rebuildGeneration !== generation || get().document.updatedAt !== document.updatedAt || get().document.id !== document.id) return
+        if (rebuildGeneration !== generation || get().document !== document) return
         if (busyTimer) clearTimeout(busyTimer)
         set({ geometryStatus: 'error', geometryBusyVisible: false, geometryError: error instanceof Error ? error.message : 'Could not rebuild model' })
       }

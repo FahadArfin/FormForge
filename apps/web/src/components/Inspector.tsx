@@ -1,4 +1,4 @@
-import { Copy, Eye, EyeOff, Lock, MoreHorizontal, Trash2, Unlock, BoxSelect, Printer, CheckCircle2, AlertTriangle, ArrowDownToLine, FlipHorizontal2, Grid2X2Plus, History, RotateCcw, RotateCw, Combine, Scissors, ScanLine, Ungroup, Palette, Spline, ArrowUp, ArrowDown, Power, Wrench, Layers3, Sparkles } from 'lucide-react'
+import { Copy, Eye, EyeOff, Lock, Search, Trash2, Unlock, BoxSelect, Printer, CheckCircle2, AlertTriangle, ArrowDownToLine, FlipHorizontal2, Grid2X2Plus, History, RotateCcw, RotateCw, Combine, Scissors, ScanLine, Ungroup, Palette, Spline, ArrowUp, ArrowDown, Power, Wrench, Layers3, Sparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { ModelNode, TransformValue, Vec3Value } from '@formforge/model'
 import { useEditor } from '@/store/editor'
@@ -10,20 +10,22 @@ import { SketchConstraintEditor } from './SketchConstraintEditor'
 import { MeshComponentEditor } from './MeshComponentEditor'
 import { ProfileEditor } from './ProfileEditor'
 
-function NumberInput({ label, value, onChange, suffix }: { label: string; value: number; onChange: (value: number) => void; suffix?: string }) {
+function NumberInput({ label, accessibleLabel, value, onChange, suffix }: { label: string; accessibleLabel?: string; value: number; onChange: (value: number) => void; suffix?: string }) {
+  const dimensions: Record<string, string> = { W: 'Width', D: 'Depth', H: 'Height', R: 'Radius', 'Base W': 'Base width', 'Base D': 'Base depth', 'Top W': 'Top width', 'Top D': 'Top depth', 'Coil R': 'Coil radius', 'Wire R': 'Wire radius', Outer: 'Outer radius', Root: 'Root radius', Top: 'Top radius', Inner: 'Inner radius', Minor: 'Minor radius' }
+  const name = accessibleLabel ?? dimensions[label] ?? label
   return (
     <label className="number-field">
       <span>{label}</span>
-      <div><input type="number" step="0.5" value={Number(value.toFixed(2))} onChange={(event) => onChange(Number(event.target.value))} />{suffix && <em>{suffix}</em>}</div>
+      <div><input aria-label={`${name}${suffix ? ` (${suffix === 'mm' ? 'millimeters' : suffix === '°' ? 'degrees' : suffix})` : ''}`} type="number" step="0.5" value={Number(value.toFixed(2))} onChange={(event) => onChange(Number(event.target.value))} />{suffix && <em>{suffix}</em>}</div>
     </label>
   )
 }
 
-function VectorFields({ value, onChange, suffix }: { value: Vec3Value; onChange: (value: Vec3Value) => void; suffix?: string }) {
+function VectorFields({ label, value, onChange, suffix }: { label: string; value: Vec3Value; onChange: (value: Vec3Value) => void; suffix?: string }) {
   return (
     <div className="vector-fields">
       {(['x', 'y', 'z'] as const).map((axis) => (
-        <NumberInput key={axis} label={axis.toUpperCase()} value={value[axis]} suffix={suffix} onChange={(next) => onChange({ ...value, [axis]: next })} />
+        <NumberInput key={axis} label={axis.toUpperCase()} accessibleLabel={`${label} ${axis.toUpperCase()}`} value={value[axis]} suffix={suffix} onChange={(next) => onChange({ ...value, [axis]: next })} />
       ))}
     </div>
   )
@@ -59,31 +61,31 @@ function ShapeInspector({ node }: { node: ModelNode }) {
   return (
     <div className="inspector-content">
       <div className="inspector-heading">
-        <input value={node.name} onChange={(event) => updateNode(node.id, { name: event.target.value || 'Shape' })} />
+        <input aria-label="Shape name" value={node.name} onChange={(event) => updateNode(node.id, { name: event.target.value || 'Shape' })} />
         <span className={`boolean-pill ${node.boolean}`}>{node.boolean === 'add' ? 'Solid' : node.boolean === 'cut' ? 'Carve' : 'Intersect'}</span>
       </div>
 
       <div className="property-group shape-role-editor">
         <h3>How this shape combines</h3>
         <div role="group" aria-label="Shape boolean role">
-          <button className={node.boolean === 'add' ? 'active' : ''} onClick={() => updateNode(node.id, { boolean: 'add' })}><Combine size={14} /><strong>Solid</strong><span>Include this shape</span></button>
-          <button className={node.boolean === 'cut' ? 'active' : ''} onClick={() => updateNode(node.id, { boolean: 'cut' })}><Scissors size={14} /><strong>Hole</strong><span>Exclude its volume</span></button>
-          <button className={node.boolean === 'intersect' ? 'active' : ''} onClick={() => updateNode(node.id, { boolean: 'intersect' })}><ScanLine size={14} /><strong>Overlap</strong><span>Keep shared volume</span></button>
+          <button aria-pressed={node.boolean === 'add'} className={node.boolean === 'add' ? 'active' : ''} onClick={() => updateNode(node.id, { boolean: 'add' })}><Combine size={14} /><strong>Solid</strong><span>Include this shape</span></button>
+          <button aria-pressed={node.boolean === 'cut'} className={node.boolean === 'cut' ? 'active' : ''} onClick={() => updateNode(node.id, { boolean: 'cut' })}><Scissors size={14} /><strong>Hole</strong><span>Exclude its volume</span></button>
+          <button aria-pressed={node.boolean === 'intersect'} className={node.boolean === 'intersect' ? 'active' : ''} onClick={() => updateNode(node.id, { boolean: 'intersect' })}><ScanLine size={14} /><strong>Overlap</strong><span>Keep shared volume</span></button>
         </div>
         <small>Shapes stay independently editable until you explicitly combine a multi-selection.</small>
       </div>
 
       <div className="property-group">
         <h3>Position</h3>
-        <VectorFields value={transform.position} suffix="mm" onChange={(value) => updateTransform('position', value)} />
+        <VectorFields label="Position" value={transform.position} suffix="mm" onChange={(value) => updateTransform('position', value)} />
       </div>
       <div className="property-group pro-property">
         <h3>Rotation</h3>
-        <VectorFields value={transform.rotation} suffix="°" onChange={(value) => updateTransform('rotation', value)} />
+        <VectorFields label="Rotation" value={transform.rotation} suffix="°" onChange={(value) => updateTransform('rotation', value)} />
       </div>
       <div className="property-group pro-property">
         <h3>Scale</h3>
-        <VectorFields value={transform.scale} onChange={(value) => updateTransform('scale', value)} />
+        <VectorFields label="Scale" value={transform.scale} onChange={(value) => updateTransform('scale', value)} />
       </div>
       <div className="property-group">
         <h3>Size</h3>
@@ -119,16 +121,16 @@ function ShapeInspector({ node }: { node: ModelNode }) {
       </>}
       <div className="property-group pro-property layer-editor">
         <h3><Layers3 size={13} /> Layer</h3>
-        <input value={node.layer ?? 'Default'} onChange={(event) => updateNode(node.id, { layer: event.target.value || 'Default' })} placeholder="Default" />
+        <input aria-label="Shape layer" value={node.layer ?? 'Default'} onChange={(event) => updateNode(node.id, { layer: event.target.value || 'Default' })} placeholder="Default" />
       </div>
       <div className="property-group material-editor">
         <h3><Palette size={13} /> Color & print material</h3>
-        <div className="color-row"><input aria-label="Custom object color" type="color" value={node.color} onChange={(event) => updateNode(node.id, { color: event.target.value })} />{swatches.map((color) => <button key={color} className={node.color === color ? 'active' : ''} style={{ background: color }} title={color} onClick={() => updateNode(node.id, { color })} />)}</div>
-        <div className="ams-slots"><span>Print color</span>{[1, 2, 3, 4].map((slot) => <button key={slot} className={node.materialSlot === slot ? 'active' : ''} onClick={() => updateNode(node.id, { materialSlot: slot })}><i style={{ background: node.materialSlot === slot ? node.color : undefined }} />{slot}</button>)}</div>
+        <div className="color-row"><input aria-label="Custom object color" type="color" value={node.color} onChange={(event) => updateNode(node.id, { color: event.target.value })} />{swatches.map((color) => <button key={color} aria-label={`Set shape color to ${color}`} aria-pressed={node.color === color} className={node.color === color ? 'active' : ''} style={{ background: color }} title={color} onClick={() => updateNode(node.id, { color })} />)}</div>
+        <div className="ams-slots"><span>Print color</span>{[1, 2, 3, 4].map((slot) => <button key={slot} aria-label={`Print material slot ${slot}`} aria-pressed={node.materialSlot === slot} className={node.materialSlot === slot ? 'active' : ''} onClick={() => updateNode(node.id, { materialSlot: slot })}><i style={{ background: node.materialSlot === slot ? node.color : undefined }} />{slot}</button>)}</div>
       </div>
       <div className="property-group pro-property deform-editor">
         <h3><Spline size={13} /> Deform mesh</h3>
-        <div className="deform-row"><select value={node.deformation?.kind ?? 'none'} onChange={(event) => updateNode(node.id, { deformation: { kind: event.target.value as NonNullable<ModelNode['deformation']>['kind'], amount: node.deformation?.amount ?? 0 } })}><option value="none">None</option><option value="taper">Taper</option><option value="twist">Twist</option><option value="bend">Bend</option></select><input type="number" value={node.deformation?.amount ?? 0} step="5" onChange={(event) => updateNode(node.id, { deformation: { kind: node.deformation?.kind ?? 'taper', amount: Number(event.target.value) } })} /><em>{node.deformation?.kind === 'twist' ? '°' : '%'}</em></div>
+        <div className="deform-row"><select aria-label="Mesh deformation type" value={node.deformation?.kind ?? 'none'} onChange={(event) => updateNode(node.id, { deformation: { kind: event.target.value as NonNullable<ModelNode['deformation']>['kind'], amount: node.deformation?.amount ?? 0 } })}><option value="none">None</option><option value="taper">Taper</option><option value="twist">Twist</option><option value="bend">Bend</option></select><input aria-label={`Deformation amount (${node.deformation?.kind === 'twist' ? 'degrees' : 'percent'})`} type="number" value={node.deformation?.amount ?? 0} step="5" onChange={(event) => updateNode(node.id, { deformation: { kind: node.deformation?.kind ?? 'taper', amount: Number(event.target.value) } })} /><em>{node.deformation?.kind === 'twist' ? '°' : '%'}</em></div>
         <input aria-label="Deformation amount" type="range" min="-180" max="180" step="1" value={node.deformation?.amount ?? 0} onChange={(event) => updateNode(node.id, { deformation: { kind: node.deformation?.kind ?? 'taper', amount: Number(event.target.value) } }, false)} />
       </div>
       <div className="property-group pro-property surface-editor">
@@ -152,17 +154,17 @@ function ShapeInspector({ node }: { node: ModelNode }) {
           {(['x', 'y', 'z'] as const).map((axis) => <button key={axis} onClick={() => mirrorSelected(axis)}><FlipHorizontal2 size={13} /> Mirror {axis.toUpperCase()}</button>)}
         </div>
         <div className="pattern-row">
-          <label><span>Axis</span><select value={patternAxis} onChange={(event) => setPatternAxis(event.target.value as 'x' | 'y' | 'z')}><option value="x">X</option><option value="y">Y</option><option value="z">Z</option></select></label>
-          <label><span>Copies</span><input type="number" min="2" max="20" value={patternCount} onChange={(event) => setPatternCount(Number(event.target.value))} /></label>
-          <label><span>Spacing</span><div><input type="number" min="0.1" step="0.1" value={patternSpacing} onChange={(event) => setPatternSpacing(Number(event.target.value))} /><em>mm</em></div></label>
+          <label><span>Axis</span><select aria-label="Linear pattern axis" value={patternAxis} onChange={(event) => setPatternAxis(event.target.value as 'x' | 'y' | 'z')}><option value="x">X</option><option value="y">Y</option><option value="z">Z</option></select></label>
+          <label><span>Copies</span><input aria-label="Linear pattern copies" type="number" min="2" max="20" value={patternCount} onChange={(event) => setPatternCount(Number(event.target.value))} /></label>
+          <label><span>Spacing</span><div><input aria-label="Linear pattern spacing (millimeters)" type="number" min="0.1" step="0.1" value={patternSpacing} onChange={(event) => setPatternSpacing(Number(event.target.value))} /><em>mm</em></div></label>
         </div>
         <button className="pattern-apply" onClick={() => patternSelected(patternAxis, patternCount, patternSpacing)}><Grid2X2Plus size={14} /> Create linear pattern</button>
         <div className="pattern-row polar-row">
-          <label><span>Axis</span><select value={patternAxis} onChange={(event) => setPatternAxis(event.target.value as 'x' | 'y' | 'z')}><option value="x">X</option><option value="y">Y</option><option value="z">Z</option></select></label>
-          <label><span>Copies</span><input type="number" min="2" max="36" value={patternCount} onChange={(event) => setPatternCount(Number(event.target.value))} /></label>
-          <label><span>Arc</span><div><input type="number" min="1" max="360" step="1" value={polarDegrees} onChange={(event) => setPolarDegrees(Number(event.target.value))} /><em>°</em></div></label>
+          <label><span>Axis</span><select aria-label="Polar pattern axis" value={patternAxis} onChange={(event) => setPatternAxis(event.target.value as 'x' | 'y' | 'z')}><option value="x">X</option><option value="y">Y</option><option value="z">Z</option></select></label>
+          <label><span>Copies</span><input aria-label="Polar pattern copies" type="number" min="2" max="36" value={patternCount} onChange={(event) => setPatternCount(Number(event.target.value))} /></label>
+          <label><span>Arc</span><div><input aria-label="Polar pattern arc (degrees)" type="number" min="1" max="360" step="1" value={polarDegrees} onChange={(event) => setPolarDegrees(Number(event.target.value))} /><em>°</em></div></label>
         </div>
-        <div className="polar-radius"><span>Pattern radius</span><div><input type="number" min="0.1" step="0.5" value={polarRadius} onChange={(event) => setPolarRadius(Number(event.target.value))} /><em>mm</em></div></div>
+        <div className="polar-radius"><span>Pattern radius</span><div><input aria-label="Polar pattern radius (millimeters)" type="number" min="0.1" step="0.5" value={polarRadius} onChange={(event) => setPolarRadius(Number(event.target.value))} /><em>mm</em></div></div>
         <button className="pattern-apply" onClick={() => polarPatternSelected(patternAxis, patternCount, polarDegrees, polarRadius)}><RotateCw size={14} /> Create polar pattern</button>
       </div>
     </div>
@@ -185,7 +187,7 @@ function SelectionActions({ count }: { count: number }) {
     <button className="ungroup-action" onClick={ungroupSelected}><Ungroup size={15} /> Separate combined parts</button>
     <div className="selection-layout-tools">
       <strong>Align to first selected</strong>
-      {(['x', 'y', 'z'] as const).map((axis) => <div key={axis}><span>{axis.toUpperCase()}</span><button onClick={() => alignSelected(axis, 'min')}>Min</button><button onClick={() => alignSelected(axis, 'center')}>Center</button><button onClick={() => alignSelected(axis, 'max')}>Max</button><button disabled={count < 3} onClick={() => distributeSelected(axis)}>Distribute</button></div>)}
+      {(['x', 'y', 'z'] as const).map((axis) => <div key={axis}><span>{axis.toUpperCase()}</span><button aria-label={`Align ${axis.toUpperCase()} minimum`} onClick={() => alignSelected(axis, 'min')}>Min</button><button aria-label={`Align ${axis.toUpperCase()} centers`} onClick={() => alignSelected(axis, 'center')}>Center</button><button aria-label={`Align ${axis.toUpperCase()} maximum`} onClick={() => alignSelected(axis, 'max')}>Max</button><button aria-label={`Distribute along ${axis.toUpperCase()}`} disabled={count < 3} onClick={() => distributeSelected(axis)}>Distribute</button></div>)}
     </div>
   </div>
 }
@@ -247,16 +249,17 @@ function HistoryPanel() {
   }
 
   return <div className="history-panel">
-    <div className="history-intro"><History size={21} /><div><strong>Local checkpoints</strong><span>Save a checkpoint from the File menu before a risky edit.</span></div></div>
+    <div className="history-intro"><History size={21} /><div><strong>Local checkpoints</strong><span>Save a checkpoint from Project actions beside your project name.</span></div></div>
     {versions.length ? <div className="version-list">{versions.map((version) => <article key={version.id}>
       <div><strong>{version.label}</strong><span>{new Date(version.createdAt).toLocaleString()} · {version.document.nodes.length} features</span></div>
-      <button title="Restore checkpoint" onClick={() => restore(version)}><RotateCcw size={14} /> Restore</button>
+      <button aria-label={`Restore ${version.label}`} title="Restore checkpoint" onClick={() => restore(version)}><RotateCcw size={14} /> Restore</button>
     </article>)}</div> : <div className="empty-history"><strong>No checkpoints yet</strong><span>Open File and choose Save checkpoint.</span></div>}
   </div>
 }
 
 export function Inspector() {
   const [panel, setPanel] = useState<'model' | 'parameters' | 'print' | 'history'>('model')
+  const [featureQuery, setFeatureQuery] = useState('')
   const document = useEditor((state) => state.document)
   const selectedNodeId = useEditor((state) => state.selectedNodeId)
   const selectedNodeIds = useEditor((state) => state.selectedNodeIds)
@@ -266,33 +269,40 @@ export function Inspector() {
   const removeSelected = useEditor((state) => state.removeSelected)
   const moveFeature = useEditor((state) => state.moveFeature)
   const selected = document.nodes.find((node) => node.id === selectedNodeId)
+  const matchingNodes = document.nodes.map((node, index) => ({ node, index })).filter(({ node }) => `${node.name} ${node.kind} ${node.layer ?? ''}`.toLowerCase().includes(featureQuery.trim().toLowerCase()))
+
+  useEffect(() => { setFeatureQuery('') }, [document.id])
 
   useEffect(() => {
     if (document.workspaceMode === 'simple' && panel === 'parameters') setPanel('model')
   }, [document.workspaceMode, panel])
 
   return (
-    <aside className={`inspector panel-surface ${document.workspaceMode === 'simple' ? 'simple-inspector' : ''}`}>
+    <aside aria-label="Model inspector" className={`inspector panel-surface ${document.workspaceMode === 'simple' ? 'simple-inspector' : ''}`}>
       <div className="panel-title-row">
-        <div className="inspector-tabs"><button className={panel === 'model' ? 'active' : ''} onClick={() => setPanel('model')}><BoxSelect size={14} /> Model</button>{document.workspaceMode === 'pro' && <button className={panel === 'parameters' ? 'active' : ''} onClick={() => setPanel('parameters')}><span className="parameter-tab-icon">{'{}'}</span> Params</button>}<button className={panel === 'print' ? 'active' : ''} onClick={() => setPanel('print')}><Printer size={14} /> Print</button><button className={panel === 'history' ? 'active' : ''} onClick={() => setPanel('history')}><History size={14} /> History</button></div>
-        <MoreHorizontal size={18} />
+        <div className="inspector-tabs" role="group" aria-label="Inspector panels"><button aria-pressed={panel === 'model'} className={panel === 'model' ? 'active' : ''} onClick={() => setPanel('model')}><BoxSelect size={14} /> Model</button>{document.workspaceMode === 'pro' && <button aria-pressed={panel === 'parameters'} aria-label="Parameters" className={panel === 'parameters' ? 'active' : ''} onClick={() => setPanel('parameters')}><span className="parameter-tab-icon" aria-hidden="true">{'{}'}</span> Params</button>}<button aria-pressed={panel === 'print'} className={panel === 'print' ? 'active' : ''} onClick={() => setPanel('print')}><Printer size={14} /> Print</button><button aria-pressed={panel === 'history'} className={panel === 'history' ? 'active' : ''} onClick={() => setPanel('history')}><History size={14} /> History</button></div>
       </div>
       {panel === 'print' ? <PrintPanel /> : panel === 'history' ? <HistoryPanel /> : panel === 'parameters' ? <ParameterPanel /> : <>
-      <div className="feature-list">
-        {document.nodes.map((node, index) => (
-          <button key={node.id} className={`feature-row ${selectedNodeIds.includes(node.id) ? 'selected' : ''} ${node.suppressed ? 'suppressed' : ''}`} onClick={(event) => selectNode(node.id, event.ctrlKey || event.metaKey || event.shiftKey)}>
-            <span className={`feature-icon ${node.boolean}`}>{node.boolean === 'add' ? index + 1 : node.boolean === 'cut' ? '−' : '∩'}</span>
-            <span className="feature-name"><strong>{node.name}</strong><small>{node.kind} · {node.combined ? 'combined' : node.boolean}</small></span>
-            <span className="feature-actions">
-              <span role="button" tabIndex={0} title="Move feature earlier" onClick={(event) => { event.stopPropagation(); moveFeature(node.id, -1) }}><ArrowUp size={14} /></span>
-              <span role="button" tabIndex={0} title="Move feature later" onClick={(event) => { event.stopPropagation(); moveFeature(node.id, 1) }}><ArrowDown size={14} /></span>
-              <span role="button" tabIndex={0} title={node.visible ? 'Hide' : 'Show'} onClick={(event) => { event.stopPropagation(); updateNode(node.id, { visible: !node.visible }) }}>{node.visible ? <Eye size={15} /> : <EyeOff size={15} />}</span>
-              <span role="button" tabIndex={0} title={node.suppressed ? 'Enable modeling step' : 'Suppress modeling step'} onClick={(event) => { event.stopPropagation(); updateNode(node.id, { suppressed: !node.suppressed }) }}><Power size={14} /></span>
-              <span role="button" tabIndex={0} title={node.locked ? 'Unlock' : 'Lock'} onClick={(event) => { event.stopPropagation(); updateNode(node.id, { locked: !node.locked }) }}>{node.locked ? <Lock size={14} /> : <Unlock size={14} />}</span>
-            </span>
-          </button>
+      <div className="feature-list-heading"><h2>Shapes</h2><span>{document.nodes.length}{selectedNodeIds.length > 0 ? ` · ${selectedNodeIds.length} selected` : ''}</span></div>
+      {document.nodes.length > 0 && <label className="feature-search"><Search size={14} aria-hidden="true" /><input type="search" aria-label="Find shapes by name, type, or layer" placeholder="Find a shape…" value={featureQuery} onChange={(event) => setFeatureQuery(event.target.value)} /></label>}
+      <div className="feature-list" role="list" aria-label="Project shapes">
+        {matchingNodes.map(({ node, index }) => (
+          <div key={node.id} role="listitem" className={`feature-row ${selectedNodeIds.includes(node.id) ? 'selected' : ''} ${node.suppressed ? 'suppressed' : ''}`}>
+            <button type="button" className="feature-select" aria-label={`Select ${node.name}`} aria-pressed={selectedNodeIds.includes(node.id)} onClick={(event) => selectNode(node.id, event.ctrlKey || event.metaKey || event.shiftKey)}>
+              <span aria-hidden="true" className={`feature-icon ${node.boolean}`}>{node.boolean === 'add' ? index + 1 : node.boolean === 'cut' ? '−' : '∩'}</span>
+              <span className="feature-name"><strong>{node.name}</strong><small>{node.kind} · {node.suppressed ? 'suppressed' : node.combined ? 'combined' : node.boolean === 'add' ? 'solid' : node.boolean === 'cut' ? 'hole' : 'overlap'}</small></span>
+            </button>
+            <div className="feature-actions" role="group" aria-label={`Actions for ${node.name}`}>
+              <button type="button" aria-label={`Move ${node.name} earlier`} title="Move shape earlier" disabled={index === 0} onClick={() => moveFeature(node.id, -1)}><ArrowUp size={14} /></button>
+              <button type="button" aria-label={`Move ${node.name} later`} title="Move shape later" disabled={index === document.nodes.length - 1} onClick={() => moveFeature(node.id, 1)}><ArrowDown size={14} /></button>
+              <button type="button" aria-label={`${node.visible ? 'Hide' : 'Show'} ${node.name}`} title={node.visible ? 'Hide shape' : 'Show shape'} onClick={() => updateNode(node.id, { visible: !node.visible })}>{node.visible ? <Eye size={15} /> : <EyeOff size={15} />}</button>
+              <button type="button" aria-label={`${node.suppressed ? 'Enable' : 'Suppress'} ${node.name}`} title={node.suppressed ? 'Enable modeling step' : 'Suppress modeling step'} onClick={() => updateNode(node.id, { suppressed: !node.suppressed })}><Power size={14} /></button>
+              <button type="button" aria-label={`${node.locked ? 'Unlock' : 'Lock'} ${node.name}`} title={node.locked ? 'Unlock shape' : 'Lock shape'} onClick={() => updateNode(node.id, { locked: !node.locked })}>{node.locked ? <Lock size={14} /> : <Unlock size={14} />}</button>
+            </div>
+          </div>
         ))}
       </div>
+      {document.nodes.length > 0 && matchingNodes.length === 0 && <div className="feature-search-empty" role="status"><span>No shapes match “{featureQuery}”.</span><button type="button" onClick={() => setFeatureQuery('')}>Clear search</button></div>}
 
       {selected ? <>
         {selectedNodeIds.length > 1 ? <SelectionActions count={selectedNodeIds.length} /> : <ShapeInspector node={selected} />}
@@ -301,7 +311,7 @@ export function Inspector() {
           <IconButton compact icon={<Trash2 size={17} />} label="Delete" className="danger" onClick={removeSelected} />
         </div>
       </> : (
-        <div className="empty-inspector"><div className="empty-orbit">◎</div><strong>Select a shape</strong><p>Pick a feature here or click one in the workspace to edit it.</p></div>
+        <div className="empty-inspector"><BoxSelect size={28} aria-hidden="true" /><strong>{document.nodes.length ? 'Select a shape' : 'Your model starts here'}</strong><p>{document.nodes.length ? 'Choose a shape here or in the canvas to edit its size, position, and color. Hold Shift to select several.' : 'Add a shape from Build, then select it to set dimensions and make it your own.'}</p></div>
       )}
       </>}
     </aside>

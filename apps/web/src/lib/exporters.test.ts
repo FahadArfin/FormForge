@@ -37,4 +37,33 @@ describe('model exporters', () => {
     expect(model).toContain('name="AMS 2"')
     expect(model.match(/<object id=/g)).toHaveLength(2)
   })
+
+  it('does not silently fill holes in a multi-color export', () => {
+    const hole = createNode('cylinder')
+    hole.boolean = 'cut'
+    expect(() => exportMultiColor3mf([createNode('box'), hole], 'Carved')).toThrow('standard 3MF')
+  })
+
+  it('omits suppressed solids from a multi-color export', async () => {
+    const suppressed = createNode('sphere')
+    suppressed.suppressed = true
+    const archive = unzipSync(new Uint8Array(await exportMultiColor3mf([createNode('box'), suppressed], 'Visible parts').arrayBuffer()))
+    expect(strFromU8(archive['3D/3dmodel.model']!).match(/<object id=/g)).toHaveLength(1)
+  })
+
+  it('preserves hull geometry by directing the user to evaluated 3MF', () => {
+    const hull = createNode('box')
+    hull.groupId = 'hull-group'
+    hull.groupOperation = 'hull'
+    expect(() => exportMultiColor3mf([hull], 'Hull')).toThrow('standard 3MF')
+  })
+
+  it('keeps material and part resource IDs unique for larger models', async () => {
+    const parts = Array.from({ length: 6 }, () => createNode('box'))
+    const archive = unzipSync(new Uint8Array(await exportMultiColor3mf(parts, 'Six parts').arrayBuffer()))
+    const model = strFromU8(archive['3D/3dmodel.model']!)
+    const resourceIds = [...model.matchAll(/<(?:object|m:basematerials) id="(\d+)"/g)].map((match) => match[1])
+    expect(resourceIds).toHaveLength(7)
+    expect(new Set(resourceIds).size).toBe(7)
+  })
 })

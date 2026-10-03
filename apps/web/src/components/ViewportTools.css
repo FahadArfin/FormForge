@@ -1,0 +1,78 @@
+.viewport-tools.viewport-controls {
+  --viewport-text: #d3d6e4;
+  --viewport-muted: #a4a9bc;
+  --viewport-panel: #212430;
+  --viewport-control: #2b2e3d;
+  --viewport-border: #3b4052;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  top: 16px;
+  left: 16px;
+  max-width: calc(100% - 32px);
+  padding: 5px;
+  overflow: visible;
+  border: 1px solid var(--viewport-border);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--viewport-panel) 96%, transparent);
+  box-shadow: 0 4px 18px #0002;
+}
+.viewport-tools.viewport-controls > button,
+.viewport-tools.viewport-controls .view-control,
+.viewport-tools.viewport-controls .snap-control,
+.viewport-tools.viewport-controls .viewport-display-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  gap: 6px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--viewport-text);
+  font: 12px 'Segoe UI', system-ui, sans-serif;
+  white-space: nowrap;
+}
+.viewport-tools.viewport-controls > button,
+.viewport-tools.viewport-controls .viewport-display-trigger { cursor: pointer; }
+.viewport-tools.viewport-controls > button > span { display: inline; }
+.viewport-tools.viewport-controls > button:hover,
+.viewport-tools.viewport-controls > button.active,
+.viewport-tools.viewport-controls .viewport-display-trigger:hover,
+.viewport-tools.viewport-controls .viewport-display-trigger.active { background: var(--viewport-control); color: var(--viewport-text); }
+.viewport-tools.viewport-controls .view-control { padding-left: 7px; padding-right: 3px; gap: 3px; }
+.viewport-tools.viewport-controls .snap-control { padding-left: 8px; padding-right: 3px; gap: 4px; border-left: 1px solid var(--viewport-border); border-radius: 0; }
+.viewport-tools.viewport-controls select { width: auto; max-width: 90px; min-height: 32px; border: 0; border-radius: 5px; padding: 4px; background: transparent; color: var(--viewport-text); font: 12px 'Segoe UI', system-ui, sans-serif; cursor: pointer; }
+.viewport-tools.viewport-controls select option { background: var(--viewport-panel); color: var(--viewport-text); }
+.viewport-tools.viewport-controls select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.viewport-tools.viewport-controls .viewport-display { position: relative; margin-left: auto; }
+.viewport-tools.viewport-controls .viewport-display-trigger { padding: 0 8px; }
+.viewport-tools.viewport-controls .viewport-display-panel { position: absolute; z-index: 10; top: 44px; right: -5px; width: min(252px, calc(100vw - 44px)); padding: 10px; border: 1px solid var(--viewport-border); border-radius: 12px; background: var(--viewport-panel); box-shadow: 0 14px 40px #0004; }
+.viewport-tools.viewport-controls .viewport-menu-label { display: block; margin: 3px 6px 8px; color: var(--viewport-muted); font-size: 12px; font-weight: 650; }
+.viewport-tools.viewport-controls .viewport-menu-label:not(:first-child) { margin-top: 14px; }
+.viewport-tools.viewport-controls .viewport-display-panel > button { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 38px; padding: 6px 9px; border: 0; border-radius: 6px; background: transparent; color: var(--viewport-text); font-size: 12px; text-align: left; cursor: pointer; }
+.viewport-tools.viewport-controls .viewport-display-panel > button:hover { background: var(--viewport-control); }
+.viewport-tools.viewport-controls .viewport-display-panel > button.active { background: var(--accent-wash); }
+.viewport-tools.viewport-controls .viewport-display-panel > button:disabled { opacity: .45; cursor: default; }
+.viewport-tools.viewport-controls .viewport-display-panel em { margin-left: auto; color: var(--viewport-muted); font-style: normal; font-size: 12px; }
+.viewport-tools.viewport-controls .viewport-display-panel > button.active em { color: var(--accent-bright); }
+.viewport-tools.viewport-controls .mesh-view-switch { padding: 3px; background: transparent; border-color: var(--viewport-border); }
+.viewport-tools.viewport-controls .mesh-view-switch button { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 5px; width: auto; min-height: 55px; color: var(--viewport-muted); font-size: 12px; }
+.viewport-tools.viewport-controls .mesh-view-switch button.active { color: var(--viewport-text); background: var(--viewport-control); }
+.viewport-tools.viewport-controls .viewport-display-panel .frame-selection-control { margin-top: 10px; }
+.viewport-tools.viewport-controls .viewport-display-panel kbd { margin-left: auto; color: var(--viewport-muted); font: 11px 'Segoe UI', system-ui, sans-serif; }
+.viewport-tools.viewport-controls .viewport-display-panel p { margin: 10px 6px 4px; padding-top: 10px; border-top: 1px solid var(--viewport-border); color: var(--viewport-muted); font-size: 12px; line-height: 1.7; }
+[data-theme='light'] .viewport-tools.viewport-controls {
+  --viewport-text: #3d4359;
+  --viewport-muted: #646d83;
+  --viewport-panel: #fff;
+  --viewport-control: #eef0f7;
+  --viewport-border: #d9dfea;
+}
+[data-theme='light'] .viewport-tools.viewport-controls .viewport-display-panel > button.active em { color: #5f50bc; }
+@media (max-width: 1100px) {
+  .viewport-tools.viewport-controls { top: 12px; left: 12px; max-width: calc(100% - 24px); gap: 0; }
+  .viewport-tools.viewport-controls > button { padding: 0 7px; }
+  .viewport-tools.viewport-controls .snap-control > span { display: none; }
+}

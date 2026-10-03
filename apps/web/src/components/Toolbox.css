@@ -1,0 +1,121 @@
+.modeling-toolbox {
+  --tool-text: #e4e5ef;
+  --tool-muted: #a4a7bb;
+  --tool-control: #242631;
+  --tool-input: #191b24;
+  --tool-border: #383b4c;
+  padding: 18px 16px;
+  color: var(--tool-text);
+}
+[data-theme='light'] .modeling-toolbox {
+  --tool-text: #292e41;
+  --tool-muted: #626980;
+  --tool-control: #f5f6fa;
+  --tool-input: #fff;
+  --tool-border: #d9dde8;
+}
+.modeling-toolbox .toolbox-section { padding: 0 0 18px; margin-bottom: 18px; }
+.modeling-toolbox .section-kicker { margin-left: 0; margin-bottom: 10px; color: var(--tool-muted); font-size: 12px; letter-spacing: .6px; }
+.modeling-toolbox .section-title { padding: 0; margin-bottom: 8px; }
+.modeling-toolbox .section-title .section-kicker { margin: 0; }
+.modeling-toolbox .transform-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.modeling-toolbox .transform-tools button { min-width: 0; min-height: 39px; display: flex; align-items: center; gap: 7px; padding: 0 9px; border: 1px solid var(--tool-border); border-radius: 8px; background: var(--tool-control); color: var(--tool-text); cursor: pointer; font-size: 12px; }
+.modeling-toolbox .transform-tools button.active { border-color: var(--accent); background: var(--accent-wash); color: var(--accent-bright); }
+.modeling-toolbox .transform-tools button:hover { border-color: var(--accent); }
+.modeling-toolbox .transform-tools svg { flex-shrink: 0; }
+.modeling-toolbox .transform-tools kbd { margin-left: auto; padding: 1px 4px; color: var(--tool-muted); border: 1px solid var(--tool-border); border-radius: 4px; font-family: inherit; font-size: 11px; }
+.modeling-toolbox .modeling-task-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin-bottom: 22px; background: var(--tool-input); border: 1px solid var(--tool-border); border-radius: 10px; }
+.modeling-toolbox .modeling-task-tabs button { min-height: 38px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 7px; background: transparent; color: var(--tool-muted); font-size: 13px; font-weight: 650; cursor: pointer; }
+.modeling-toolbox .modeling-task-tabs button[aria-selected='true'] { color: var(--tool-text); background: var(--tool-control); box-shadow: 0 1px 4px #0002, inset 0 0 0 1px var(--tool-border); }
+.modeling-toolbox .modeling-task-tabs button[aria-selected='true'] svg { color: var(--accent); }
+.modeling-toolbox .toolbox-intro { margin: 0 0 14px; color: var(--tool-muted); font-size: 12px; line-height: 1.5; }
+.modeling-toolbox .shape-search { display: flex; align-items: center; gap: 8px; min-height: 38px; margin-bottom: 12px; padding: 0 10px; border: 1px solid var(--tool-border); border-radius: 8px; background: var(--tool-input); color: var(--tool-muted); }
+.modeling-toolbox .shape-search:focus-within { border-color: var(--accent); outline: 2px solid var(--accent-wash); }
+.modeling-toolbox .shape-search input { width: 100%; min-width: 0; padding: 9px 0; border: 0; outline: 0; background: transparent; color: var(--tool-text); font-size: 12px; }
+.modeling-toolbox .shape-search input::placeholder { color: var(--tool-muted); }
+.modeling-toolbox .shape-search input::-webkit-search-cancel-button { display: none; }
+.modeling-toolbox .shape-search button { display: grid; place-items: center; border: 0; min-width: 30px; min-height: 34px; margin-right: -7px; background: transparent; color: var(--tool-muted); cursor: pointer; }
+.modeling-toolbox .shape-library { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.modeling-toolbox .shape-library button { min-height: 77px; padding: 13px 3px 10px; gap: 9px; border-color: var(--tool-border); background: var(--tool-control); color: var(--tool-text); font-size: 12px; border-radius: 10px; }
+.modeling-toolbox .shape-library button svg { color: var(--accent-bright); }
+.modeling-toolbox .shape-library button:hover, .modeling-toolbox .shape-library button.active { border-color: var(--accent); background: var(--accent-wash); color: var(--tool-text); }
+.modeling-toolbox .more-shapes-button { width: 100%; min-height: 37px; display: flex; justify-content: center; align-items: center; gap: 6px; margin-top: 8px; border: 0; border-radius: 7px; background: transparent; color: var(--tool-muted); font-size: 12px; cursor: pointer; }
+.modeling-toolbox .more-shapes-button:hover { background: var(--tool-control); color: var(--tool-text); }
+.modeling-toolbox .more-shapes-button .expanded { transform: rotate(180deg); }
+.modeling-toolbox .shape-search-empty { padding: 16px 5px; color: var(--tool-muted); font-size: 12px; line-height: 1.6; }
+.modeling-toolbox .shape-setup { padding: 12px; margin-top: 12px; border-color: var(--tool-border); background: var(--tool-control); box-shadow: none; }
+.modeling-toolbox .shape-setup-head strong { color: var(--tool-text); font-size: 13px; }
+.modeling-toolbox .shape-setup-head button { width: 34px; height: 34px; display: grid; place-items: center; color: var(--tool-muted); }
+.modeling-toolbox .solid-kind-switch { background: var(--tool-input); border-color: var(--tool-border); }
+.modeling-toolbox .solid-kind-switch button { min-height: 34px; color: var(--tool-muted); font-size: 12px; }
+.modeling-toolbox .solid-kind-switch button.active { color: var(--accent-bright); background: var(--accent-wash); }
+.modeling-toolbox .solid-kind-switch button.active.carve { color: #f5a8b4; background: #b3435a24; }
+.modeling-toolbox .shape-dimensions { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.modeling-toolbox .shape-dimensions label { color: var(--tool-muted); font-size: 12px; }
+.modeling-toolbox .shape-dimensions input { height: 37px; padding: 7px 26px 7px 9px; background: var(--tool-input); border-color: var(--tool-border); color: var(--tool-text); font-size: 13px; }
+.modeling-toolbox .shape-dimensions em { top: 11px; right: 6px; color: var(--tool-muted); font-size: 11px; }
+.modeling-toolbox .place-shape { min-height: 40px; margin-top: 15px; font-size: 12px; }
+.modeling-toolbox .shape-setup-tip { margin-top: 10px; color: var(--tool-muted); font-size: 12px; line-height: 1.6; }
+.modeling-toolbox .profile-recipe-launch { min-height: 62px; margin-top: 14px; padding: 12px 10px; border-color: var(--tool-border); background: var(--accent-wash); color: var(--tool-text); }
+.modeling-toolbox .profile-recipe-launch strong { font-size: 13px; }
+.modeling-toolbox .profile-recipe-launch small { padding-top: 3px; color: var(--tool-muted); font-size: 12px; }
+.modeling-toolbox .profile-tools { grid-template-columns: 1fr; gap: 8px; margin-top: 12px; }
+.modeling-toolbox .profile-tool { min-height: 57px; padding: 10px; color: var(--tool-text); background: var(--tool-control); border-color: var(--tool-border); }
+.modeling-toolbox .profile-tool strong { font-size: 12px; }
+.modeling-toolbox .profile-tool small { margin-top: 3px; color: var(--tool-muted); font-size: 12px; line-height: 1.4; }
+.modeling-toolbox .sculpt-section { gap: 10px; }
+.modeling-toolbox .sculpt-ready-card { padding: 13px; gap: 12px; border-color: var(--tool-border); background: var(--tool-control); }
+.modeling-toolbox .sculpt-ready-card strong { color: var(--tool-text); font-size: 13px; overflow-wrap: anywhere; }
+.modeling-toolbox .sculpt-ready-card small { margin-top: 5px; color: var(--tool-muted); font-size: 12px; line-height: 1.6; }
+.modeling-toolbox .sculpt-ready-card > button { min-height: 40px; color: var(--tool-text); font-size: 12px; }
+.modeling-toolbox .sculpt-subhead { margin-top: 10px; color: var(--tool-muted); font-size: 12px; }
+.modeling-toolbox .sculpt-tools-grid .icon-button { min-height: 40px; padding: 9px 8px; gap: 6px; border-color: var(--tool-border); background: var(--tool-control); color: var(--tool-text); font-size: 12px; }
+.modeling-toolbox .sculpt-tools-grid .icon-button svg { flex-shrink: 0; }
+.modeling-toolbox .sculpt-tools-grid .icon-button.is-active { border-color: var(--accent); background: var(--accent-wash); color: var(--accent-bright); }
+.modeling-toolbox .advanced-modeling-tools { border-top: 1px solid var(--tool-border); }
+.modeling-toolbox .advanced-modeling-tools summary { min-height: 40px; display: flex; align-items: center; justify-content: space-between; gap: 6px; color: var(--tool-muted); font-size: 12px; cursor: pointer; list-style: none; }
+.modeling-toolbox .advanced-modeling-tools summary::-webkit-details-marker { display: none; }
+.modeling-toolbox .advanced-modeling-tools[open] > summary svg { transform: rotate(180deg); }
+.modeling-toolbox .advanced-modeling-tools summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 5px; }
+.modeling-toolbox .brush-settings { padding: 12px; gap: 15px; background: var(--tool-input); border-color: var(--tool-border); }
+.modeling-toolbox .brush-settings > label, .modeling-toolbox .advanced-brush-fields > label { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 9px; color: var(--tool-muted); font-size: 12px; }
+.modeling-toolbox .brush-value { color: var(--tool-muted); font-size: 12px; }
+.modeling-toolbox .brush-value input { width: 52px; height: 34px; background: var(--tool-control); color: var(--tool-text); border-color: var(--tool-border); font-size: 12px; }
+.modeling-toolbox .brush-settings input[type='range'] { height: 16px; }
+.modeling-toolbox .advanced-brush-fields { display: grid; gap: 14px; }
+.modeling-toolbox .falloff-control { color: var(--tool-muted); font-size: 12px; }
+.modeling-toolbox .falloff-control > div { border-color: var(--tool-border); background: var(--tool-control); }
+.modeling-toolbox .falloff-control button { min-height: 34px; color: var(--tool-muted); font-size: 12px; }
+.modeling-toolbox .falloff-control button.active { background: var(--accent-wash); color: var(--accent-bright); }
+.modeling-toolbox .axis-symmetry { grid-template-columns: 1fr; color: var(--tool-muted); font-size: 12px; }
+.modeling-toolbox .axis-symmetry button { width: 36px; height: 34px; color: var(--tool-muted); border-color: var(--tool-border); background: var(--tool-control); font-size: 12px; }
+.modeling-toolbox .symmetry-toggle { min-height: 40px; color: var(--tool-muted); background: var(--tool-control); border-color: var(--tool-border); font-size: 12px; }
+.modeling-toolbox .symmetry-toggle i { color: var(--tool-muted); }
+.modeling-toolbox .symmetry-toggle.active, .modeling-toolbox .axis-symmetry button.active { border-color: var(--accent); background: var(--accent-wash); color: var(--accent-bright); }
+.modeling-toolbox .sculpt-mesh-actions { grid-template-columns: 1fr; gap: 6px; }
+.modeling-toolbox .sculpt-mesh-actions button { min-height: 36px; color: var(--tool-text); background: var(--tool-control); border-color: var(--tool-border); font-size: 12px; }
+.modeling-toolbox .sculpt-gesture-tip { color: var(--tool-muted); font-size: 12px; line-height: 1.6; }
+.modeling-toolbox .profile-recipe-creator { background: var(--tool-control); border-color: var(--tool-border); box-shadow: none; }
+.modeling-toolbox .profile-recipe-header-copy strong, .modeling-toolbox .profile-recipe-selection-copy strong { color: var(--tool-text); font-size: 13px; }
+.modeling-toolbox .profile-recipe-header-copy small, .modeling-toolbox .profile-recipe-selection-copy span, .modeling-toolbox .profile-recipe-field-hint, .modeling-toolbox .profile-recipe-footer-hint { color: var(--tool-muted); font-size: 12px; line-height: 1.5; }
+.modeling-toolbox .profile-recipe-operation { grid-template-columns: 1fr; }
+.modeling-toolbox .profile-recipe-operation-button { min-height: 50px; padding: 8px; color: var(--tool-text); background: var(--tool-input); border-color: var(--tool-border); }
+.modeling-toolbox .profile-recipe-operation-button strong, .modeling-toolbox .profile-recipe-operation-button small { font-size: 12px; }
+.modeling-toolbox .profile-recipe-operation-button small { padding-top: 3px; color: var(--tool-muted); }
+.modeling-toolbox .profile-recipe-operation-button-selected { border-color: var(--accent); background: var(--accent-wash); }
+.modeling-toolbox .profile-recipe-gallery { grid-template-columns: 1fr; }
+.modeling-toolbox .profile-recipe-card { min-height: 42px; color: var(--tool-text); background: var(--tool-input); border-color: var(--tool-border); }
+.modeling-toolbox .profile-recipe-card-label { font-size: 12px; }
+.modeling-toolbox .profile-recipe-card-selected { border-color: var(--accent); background: var(--accent-wash); }
+.modeling-toolbox .profile-recipe-field-label, .modeling-toolbox .profile-recipe-message { font-size: 12px; }
+.modeling-toolbox .profile-recipe-field-label { color: var(--tool-muted); }
+.modeling-toolbox .profile-recipe-input { min-height: 37px; background: var(--tool-input); color: var(--tool-text); border-color: var(--tool-border); font-size: 13px; }
+.modeling-toolbox .profile-recipe-input-suffix { color: var(--tool-muted); font-size: 11px; }
+.modeling-toolbox .profile-recipe-create { min-height: 40px; font-size: 12px; }
+[data-theme='light'] .modeling-toolbox .transform-tools button.active,
+[data-theme='light'] .modeling-toolbox .solid-kind-switch button.active,
+[data-theme='light'] .modeling-toolbox .sculpt-tools-grid .icon-button.is-active,
+[data-theme='light'] .modeling-toolbox .falloff-control button.active,
+[data-theme='light'] .modeling-toolbox .symmetry-toggle.active,
+[data-theme='light'] .modeling-toolbox .axis-symmetry button.active { color: #5146b4; }
+[data-theme='light'] .modeling-toolbox .shape-library button svg { color: #7562cd; }

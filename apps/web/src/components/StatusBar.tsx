@@ -6,17 +6,21 @@ export function StatusBar() {
   const analysis = useEditor((state) => state.analysis)
   const document = useEditor((state) => state.document)
   const mesh = useEditor((state) => state.mesh)
-  const dimensions = analysis?.dimensions
+  const meshDocument = useEditor((state) => state.meshDocument)
+  const placingNodeId = useEditor((state) => state.placingNodeId)
+  const current = meshDocument === document && !placingNodeId
+  const dimensions = current ? analysis?.dimensions : undefined
+  const printReady = current && analysis?.status === 'ready'
   return (
     <footer className="statusbar">
-      <div className={`engine-status ${status}`}><Cpu size={14} /><span>{status === 'building' ? 'Live preview · syncing' : status === 'error' ? 'Geometry needs attention' : 'Live preview ready'}</span></div>
+      <div className={`engine-status ${status}`}><Cpu size={14} /><span>{placingNodeId ? 'Place your shape' : status === 'error' ? 'Geometry needs attention' : !current ? 'Updating model…' : 'Live preview ready'}</span></div>
       <div className="status-divider" />
       <div><Layers3 size={14} /><span>{document.nodes.length} features</span></div>
-      <div><span>{mesh?.triangleCount.toLocaleString() ?? 0} triangles</span></div>
+      <div><span>{current ? `${mesh?.triangleCount.toLocaleString() ?? 0} triangles` : 'Rebuilding solid'}</span></div>
       {dimensions && <div className="dimension-readout"><span>{dimensions.x.toFixed(1)} × {dimensions.y.toFixed(1)} × {dimensions.z.toFixed(1)} mm</span></div>}
-      <div className={`print-status ${analysis?.status ?? 'blocked'}`}>
-        {analysis?.status === 'ready' ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
-        <span>{analysis?.status === 'ready' ? 'Ready to print' : analysis?.issues[0]?.title ?? 'Checking printability'}</span>
+      <div className={`print-status ${current ? analysis?.status ?? 'blocked' : 'blocked'}`}>
+        {printReady ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
+        <span>{printReady ? 'Ready to print' : placingNodeId ? 'Finish placement' : status === 'error' ? 'Check the modeling error' : !document.nodes.length ? 'Add your first shape' : current ? analysis?.issues[0]?.title ?? 'Checking printability' : 'Checking printability'}</span>
       </div>
     </footer>
   )
