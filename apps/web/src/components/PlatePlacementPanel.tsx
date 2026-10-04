@@ -14,7 +14,7 @@ export function PlatePlacementPanel() {
     finally { setBusy(false) }
   }
   return <section className="workflow-card">
-    <h3>Place on build plate</h3>
+    <h3>2. Place on build plate</h3>
     <p className="workflow-caption">Move parts together without changing their spacing. Combined groups stay together.</p>
     <label className="cad-select-label">Move<select aria-label="Plate placement scope" disabled={busy} value={scope} onChange={event => setScope(event.target.value as PlatePlacementScope)}><option value="document">Whole model</option><option value="selection" disabled={!selected}>Selected shapes and groups</option></select></label>
     <div className="workflow-actions">

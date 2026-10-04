@@ -5,7 +5,7 @@ export type Vec3Value = { x: number; y: number; z: number }
 export interface Workplane { name: string; origin: Vec3Value; normal: Vec3Value; xAxis: Vec3Value }
 export interface ReferenceImage { id: string; name: string; dataUrl: string; width: number; height: number; mmPerPixel: number; opacity: number; visible: boolean; plane: Workplane }
 export interface DimensionAnnotation {id:string;label:string;kind:'distance'|'angle';points:Vec3Value[];geometryKey:string;visible:boolean}
-export interface PrintMaterial {name:string;density:number;pricePerKg:number;currency:string;slicerGrams?:number;slicerMinutes?:number;slicerGeometryKey?:string}
+export interface PrintMaterial {priceConfigured?:boolean;name:string;density:number;pricePerKg:number;currency:string;slicerGrams?:number;slicerMinutes?:number;slicerGeometryKey?:string}
 
 export type PrimitiveKind = 'box' | 'roundedBox' | 'cylinder' | 'sphere' | 'cone' | 'torus' | 'capsule' | 'tube' | 'wedge' | 'star' | 'gear' | 'loft' | 'spring' | 'extrude' | 'revolve' | 'mesh'
 export type BooleanMode = 'add' | 'cut' | 'intersect'
@@ -86,6 +86,8 @@ export interface SketchConstraint {
 }
 
 export interface ModelNode {
+  faceAttachment?: {version:1;targetNodeId:string;targetKind:'box'|'cylinder';face:'x+'|'x-'|'y+'|'y-'|'z+'|'z-';offsetU:number;offsetV:number;depthMode:'through'|'blind';depth:number}
+  edgeTreatment?: {version:1;mode:'chamfer'|'fillet';axis:'x'|'y'|'z';sideU:1|-1;sideV:1|-1;amount:number}
   assemblyPath?: string[]
   text?: { content: string; size: number; depth: number; font: 'helvetiker' }
   id: string
@@ -154,6 +156,8 @@ export interface ParameterVariant {
 
 export interface SavedCameraView { id:string;name:string;position:Vec3Value;target:Vec3Value;up:Vec3Value;zoom:number }
 export interface ModelDocument {
+  printTests?: {id:string;protocol:string;date:string;printer:string;material:string;nozzle:number;layerHeight:number;expected:number;measured:number;tolerance:number;geometryKey:string;notes:string;photoDataUrl?:string}[]
+  template?: { id: string; version: 1; nodeIds: string[] }
   savedViews?: SavedCameraView[]
   workplane?: Workplane
   referenceImages?: ReferenceImage[]

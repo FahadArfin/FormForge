@@ -54,6 +54,8 @@ const sketchConstraintSchema = z.discriminatedUnion('type', [
 ])
 
 export const modelNodeSchema = z.object({
+  faceAttachment:z.object({version:z.literal(1),targetNodeId:z.string().min(1).max(128),targetKind:z.enum(['box','cylinder']),face:z.enum(['x+','x-','y+','y-','z+','z-']),offsetU:z.number().finite().min(-10000).max(10000),offsetV:z.number().finite().min(-10000).max(10000),depthMode:z.enum(['through','blind']),depth:z.number().min(.1).max(10000)}).optional(),
+  edgeTreatment:z.object({version:z.literal(1),mode:z.enum(['chamfer','fillet']),axis:z.enum(['x','y','z']),sideU:z.union([z.literal(1),z.literal(-1)]),sideV:z.union([z.literal(1),z.literal(-1)]),amount:z.number().min(.01).max(1000)}).optional(),
   assemblyPath: z.array(z.string().min(1).max(128)).max(8).optional(),
   text: z.object({ content: z.string().min(1).max(80), size: z.number().min(1).max(200), depth:z.number().min(0.1).max(30),font:z.literal('helvetiker') }).optional(),
   id: z.string().min(1),
@@ -122,8 +124,10 @@ export const savedCameraViewSchema=z.object({id:z.string().min(1).max(128),name:
  return Math.hypot(d.x,d.y,d.z)>.001&&Math.hypot(d.y*u.z-d.z*u.y,d.z*u.x-d.x*u.z,d.x*u.y-d.y*u.x)>.000001
 },'Camera position, target and up direction must define a valid view.')
 export const modelDocumentSchema = z.object({
+  printTests:z.array(z.object({id:z.string().min(1).max(128),protocol:z.string().min(1).max(80),date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),printer:z.string().trim().min(1).max(120),material:z.string().trim().min(1).max(80),nozzle:z.number().min(.1).max(5),layerHeight:z.number().min(.02).max(2),expected:z.number().positive().max(10000),measured:z.number().positive().max(10000),tolerance:z.number().min(0).max(10),geometryKey:z.string().max(40),notes:z.string().max(1000),photoDataUrl:z.string().max(800000).regex(/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/).optional()})).max(20).optional(),
+  template: z.object({id:z.string().min(1).max(80),version:z.literal(1),nodeIds:z.array(z.string().min(1)).max(100)}).optional(),
   savedViews:z.array(savedCameraViewSchema).max(12).refine(views=>new Set(views.map(v=>v.id)).size===views.length,'View IDs must be unique.').optional(),
-  printMaterial:z.object({name:z.string().trim().min(1).max(80),density:z.number().min(0.1).max(25),pricePerKg:z.number().min(0).max(100000),currency:z.string().regex(/^[A-Z]{3}$/),slicerGrams:z.number().min(0).max(100000).optional(),slicerMinutes:z.number().min(0).max(100000).optional(),slicerGeometryKey:z.string().max(32).optional()}).optional(),
+  printMaterial:z.object({priceConfigured:z.boolean().optional(),name:z.string().trim().min(1).max(80),density:z.number().min(0.1).max(25),pricePerKg:z.number().min(0).max(100000),currency:z.string().regex(/^[A-Z]{3}$/),slicerGrams:z.number().min(0).max(100000).optional(),slicerMinutes:z.number().min(0).max(100000).optional(),slicerGeometryKey:z.string().max(32).optional()}).optional(),
   annotations: z.array(z.object({id:z.string().min(1),label:z.string().min(1).max(80),kind:z.enum(['distance','angle']),points:z.array(vec3Schema).min(2).max(3),geometryKey:z.string().max(32),visible:z.boolean()}).refine(a=>a.points.length===(a.kind==='angle'?3:2) && (a.kind!=='angle' || [0,2].every(i=>Math.hypot(a.points[i]!.x-a.points[1]!.x,a.points[i]!.y-a.points[1]!.y,a.points[i]!.z-a.points[1]!.z)>1e-6)), 'Complete the measurement with distinct angle endpoints.')).max(64).optional(),
   workplane: workplaneSchema.optional(),
   referenceImages: z.array(z.object({id:z.string().min(1),name:z.string().max(120),dataUrl:z.string().max(3000000).regex(/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/),width:z.number().int().min(1).max(2048),height:z.number().int().min(1).max(2048),mmPerPixel:z.number().min(0.0001).max(1000),opacity:z.number().min(0.1).max(1),visible:z.boolean(),plane:workplaneSchema})).max(1).optional(),

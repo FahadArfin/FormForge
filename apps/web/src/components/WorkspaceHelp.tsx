@@ -1,3 +1,4 @@
+import {DiagnosticsPanel} from './DiagnosticsPanel'
 import {LearningPanel} from './LearningPanel'
 import { Box, MousePointer2, SlidersHorizontal, Download, ArrowUpRight } from 'lucide-react'
 import { WorkspaceDialog } from './WorkspaceDialog'
@@ -18,5 +19,5 @@ export function WorkspaceHelp({ onClose, onExample, onLaunch }: { onClose: () =>
     <details className="shortcut-details"><summary>Save, restore, and keep a backup</summary><div className="guide-camera"><p>Autosave updates the current project in this browser. Use Project actions → Save a checkpoint before a major change, then restore a checkpoint from History. Checkpoints are snapshots on this device, not cloud backups.</p><p>Export an editable project backup to keep a separate file with your shapes and settings. 3MF and STL are mesh exports for other software; they do not preserve the editable feature history. Print checks catch common issues but cannot certify that a model will print successfully.</p></div></details>
     <details className="shortcut-details"><summary>Keyboard shortcuts <span>{shortcuts.length} essentials</span></summary><dl>{shortcuts.map(([key, label]) => <div key={key}><dt>{label}</dt><dd><kbd>{key}</kbd></dd></div>)}</dl></details>
     </details><footer className="dialog-footer"><span>Watch the save status. Download an editable backup if saving fails or before clearing browser data.</span><button className="studio-primary" onClick={onExample}>Try an editable example <ArrowUpRight size={17} /></button></footer>
-  </WorkspaceDialog>
+  <DiagnosticsPanel/></WorkspaceDialog>
 }

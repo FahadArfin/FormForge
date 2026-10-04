@@ -3,7 +3,7 @@ import { useEditor } from '@/store/editor'
 import {useInspection} from '@/store/inspection'
 import { getPrintReadiness } from '@/lib/printReadiness'
 
-export function StatusBar() {
+export function StatusBar({backup}:{backup?:import("react").ReactNode}) {
   const status = useEditor((state) => state.geometryStatus)
   const snap=useInspection(s=>s.snapLabel),tool=useEditor(s=>s.tool),buildMs=useEditor(s=>s.geometryBuildMs)
   const analysis = useEditor((state) => state.analysis)
@@ -17,7 +17,7 @@ export function StatusBar() {
   const dimensions = current ? analysis?.dimensions : undefined
   const printReady = readiness.status === 'ready'
   return (
-    <footer className="statusbar">
+    <footer className="statusbar">{backup}
       {tool==='draw-profile'&&<span role="status">{snap||'Click to place the first point'} · Shift locks an axis</span>}
       <div className={`engine-status ${status}`}><Cpu size={14} /><span>{placingNodeId ? 'Place your shape' : status === 'error' ? 'Geometry needs attention' : !current ? 'Updating model…' : 'Live preview ready'}</span></div>
       <div className="status-divider" />

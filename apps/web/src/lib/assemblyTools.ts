@@ -11,9 +11,9 @@ export function patternAssembly(doc:ModelDocument,ids:readonly string[],options:
  if(source.some(n=>(n.assemblyPath?.length??0)>=8))throw new Error('Maximum assembly nesting reached.')
  const copies=[]
  for(let i=1;i<count;i++){
-  const groups=new Map<string,string>(),assemblies=new Map<string,string>(),outer=crypto.randomUUID();const remap=(m:Map<string,string>,key:string)=>{if(!m.has(key))m.set(key,crypto.randomUUID());return m.get(key)!}
+  const nodeIds=new Map(source.map(n=>[n.id,crypto.randomUUID()]));const groups=new Map<string,string>(),assemblies=new Map<string,string>(),outer=crypto.randomUUID();const remap=(m:Map<string,string>,key:string)=>{if(!m.has(key))m.set(key,crypto.randomUUID());return m.get(key)!}
   const angle=degrees*Math.PI/180*i/(Math.abs(degrees)===360?count:count-1),axisVector=new Vector3(axis==='x'?1:0,axis==='y'?1:0,axis==='z'?1:0)
-  for(const node of source){let copy=structuredClone(node);copy.id=crypto.randomUUID();copy.name=`${node.name} · ${i+1}`;copy.groupId=node.groupId?remap(groups,node.groupId):undefined;copy.assemblyPath=[outer,...(node.assemblyPath??[]).map(a=>remap(assemblies,a))]
+  for(const node of source){let copy=structuredClone(node);copy.id=nodeIds.get(node.id)!;if(copy.faceAttachment)copy.faceAttachment={...copy.faceAttachment,targetNodeId:nodeIds.get(copy.faceAttachment.targetNodeId)??copy.faceAttachment.targetNodeId};copy.name=`${node.name} · ${i+1}`;copy.groupId=node.groupId?remap(groups,node.groupId):undefined;copy.assemblyPath=[outer,...(node.assemblyPath??[]).map(a=>remap(assemblies,a))]
    if(options.mode==='linear')copy.transform.position[axis]+=spacing*i
    else copy=rotateTransform(copy,new Quaternion().setFromAxisAngle(axisVector,angle),vector(origin))
    copies.push(copy)

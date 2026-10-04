@@ -16,7 +16,7 @@ try{
    faces.push({depth:v.reduce((sum,a)=>sum+a[2],0),svg:`<polygon points="${v.map(a=>`${(300+(a[0]-(minX+maxX)/2)*scale).toFixed(2)},${(200+(a[1]-(minY+maxY)/2)*scale).toFixed(2)}`).join(' ')}" fill="${color}" stroke="${color}" stroke-width=".9" stroke-linejoin="round"/>`})
   }
   faces.sort((a,b)=>a.depth-b.depth)
-  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" role="img"><title>${item.name}</title><desc>Isometric rendering generated from the evaluated editable template, not a photo of a printed part.</desc>${faces.map(f=>f.svg).join('')}</svg>`
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" role="img"><title>${item.name.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</title><desc>Isometric rendering generated from the evaluated editable template, not a photo of a printed part.</desc>${faces.map(f=>f.svg).join('')}</svg>`
   await writeFile(`apps/web/public/templates/${item.id}.svg`,svg)
  }
  console.log(`Rendered ${starters.length} previews from evaluated template geometry.`)
