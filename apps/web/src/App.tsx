@@ -1,3 +1,6 @@
+import { ManualBuildNotice } from './components/BuildControls'
+import { CircleMeasurementReadout } from './components/AnnotationsPanel'
+import { useInspection } from './store/inspection'
 import {recordDiagnostic,beginTemplateJourney} from './lib/diagnostics'
 import {readCloudLink,rememberCloudLink,documentFingerprint} from './lib/saveHealth'
 import {SaveHealth} from './components/SaveHealth'
@@ -146,7 +149,7 @@ export function App({ active = true }: { active?: boolean }) {
     window.addEventListener('formforge:open-export', openExport)
     return () => { window.removeEventListener('formforge:recovery',openRecovery);window.removeEventListener('formforge:starters',openStarters);window.removeEventListener('formforge:open-cloud',openCloud); window.removeEventListener('formforge:open-inspector', openInspector); window.removeEventListener('formforge:open-export', openExport) }
   }, [])
-  useEffect(() => { if (['place','draw-profile','pick-workplane','place-face','measure-angle','measure'].includes(tool)) setMobilePanel(null) }, [tool])
+  useEffect(() => { if (['place','draw-profile','pick-workplane','place-face','measure-angle','measure-circle','measure'].includes(tool)) setMobilePanel(null) }, [tool])
   useEffect(() => {
     const protectUnsavedWork = (event: BeforeUnloadEvent) => { if (useEditor.getState().saveStatus !== 'saved') { event.preventDefault(); event.returnValue = '' } }
     window.addEventListener('beforeunload', protectUnsavedWork)
@@ -189,7 +192,7 @@ export function App({ active = true }: { active?: boolean }) {
       }
       if (event.key === 'Escape') {
         cancelPlacement()
-        if (['pick-workplane','place-face','measure-angle'].includes(tool)) setTool('select')
+        if (['pick-workplane','place-face','measure-angle','measure-circle'].includes(tool)) { setTool('select'); useInspection.getState().setCirclePoints([]) }
         if (meshComponentMode !== 'object') clearMeshComponentSelection()
         if (tool === 'draw-profile') window.dispatchEvent(new Event('formforge:cancel-sketch'))
         if (tool !== 'place' && tool !== 'draw-profile' && meshComponentMode === 'object') useEditor.getState().selectNode(null)
@@ -337,10 +340,10 @@ export function App({ active = true }: { active?: boolean }) {
           {!document.nodes.length && tool !== 'place' && <div className="canvas-welcome"><span className="canvas-welcome-icon"><Box size={28} /></span><small>YOUR CANVAS, YOUR POSSIBILITIES</small><h2>What will you make?</h2><p>Start with a shape. Combine, carve, and make it your own.</p><button className="studio-primary" onClick={() => addPrimitive('box')}><Box size={16} /> Add your first shape</button><button className="canvas-help" onClick={() => setHelpOpen(true)}><CircleHelp size={15} /> A quick tour of the basics</button></div>}
           <div className="mobile-panel-controls"><button aria-pressed={mobilePanel === 'tools'} onClick={() => setMobilePanel(mobilePanel === 'tools' ? null : 'tools')}><PanelLeft size={17} /> Build tools</button><button aria-pressed={mobilePanel === 'inspector'} onClick={() => setMobilePanel(mobilePanel === 'inspector' ? null : 'inspector')}><PanelRight size={17} /> Inspector</button>{mobilePanel && <button aria-label="Close side panel" onClick={() => setMobilePanel(null)}><X size={17} /></button>}</div>
           <div className="interaction-hint"><MousePointerClick size={16} /><span>{tool === 'place' ? 'Click-drag on the plane to draw · Esc to cancel' : tool === 'draw-profile' ? 'Click polygon points · click the green start or press Enter to extrude' : tool === 'move' ? 'Drag the model to move it · use the axis handles for precision' : tool === 'sculpt-add' || tool === 'sculpt-carve' ? 'Paint volume · Shift inverts · [ and ] change radius' : tool.startsWith('sculpt') ? 'Drag directly on the mesh · Shift inverts · one Undo step per stroke' : 'Drag to orbit · wheel to zoom · right-drag to pan'}</span></div>
-          {['pick-workplane','place-face','measure-angle'].includes(tool)&&<div className="canvas-task-prompt" role="status"><span>{tool==='pick-workplane'?'Pick a flat face for the workplane':tool==='place-face'?'Pick an outer face to put on the plate':'Pick three points: arm, vertex, arm'}</span><button className="workflow-text-action" onClick={()=>setTool('select')}>Cancel</button></div>}
+          {['pick-workplane','place-face','measure-angle','measure-circle'].includes(tool)&&<div className="canvas-task-prompt" role="status">{tool==='measure-circle' ? <CircleMeasurementReadout /> : <span>{tool==='pick-workplane'?'Pick a flat face for the workplane':tool==='place-face'?'Pick an outer face to put on the plate':'Pick three points: arm, vertex, arm'}</span>}<button className="workflow-text-action" onClick={()=>{setTool('select');useInspection.getState().setCirclePoints([])}}>Cancel</button></div>}
           <SelectionDimensions />
           <div className="mobile-review-actions" role="group" aria-label="Phone review tools"><button onClick={()=>window.dispatchEvent(new CustomEvent('formforge:open-inspector',{detail:{tab:'print'}}))}>Check</button><button aria-pressed={tool==='measure'} onClick={()=>{useEditor.getState().setMeasurement(null);setTool(tool==='measure'?'select':'measure')}}>Measure</button><button onClick={()=>window.dispatchEvent(new CustomEvent('formforge:open-inspector',{detail:{tab:!document.template&&document.namedParameters.length?'parameters':'model'}}))}>{document.template?'Dimensions':document.namedParameters.length?'Parameters':'Model'}</button><button onClick={()=>setCloudOpen(true)}>Share</button></div>
-          {geometryBusyVisible && <BuildProgress />}
+          <ManualBuildNotice />{geometryBusyVisible && <BuildProgress />}
           {(tool === 'place' || tool === 'draw-profile') && <div className="placement-actions">{tool === 'draw-profile' && <button className="studio-primary" onClick={() => window.dispatchEvent(new Event('formforge:finish-sketch'))}>Finish outline</button>}<button className="studio-secondary" onClick={() => { cancelPlacement(); if (tool === 'draw-profile') window.dispatchEvent(new Event('formforge:cancel-sketch')) }}>Cancel {tool === 'place' ? 'placement' : 'outline'}</button></div>}
           {geometryError && <div className="geometry-error" role="alert"><strong>That operation did not work</strong><span>{geometryError}</span><button onClick={() => void useEditor.getState().rebuild()}>Retry model</button></div>}
         </section>

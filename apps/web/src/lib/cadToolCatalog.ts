@@ -7,14 +7,20 @@ export const cadTools = [
   { id: 'coupon', name: 'Fit-test coupon and pin gauge', group: 'Create', keywords: 'tolerance calibration fit clearance test', tab: 'tools', toolkit: 'create' },
   { id: 'holes', name: 'Hole builder', group: 'Create', keywords: 'screw bolt countersink tolerance clearance', tab: 'tools', toolkit: 'create' },
   { id: 'section', name: 'Inspect a cross section', group: 'Inspect', keywords: 'slice clipping inside', tab: 'tools', toolkit: 'inspect' },
+  { id: 'properties', name: 'Evaluate part properties', group: 'Inspect', keywords: 'volume area centroid center mass size dimensions', tab: 'tools', toolkit: 'inspect' },
+  { id: 'mesh-doctor', name: 'Mesh Doctor: inspect and clean up', group: 'Inspect', keywords: 'repair topology watertight manifold winding duplicate triangles', tab: 'tools', toolkit: 'inspect' },
   { id: 'annotations', name: 'Dimensions and angle annotations', group: 'Inspect', keywords: 'angle distance dimension note', tab: 'tools', toolkit: 'inspect' },
   { id: 'measure', name: 'Measure the mesh', group: 'Inspect', keywords: 'ruler vertex distance', tab: 'tools', toolkit: 'inspect' },
+  { id: 'diameter', name: 'Measure circle diameter and radius', group: 'Inspect', keywords: 'three points circumference circle', tab: 'tools', toolkit: 'inspect' },
+  { id: 'transform', name: 'Precise assembly transform', group: 'Prepare', keywords: 'numeric move rotate scale pivot', tab: 'tools', toolkit: 'prepare' },
   { id: 'face', name: 'Place a face on the build plate', group: 'Prepare', keywords: 'orient contact lay flat', tab: 'tools', toolkit: 'prepare' },
   { id: 'plate', name: 'Center and drop on the plate', group: 'Prepare', keywords: 'position bed placement', tab: 'tools', toolkit: 'prepare' },
   { id: 'assembly', name: 'Align and pattern assemblies', group: 'Prepare', keywords: 'array distribute circular repeat', tab: 'tools', toolkit: 'prepare' },
   { id: 'split', name: 'Split into printable pieces', group: 'Prepare', keywords: 'cut plane dowel connector', tab: 'tools', toolkit: 'prepare' },
   { id: 'material', name: 'Material profiles and print cost', group: 'Print', keywords: 'filament slicer weight price', tab: 'print' },
   { id: 'parameters', name: 'Parameters and design variants', group: 'Project', keywords: 'variant formula variable', tab: 'parameters' },
+  { id: 'history', name: 'Browse edit history', group: 'Project', keywords: 'undo redo timeline session', tab: 'history' },
+  { id: 'rebuild', name: 'Choose automatic or manual rebuilding', group: 'Project', keywords: 'preview performance slow rebuild complex', tab: 'history' },
 ] as const
 
 const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()

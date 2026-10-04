@@ -1,4 +1,5 @@
 import {detachDirectBindings} from '../lib/modelParameters'
+import {jumpToHistory} from '@/lib/sessionHistory'
 import {recordDiagnostic} from '@/lib/diagnostics'
 import {resolveAttachedHoles} from '@/lib/attachedHoles'
 import { rememberOpenedProject } from '@/lib/projectResume'
@@ -35,7 +36,6 @@ import { createProjectPersistence, type ProjectSaveState } from '@/lib/projectPe
 import { hasSurfaceModifiers, makeSourceGeometry, nodeWorldBounds } from '@/lib/modelGeometry'
 import { modelPointToWorld } from '@/lib/modelTransforms'
 import { getPlatePlacementTarget, placeDocumentFromMesh, type PlatePlacementAction, type PlatePlacementScope } from '@/lib/platePlacement'
-import { repairMesh } from '@/lib/meshTools'
 import { geometryToSculptMesh, subdivideMesh, type SculptMesh } from '@/lib/polygonSculpt'
 import { resolveDocumentParameterBindings } from '@/lib/modelParameters'
 import {
@@ -105,6 +105,9 @@ interface EditorState extends ProjectSaveState {
   dynamicTopology: boolean
   sculptDetail: number
   geometryStatus: GeometryStatus
+  buildMode: 'automatic' | 'manual'
+  setBuildMode: (mode:'automatic'|'manual') => void
+  jumpHistory: (index:number) => void
   geometryBusyVisible: boolean
   geometryStartedAt: number | null
   geometryBuildMs: number | null
@@ -248,14 +251,20 @@ export const useEditor = create<EditorState>((set, get) => {
   })
   const resetDocumentTransientState = {
     tool: 'select' as const, placingNodeId: null, measurement: null, profileOperation: 'extrude' as const,
-    mesh: null, meshDocument: null, analysis: null, geometryStatus: 'idle' as const,
+    mesh: null, meshDocument: null, analysis: null, geometryStatus: 'idle' as const, buildMode:'automatic' as const,
     geometryBusyVisible: false, geometryError: null, geometryStartedAt: null, geometryBuildMs: null, showResult: true,
   }
 
   const scheduleSideEffects = (rebuildGeometry = true) => {
     if (rebuildGeometry) {
       if (rebuildTimer) clearTimeout(rebuildTimer)
-      rebuildTimer = setTimeout(() => void get().rebuild(), 90)
+      rebuildTimer = null
+      if(get().buildMode==='manual') {
+        ++rebuildGeneration
+        if(busyTimer)clearTimeout(busyTimer)
+        geometryClient.cancel()
+        set({geometryStatus:'idle',geometryBusyVisible:false,geometryStartedAt:null,geometryError:null})
+      } else rebuildTimer = setTimeout(() => {rebuildTimer=null;void get().rebuild()}, 90)
     }
     persistence.schedule(get().document)
   }
@@ -326,6 +335,7 @@ export const useEditor = create<EditorState>((set, get) => {
     dynamicTopology: true,
     sculptDetail: 0.45,
     geometryStatus: 'idle',
+    buildMode: 'automatic',
     geometryStartedAt: null,
     geometryBuildMs: null,
     geometryBusyVisible: false,
@@ -958,10 +968,8 @@ export const useEditor = create<EditorState>((set, get) => {
     repairSelectedMesh() {
       const node = get().document.nodes.find((candidate) => candidate.id === get().selectedNodeId)
       if (!node?.mesh) { set({ notice: 'Select an imported mesh to repair.' }); return }
-      const result = repairMesh(node.mesh)
-      get().updateNode(node.id, { mesh: result.mesh })
-      const removed = result.before.degenerateTriangles + result.before.duplicateTriangles
-      set({ notice: `Mesh cleaned: welded vertices and removed ${removed} invalid triangle${removed === 1 ? '' : 's'}. ${result.after.watertight ? 'The mesh is watertight.' : `${result.after.boundaryEdges} boundary edges remain.`}` })
+      if (node.locked) { set({ notice: 'Unlock the selected mesh before cleaning it.' }); return }
+      window.dispatchEvent(new CustomEvent('formforge:open-inspector', { detail: { tab: 'tools', toolkit: 'inspect', tool: 'mesh-doctor' } }))
     },
 
     makeSculptable(subdivisionLevels = 2) {
@@ -1071,6 +1079,17 @@ export const useEditor = create<EditorState>((set, get) => {
       scheduleSideEffects()
     },
 
+    jumpHistory(index) {
+      const state=get()
+      if(state.placingNodeId){set({notice:'Finish or cancel shape placement before choosing a history state.'});return}
+      if(index===state.undoStack.length)return
+      try{
+        const next=jumpToHistory(state.document,state.undoStack,state.redoStack,index)
+        set({...next,placingNodeId:null,tool:'select',measurement:null,selectedNodeId:null,selectedNodeIds:[],meshComponentMode:'object',selectedMeshVertices:[],selectedMeshEdges:[],selectedMeshFaces:[],parameterErrors:resolveDocumentParameterBindings(next.document).errors,notice:'Session state restored. Forward states remain available until you make a new edit.'})
+        scheduleSideEffects()
+      }catch(error){set({notice:(error as Error).message})}
+    },
+
     redo() {
       const [next, ...rest] = get().redoStack
       if (!next) return
@@ -1115,6 +1134,9 @@ export const useEditor = create<EditorState>((set, get) => {
     setNotice(notice) { set({ notice }) },
 
     addSculptStroke(center, mode, radius, strength, falloff, normal, remember = true) {
+      if (remember && get().buildMode === 'manual' && (get().meshDocument !== get().document || get().geometryStatus !== 'ready')) {
+        set({ notice: 'Rebuild the current model before starting a volume sculpt stroke.' }); return
+      }
       const nodeId = get().selectedNodeId ?? get().document.nodes.find((node) => node.boolean === 'add')?.id
       if (!nodeId) return
       get().dispatch({ type: 'add-sculpt-stroke', stroke: { id: nanoid(), nodeId, mode, center, normal, radius, strength, falloff, createdAt: new Date().toISOString() } }, remember)
@@ -1188,15 +1210,31 @@ export const useEditor = create<EditorState>((set, get) => {
       if (get().document.id === projectId) get().newDocument()
     },
 
+    setBuildMode(mode) {
+      if(mode!== 'automatic'&&mode!=='manual')return
+      if(mode===get().buildMode)return
+      if(rebuildTimer)clearTimeout(rebuildTimer)
+      rebuildTimer=null
+      if(mode==='manual'){
+        ++rebuildGeneration
+        if(busyTimer)clearTimeout(busyTimer)
+        geometryClient.cancel()
+        set({buildMode:mode,geometryStatus:get().meshDocument===get().document?'ready':'idle',geometryBusyVisible:false,geometryStartedAt:null,geometryError:null})
+      }else{set({buildMode:mode});if(get().meshDocument!==get().document||get().geometryStatus!=='ready')scheduleSideEffects()}
+    },
+
     cancelBuild() {
       ++rebuildGeneration
       if (rebuildTimer) clearTimeout(rebuildTimer)
+      rebuildTimer=null
       if (busyTimer) clearTimeout(busyTimer)
       geometryClient.cancel()
       set({geometryStatus:'error', geometryBusyVisible:false, geometryStartedAt:null, geometryError:'Build stopped. Your editable design is preserved. Retry when you are ready.'})
     },
 
     async rebuild() {
+      if(rebuildTimer)clearTimeout(rebuildTimer)
+      rebuildTimer=null
       const document = get().document
       const generation = ++rebuildGeneration
       const startedAt = performance.now()

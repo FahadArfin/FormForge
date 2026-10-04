@@ -4,6 +4,8 @@ import { useEditor } from '@/store/editor'
 import { listVersions, saveVersion, type ProjectVersion } from '@/lib/db'
 import { restoreCheckpointSafely } from '@/lib/checkpointRecovery'
 import './InspectorWorkflows.css'
+import { SessionHistoryPanel } from './SessionHistoryPanel'
+import { BuildModeControls } from './BuildControls'
 
 interface VersionListState {
   projectId: string
@@ -74,6 +76,8 @@ export function HistoryPanel() {
   const versions = list.projectId === document.id ? list.versions : []
 
   return <div className="inspector-workflow checkpoint-review">
+    <SessionHistoryPanel />
+    <BuildModeControls />
     <button className="workflow-action secondary" onClick={()=>window.dispatchEvent(new Event('formforge:recovery'))}>Browse automatic recovery copies</button>
     <header className="workflow-intro"><History size={23} /><div><h2>Save a moment to return to</h2><p>Checkpoints keep an editable copy of your project on this device.</p></div></header>
     <form className="workflow-card checkpoint-create" onSubmit={(event) => { event.preventDefault(); void save() }}>

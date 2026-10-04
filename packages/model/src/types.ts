@@ -4,13 +4,13 @@ export type Vec3Value = { x: number; y: number; z: number }
 
 export interface Workplane { name: string; origin: Vec3Value; normal: Vec3Value; xAxis: Vec3Value }
 export interface ReferenceImage { id: string; name: string; dataUrl: string; width: number; height: number; mmPerPixel: number; opacity: number; visible: boolean; plane: Workplane }
-export interface DimensionAnnotation {id:string;label:string;kind:'distance'|'angle';points:Vec3Value[];geometryKey:string;visible:boolean}
+export interface DimensionAnnotation {id:string;label:string;kind:'distance'|'angle'|'diameter';points:Vec3Value[];geometryKey:string;visible:boolean}
 export interface PrintMaterial {priceConfigured?:boolean;name:string;density:number;pricePerKg:number;currency:string;slicerGrams?:number;slicerMinutes?:number;slicerGeometryKey?:string}
 
 export type PrimitiveKind = 'box' | 'roundedBox' | 'cylinder' | 'sphere' | 'cone' | 'torus' | 'capsule' | 'tube' | 'wedge' | 'star' | 'gear' | 'loft' | 'spring' | 'extrude' | 'revolve' | 'mesh'
 export type BooleanMode = 'add' | 'cut' | 'intersect'
 export type WorkspaceMode = 'simple' | 'pro'
-export type ToolMode = 'pick-workplane' | 'place-face' | 'measure-angle' | 'select' | 'place' | 'draw-profile' | 'measure' | 'move' | 'rotate' | 'scale' | 'sculpt-add' | 'sculpt-carve' | 'sculpt-draw' | 'sculpt-clay' | 'sculpt-smooth' | 'sculpt-inflate' | 'sculpt-pinch' | 'sculpt-flatten' | 'sculpt-crease' | 'sculpt-grab' | 'sculpt-snake' | 'sculpt-relax' | 'sculpt-mask'
+export type ToolMode = 'pick-workplane' | 'place-face' | 'measure-angle' | 'measure-circle' | 'select' | 'place' | 'draw-profile' | 'measure' | 'move' | 'rotate' | 'scale' | 'sculpt-add' | 'sculpt-carve' | 'sculpt-draw' | 'sculpt-clay' | 'sculpt-smooth' | 'sculpt-inflate' | 'sculpt-pinch' | 'sculpt-flatten' | 'sculpt-crease' | 'sculpt-grab' | 'sculpt-snake' | 'sculpt-relax' | 'sculpt-mask'
 export type BrushFalloff = 'smooth' | 'sharp' | 'flat'
 export type DeformKind = 'none' | 'taper' | 'twist' | 'bend'
 export type ParameterBindingTarget =

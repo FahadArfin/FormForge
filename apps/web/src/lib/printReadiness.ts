@@ -6,11 +6,12 @@ export interface PrintReadinessInput {
   analysis: PrintAnalysis | null
   geometryStatus: 'idle' | 'building' | 'ready' | 'error'
   geometryError?: string | null
+  buildMode?: 'automatic' | 'manual'
   placingNodeId?: string | null
 }
 
 export interface PrintReadiness {
-  status: 'building' | 'placing' | 'error' | 'empty' | PrintAnalysis['status']
+  status: 'building' | 'placing' | 'error' | 'empty' | 'stale' | PrintAnalysis['status']
   title: string
   message: string
   analysis: PrintAnalysis | null
@@ -24,6 +25,7 @@ export function getPrintReadiness(state: PrintReadinessInput): PrintReadiness {
   if (state.geometryStatus === 'error') return pending('error', 'Model needs attention', state.geometryError || 'The model could not be rebuilt. Retry, or undo the last edit.')
   if (state.geometryStatus !== 'ready' || state.meshDocument !== state.document || !state.analysis) {
     if (!state.document.nodes.some((node) => !node.suppressed)) return pending('empty', 'Add a shape to begin', 'Print checks will appear once your model has a solid shape.')
+    if (state.buildMode === 'manual' && state.geometryStatus !== 'building') return pending('stale', 'Rebuild for print checks', 'Manual preview is enabled. Rebuild the latest edits to update dimensions and print checks.')
     return pending('building', 'Updating print checks', 'The model is rebuilding. Checks and dimensions will update when it is ready.')
   }
   if (!state.analysis.triangleCount) return pending('empty', 'No solid to export', 'Add a solid shape, or review the shapes and cuts in your model.')

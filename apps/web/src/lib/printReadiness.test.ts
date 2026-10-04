@@ -7,6 +7,11 @@ const analysis: PrintAnalysis = { status: 'ready', dimensions: { x: 20, y: 30, z
 const current = { document, meshDocument: document, geometryStatus: 'ready' as const, analysis }
 
 describe('print readiness', () => {
+  it('asks for a rebuild in manual mode without claiming work is in progress', () => {
+    const stale = { ...current, document: { ...document }, geometryStatus: 'idle' as const, buildMode: 'manual' as const }
+    expect(getPrintReadiness(stale)).toMatchObject({ status: 'stale', title: 'Rebuild for print checks', analysis: null, canExportMesh: false })
+    expect(getPrintReadiness({ ...stale, geometryStatus: 'building' }).status).toBe('building')
+  })
   it('hides stale analysis immediately after an edit, before the rebuild starts', () => {
     const result = getPrintReadiness({ ...current, document: { ...document, revision: 2 } })
     expect(result.status).toBe('building')
