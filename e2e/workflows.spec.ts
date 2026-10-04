@@ -2,11 +2,18 @@ import {test,expect,type Page} from '@playwright/test'
 const isPhone=(page:Page)=>(page.viewportSize()?.width??1440)<981
 async function openDimensions(page:Page){if(isPhone(page))await page.getByRole('button',{name:'Dimensions',exact:true}).click()}
 async function closeDrawer(page:Page){if(isPhone(page))await page.getByRole('button',{name:'Close inspector ×',exact:true}).click()}
-async function washer(page:Page){await page.goto('/#studio?starter=washer');await page.getByRole('button',{name:'Use this template',exact:true}).click();await expect(page.getByLabel('Project name',{exact:true})).toHaveValue('Washer / spacer')}
+async function openTemplate(page:Page){
+ await page.getByRole('button',{name:'Use this template',exact:true}).click()
+ // Opening saves the previous project asynchronously. Wait before editing the studio,
+ // otherwise a fast fill can target the customizer in the departing template dialog.
+ await expect(page.getByRole('dialog',{name:'Start with a useful part',exact:true})).toHaveCount(0)
+ await expect(page.getByLabel('Project name',{exact:true})).toHaveValue('Washer / spacer')
+}
+async function washer(page:Page){await page.goto('/#studio?starter=washer');await openTemplate(page)}
 test('template → linked dimensions → undo → saved reopen → 3MF download',async({page})=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message))
  await page.goto('/templates/washer');await expect(page).toHaveTitle(/Washer \/ spacer/)
- await page.getByRole('link',{name:'Customize & preview',exact:true}).click();await page.getByRole('button',{name:'Use this template',exact:true}).click()
+ await page.getByRole('link',{name:'Customize & preview',exact:true}).click();await openTemplate(page)
  await openDimensions(page);await page.getByLabel('Outer diameter',{exact:true}).fill('36');await page.getByRole('button',{name:'Apply dimensions',exact:true}).click();await closeDrawer(page)
  await page.getByRole('button',{name:'Undo',exact:true}).click();await openDimensions(page);await expect(page.getByLabel('Outer diameter',{exact:true})).toHaveValue('30')
  await page.getByLabel('Outer diameter',{exact:true}).fill('36');await page.getByRole('button',{name:'Apply dimensions',exact:true}).click();await closeDrawer(page)
