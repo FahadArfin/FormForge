@@ -8,7 +8,7 @@ export function useMobilePanel(panel: 'tools' | 'inspector' | null, close: () =>
     const drawer = document.querySelector<HTMLElement>(panel === 'tools' ? '.toolbox' : '.inspector')
     if (!drawer) return
     const previous = document.activeElement as HTMLElement | null
-    const background = [...document.querySelectorAll<HTMLElement>(`.studio-header, .statusbar, .viewport-wrap, ${panel === 'tools' ? '.inspector' : '.toolbox'}`)]
+    const background = [...document.querySelectorAll<HTMLElement>(`.studio-header, .workflow-guide, .skip-link, .statusbar, .viewport-wrap, ${panel === 'tools' ? '.inspector' : '.toolbox'}`)]
     const inert = background.map(element => element.inert)
     background.forEach(element => { element.inert = true })
     drawer.setAttribute('role', 'dialog'); drawer.setAttribute('aria-modal', 'true')

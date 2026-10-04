@@ -8,3 +8,6 @@ coverage/
 .DS_Store
 apps/api/data/
 .audit/
+playwright-report/
+test-results/
+.superpowers/

@@ -1,3 +1,8 @@
+import {recordDiagnostic,beginTemplateJourney} from './lib/diagnostics'
+import {readCloudLink,rememberCloudLink,documentFingerprint} from './lib/saveHealth'
+import {SaveHealth} from './components/SaveHealth'
+import {WorkflowGuide} from './components/WorkflowGuide'
+import './components/GuidedWorkflows.css'
 import { templateCatalog, type StarterId } from './lib/templateCatalog'
 import { useMobilePanel } from './lib/useMobilePanel'
 import { BuildProgress } from './components/BuildProgress'
@@ -46,7 +51,8 @@ export function App({ active = true }: { active?: boolean }) {
   const [area, updateArea] = useState<Area>(readArea)
   const setArea = (next: Area) => { updateArea(next); if (window.location.hash !== `#${next}`) window.location.hash = next }
   const [cloudOpen,setCloudOpen]=useState(()=>window.location.hash.includes('review='))
-  const [cloudLink,setCloudLink]=useState<CloudLink|null>(null)
+  const [cloudLink,setCloudLinkState]=useState<CloudLink|null>(()=>readCloudLink(useEditor.getState().document.id))
+  const setCloudLink=(link:CloudLink|null)=>{const activeId=useEditor.getState().document.id;rememberCloudLink(link,activeId);if(!link||link.localId===activeId)setCloudLinkState(link)}
   const [starterId,setStarterId]=useState<StarterId|undefined>(requestedStarter)
   const [startersOpen,setStartersOpen]=useState(()=>!!requestedStarter())
   const [recoveryOpen,setRecoveryOpen]=useState(false)
@@ -55,6 +61,9 @@ export function App({ active = true }: { active?: boolean }) {
   const [helpOpen, setHelpOpen] = useState(false)
   const [commandsOpen, setCommandsOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
+  const [phoneEditing,setPhoneEditing]=useState(false)
+  const framedProject=useRef('')
+  const geometryStatus=useEditor(s=>s.geometryStatus),meshDocument=useEditor(s=>s.meshDocument)
   const [mobilePanel, setMobilePanel] = useState<'tools' | 'inspector' | null>(null)
   useMobilePanel(active && area === 'studio' ? mobilePanel : null, () => setMobilePanel(null))
   const fileRef = useRef<HTMLInputElement>(null)
@@ -108,6 +117,10 @@ export function App({ active = true }: { active?: boolean }) {
   const createProject = () => void safelyContinue(() => { newDocument(); setArea('studio') })
   const startExample = () => {starterGeneration.current++;setHelpOpen(false);setStartersOpen(true)}
 
+  const editableTiming=useRef({id:document.id,start:performance.now(),recorded:false})
+  useEffect(()=>{if(editableTiming.current.id!==document.id)editableTiming.current={id:document.id,start:performance.now(),recorded:false};if(geometryStatus==='ready'&&meshDocument===document&&document.nodes.length&&!editableTiming.current.recorded){editableTiming.current.recorded=true;recordDiagnostic('first-editable','success',performance.now()-editableTiming.current.start)}},[document,meshDocument,geometryStatus])
+  useEffect(()=>{if(geometryStatus!=='ready'||meshDocument!==document||!document.nodes.length||framedProject.current===document.id)return;const timer=setTimeout(()=>{window.dispatchEvent(new Event('formforge:frame'));framedProject.current=document.id},120);return()=>clearTimeout(timer)},[geometryStatus,meshDocument,document])
+  useEffect(()=>{const refresh=()=>setCloudLinkState(readCloudLink(useEditor.getState().document.id));refresh();window.addEventListener('formforge:cloud-links-changed',refresh);return()=>window.removeEventListener('formforge:cloud-links-changed',refresh)},[document.id])
   useEffect(() => { void hydrate() }, [hydrate])
   useEffect(() => { if (active) window.document.title = area === 'studio' ? `${document.name || 'Untitled project'} · FormForge` : area === 'community' ? 'Community · FormForge' : 'Your workshop · FormForge' }, [active, area, document.name])
   useEffect(() => { const onHash = () => {
@@ -243,6 +256,7 @@ export function App({ active = true }: { active?: boolean }) {
       const file = event.target.files?.[0]
       event.target.value = ''
       if (!file) return
+      const importStarted=performance.now()
       const asNew = importAsNew.current
       const targetDocument = useEditor.getState().document
       const generation = ++importGeneration.current
@@ -264,20 +278,20 @@ export function App({ active = true }: { active?: boolean }) {
           if (!canApply()) return
           setImportReview({name:file.name,mesh,confirm:async(reviewed)=>{
             if(!canApply())throw new Error('Project changed. Cancel and import again.')
-            const apply=()=>{if(asNew){newDocument();useEditor.getState().dispatch({type:'rename-document',name:file.name.replace(/\.[^.]+$/, '')})}useEditor.getState().importMesh(file.name.replace(/\.[^.]+$/, ''),reviewed);setImportReview(null);setArea('studio')}
+            const apply=()=>{if(asNew){newDocument();useEditor.getState().dispatch({type:'rename-document',name:file.name.replace(/\.[^.]+$/, '')})}recordDiagnostic('import','success',performance.now()-importStarted);useEditor.getState().importMesh(file.name.replace(/\.[^.]+$/, ''),reviewed);setImportReview(null);setArea('studio')}
             if(asNew){await safelyContinue(apply,canApply)}else apply()
           }})
           return
         }
-        setArea('studio')
-      } catch (error) { setNotice(error instanceof Error ? error.message : 'That file could not be opened.') }
+        setArea('studio');recordDiagnostic('import','success',performance.now()-importStarted)
+      } catch (error) { recordDiagnostic('import','failure',performance.now()-importStarted);setNotice(error instanceof Error ? error.message : 'That file could not be opened.') }
     }} />
-    {startersOpen&&<StarterDialog key={starterId??"library"} initialId={starterId} onClose={()=>{starterGeneration.current++;setStartersOpen(false)}} onCreate={async doc=>{const generation=starterGeneration.current;await safelyContinue(()=>{importDocument(doc);setStartersOpen(false);setArea('studio')},()=>generation===starterGeneration.current)}}/>}
+    {startersOpen&&<StarterDialog key={starterId??"library"} initialId={starterId} onClose={()=>{starterGeneration.current++;setStartersOpen(false)}} onCreate={async doc=>{const generation=starterGeneration.current;await safelyContinue(()=>{importDocument(doc);beginTemplateJourney(doc.id);setStartersOpen(false);setArea('studio')},()=>generation===starterGeneration.current)}}/>}
     {recoveryOpen&&<Suspense fallback={<p role="status">Opening recovery copies…</p>}><RecoveryDialog onClose={()=>{recoveryGeneration.current++;setRecoveryOpen(false)}} onOpen={async doc=>{const generation=recoveryGeneration.current;await safelyContinue(()=>{importDocument(doc);setRecoveryOpen(false);setArea('studio')},()=>generation===recoveryGeneration.current)}}/></Suspense>}
     {importReview && <ImportReview name={importReview.name} mesh={importReview.mesh} onClose={()=>{importGeneration.current++;setImportReview(null)}} onConfirm={importReview.confirm}/>}
     {notice && <div className="toast" role="status"><span>{notice}</span><button aria-label="Dismiss notification" onClick={() => setNotice(null)}><X size={17} /></button></div>}
     {helpOpen && <WorkspaceHelp onClose={() => setHelpOpen(false)} onExample={startExample} onLaunch={(tab,toolkit)=>{setHelpOpen(false);if(tab==='cloud')setCloudOpen(true);else{setArea('studio');setTimeout(()=>window.dispatchEvent(new CustomEvent('formforge:open-inspector',{detail:{tab,toolkit}})),100)}}}/> }
-    {cloudOpen&&<CloudWorkspace onClose={()=>setCloudOpen(false)} link={cloudLink} onLink={setCloudLink} onOpen={async(doc,project)=>{const now=new Date().toISOString(),copy={...doc,id:crypto.randomUUID(),createdAt:now,updatedAt:now};await safelyContinue(()=>{importDocument(copy);setCloudLink({projectId:project.id,localId:copy.id,revision:project.revision});setCloudOpen(false);setArea('studio');setNotice('Editable local copy opened. Cloud snapshots update only when you save them explicitly.');})}}/>}
+    {cloudOpen&&<CloudWorkspace onClose={()=>setCloudOpen(false)} link={cloudLink} onLink={setCloudLink} onOpen={async(doc,project)=>{const now=new Date().toISOString(),copy={...doc,id:crypto.randomUUID(),createdAt:now,updatedAt:now};await safelyContinue(()=>{importDocument(copy);setCloudLink({projectId:project.id,localId:copy.id,revision:project.revision,documentKey:documentFingerprint(copy)});setCloudOpen(false);setArea('studio');setNotice('Editable local copy opened. Cloud snapshots update only when you save them explicitly.');})}}/>}
     {saveBlocked && <WorkspaceDialog title="Your latest edits aren’t saved" description="Keep this project open while you retry. You can also download an editable backup of your current work." onClose={() => { setSaveBlocked(false); pendingNavigation.current = null }}>
       <p className="export-warning" role="alert">{useEditor.getState().saveError || 'This browser could not save your project.'}</p>
       <div className="save-recovery-actions"><button className="studio-secondary" onClick={() => { const current = useEditor.getState().document; downloadBlob(new Blob([JSON.stringify(current, null, 2)], { type: 'application/json' }), `${safeFilename(current.name)}.forge.json`); setNotice('Backup download requested. Check your browser’s downloads.') }}>Download editable backup</button>
@@ -306,32 +320,33 @@ export function App({ active = true }: { active?: boolean }) {
   /></>
 
   return (
-    <div className={`app-shell mode-${document.workspaceMode} mobile-panel-${mobilePanel ?? 'none'}`}>
+    <div className={`app-shell ${phoneEditing ? 'phone-edit' : 'phone-review'} mode-${document.workspaceMode} mobile-panel-${mobilePanel ?? 'none'}`}>
       <a className="skip-link" href="#studio" onClick={event=>{event.preventDefault();window.document.querySelector<HTMLElement>('.viewport-canvas')?.focus()}}>Skip to 3D canvas</a>
       <TopBar theme={theme} onToggleTheme={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')} onNewProject={createProject} onOpenProjects={() => void openProjects()} onOpenCommunity={() => setArea('community')} onOpenGenerate={() => setGenerateOpen(true)} onImport={() => openImport()} onCommands={() => setCommandsOpen(true)} onHelp={() => setHelpOpen(true)} exportOpen={exportOpen} onExportChange={setExportOpen} />
-      <main className="workspace">
+      <WorkflowGuide key={document.id}/><main className="workspace">
         {mobilePanel && <button className="mobile-panel-scrim" aria-label="Close side panel backdrop" onClick={() => setMobilePanel(null)} />}
         <Toolbox onClose={()=>setMobilePanel(null)} />
         <section className="viewport-wrap">
           <Suspense fallback={<p role="status">Opening 3D canvas…</p>}><Viewport theme={theme} /></Suspense>
-          <ViewportTools />
+          <ViewportTools /><button className="mobile-review-toggle workflow-action secondary" onClick={()=>{setPhoneEditing(!phoneEditing);setTool('select');setMobilePanel(null)}}>{phoneEditing?'Back to review':'Edit model'}</button>
           <div className="view-pills">
             <button aria-pressed={!showResult} className={!showResult ? 'active' : ''} onClick={() => setShowResult(false)}><BoxSelect size={15} /> Edit shapes</button>
             <button aria-pressed={showResult} className={showResult ? 'active' : ''} onClick={() => setShowResult(true)}>{showResult ? <Eye size={15} /> : <EyeOff size={15} />} Solid result</button>
           </div>
+          {!showResult&&<p className="source-context">Editing source shapes. Solid result shows the finished part with cuts applied.</p>}
           {!document.nodes.length && tool !== 'place' && <div className="canvas-welcome"><span className="canvas-welcome-icon"><Box size={28} /></span><small>YOUR CANVAS, YOUR POSSIBILITIES</small><h2>What will you make?</h2><p>Start with a shape. Combine, carve, and make it your own.</p><button className="studio-primary" onClick={() => addPrimitive('box')}><Box size={16} /> Add your first shape</button><button className="canvas-help" onClick={() => setHelpOpen(true)}><CircleHelp size={15} /> A quick tour of the basics</button></div>}
           <div className="mobile-panel-controls"><button aria-pressed={mobilePanel === 'tools'} onClick={() => setMobilePanel(mobilePanel === 'tools' ? null : 'tools')}><PanelLeft size={17} /> Build tools</button><button aria-pressed={mobilePanel === 'inspector'} onClick={() => setMobilePanel(mobilePanel === 'inspector' ? null : 'inspector')}><PanelRight size={17} /> Inspector</button>{mobilePanel && <button aria-label="Close side panel" onClick={() => setMobilePanel(null)}><X size={17} /></button>}</div>
           <div className="interaction-hint"><MousePointerClick size={16} /><span>{tool === 'place' ? 'Click-drag on the plane to draw · Esc to cancel' : tool === 'draw-profile' ? 'Click polygon points · click the green start or press Enter to extrude' : tool === 'move' ? 'Drag the model to move it · use the axis handles for precision' : tool === 'sculpt-add' || tool === 'sculpt-carve' ? 'Paint volume · Shift inverts · [ and ] change radius' : tool.startsWith('sculpt') ? 'Drag directly on the mesh · Shift inverts · one Undo step per stroke' : 'Drag to orbit · wheel to zoom · right-drag to pan'}</span></div>
           {['pick-workplane','place-face','measure-angle'].includes(tool)&&<div className="canvas-task-prompt" role="status"><span>{tool==='pick-workplane'?'Pick a flat face for the workplane':tool==='place-face'?'Pick an outer face to put on the plate':'Pick three points: arm, vertex, arm'}</span><button className="workflow-text-action" onClick={()=>setTool('select')}>Cancel</button></div>}
           <SelectionDimensions />
-          <div className="mobile-review-actions" role="group" aria-label="Phone review tools"><button onClick={()=>window.dispatchEvent(new CustomEvent('formforge:open-inspector',{detail:{tab:'print'}}))}>Print review</button><button aria-pressed={tool==='measure'} onClick={()=>{useEditor.getState().setMeasurement(null);setTool(tool==='measure'?'select':'measure')}}>Measure</button><button onClick={()=>setCloudOpen(true)}>Share / review</button></div>
+          <div className="mobile-review-actions" role="group" aria-label="Phone review tools"><button onClick={()=>window.dispatchEvent(new CustomEvent('formforge:open-inspector',{detail:{tab:'print'}}))}>Check</button><button aria-pressed={tool==='measure'} onClick={()=>{useEditor.getState().setMeasurement(null);setTool(tool==='measure'?'select':'measure')}}>Measure</button><button onClick={()=>window.dispatchEvent(new CustomEvent('formforge:open-inspector',{detail:{tab:'model'}}))}>Dimensions</button><button onClick={()=>setCloudOpen(true)}>Share</button></div>
           {geometryBusyVisible && <BuildProgress />}
           {(tool === 'place' || tool === 'draw-profile') && <div className="placement-actions">{tool === 'draw-profile' && <button className="studio-primary" onClick={() => window.dispatchEvent(new Event('formforge:finish-sketch'))}>Finish outline</button>}<button className="studio-secondary" onClick={() => { cancelPlacement(); if (tool === 'draw-profile') window.dispatchEvent(new Event('formforge:cancel-sketch')) }}>Cancel {tool === 'place' ? 'placement' : 'outline'}</button></div>}
           {geometryError && <div className="geometry-error" role="alert"><strong>That operation did not work</strong><span>{geometryError}</span><button onClick={() => void useEditor.getState().rebuild()}>Retry model</button></div>}
         </section>
         <Inspector onClose={()=>setMobilePanel(null)} />
       </main>
-      <StatusBar />
+      <StatusBar backup={<SaveHealth link={cloudLink}/>}/>
       {shared}
       {commandsOpen && <CommandMenu onClose={() => setCommandsOpen(false)} onImport={() => openImport()} onExport={() => setExportOpen(true)} onProjects={() => void openProjects()} onHelp={() => setHelpOpen(true)} onGenerate={() => setGenerateOpen(true)} />}
       {generateOpen && <Suspense fallback={<div className="generate-backdrop"><div className="route-loading route-loading-card"><span className="brand-mark large"><span /></span><strong>Loading generation tools…</strong></div></div>}>

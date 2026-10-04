@@ -997,6 +997,9 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     }
     const captureCamera=(event:Event)=>{(event as CustomEvent).detail?.receive?.({position:{x:camera.position.x,y:camera.position.y,z:camera.position.z},target:{x:orbit.target.x,y:orbit.target.y,z:orbit.target.z},up:{x:camera.up.x,y:camera.up.y,z:camera.up.z},zoom:camera.zoom})}
     const restoreCamera=(event:Event)=>{const result=savedCameraViewSchema.safeParse((event as CustomEvent).detail);if(!result.success)return;const v=result.data;camera.position.set(v.position.x,v.position.y,v.position.z);orbit.target.set(v.target.x,v.target.y,v.target.z);camera.up.set(v.up.x,v.up.y,v.up.z).normalize();camera.zoom=v.zoom;const distance=camera.position.distanceTo(orbit.target);camera.near=Math.max(.001,distance/1000);camera.far=Math.max(1000,distance*20);camera.updateProjectionMatrix();orbit.update()}
+    const diagnosticMarker=new THREE.Mesh(new THREE.SphereGeometry(.6,16,12),new THREE.MeshBasicMaterial({color:0xff374b,depthTest:false}));diagnosticMarker.visible=false;diagnosticMarker.renderOrder=999;scene.add(diagnosticMarker)
+    const markDiagnostic=(event:Event)=>{const point=(event as CustomEvent).detail?.point;diagnosticMarker.visible=Array.isArray(point)&&point.length===3&&point.every(Number.isFinite);if(diagnosticMarker.visible)diagnosticMarker.position.set(point[0],point[1],point[2])}
+    window.addEventListener('formforge:diagnostic-point',markDiagnostic)
     window.addEventListener('formforge:capture-camera',captureCamera)
     window.addEventListener('formforge:restore-camera',restoreCamera)
     window.addEventListener('formforge:frame', frameListener)
@@ -1037,6 +1040,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       renderer.domElement.removeEventListener('pointerup', onPointerUp)
       renderer.domElement.removeEventListener('pointercancel', onPointerUp)
       renderer.domElement.removeEventListener('pointerleave', onPointerLeave)
+      window.removeEventListener('formforge:diagnostic-point',markDiagnostic);diagnosticMarker.geometry.dispose();diagnosticMarker.material.dispose();scene.remove(diagnosticMarker)
       window.removeEventListener('formforge:capture-camera',captureCamera)
       window.removeEventListener('formforge:restore-camera',restoreCamera)
       window.removeEventListener('formforge:frame', frameListener)
@@ -1297,7 +1301,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     if (!meshPayload?.positions.length) return
     const geometry = meshPayloadToGeometry(meshPayload)
     const material = new THREE.MeshStandardMaterial({
-      color: '#829eff', roughness: 0.32, metalness: 0.08, fog: false,
+      color: '#829eff', roughness: 0.6, metalness: 0.02, fog: false, flatShading:true,
       wireframe: displayMode === 'wireframe',
       transparent: displayMode === 'vertices',
       opacity: displayMode === 'vertices' ? 0.08 : 1,

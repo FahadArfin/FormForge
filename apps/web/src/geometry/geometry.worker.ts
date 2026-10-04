@@ -1,3 +1,5 @@
+import {resolveAttachedHoles} from '../lib/attachedHoles'
+import {treatBoxEdge,validateEdgeTreatment} from './edgeTreatment'
 /// <reference lib="webworker" />
 import Module from 'manifold-3d'
 import type { Manifold as ManifoldType, ManifoldToplevel, Mat4 } from 'manifold-3d'
@@ -199,6 +201,7 @@ function shapeForNode(api: ManifoldToplevel, node: ModelNode) {
       inner.delete(); shape.delete(); shape = next
     }
   }
+  shape = treatBoxEdge(api,shape,node)
   // Manifold.rotate uses a different Euler order from the viewport. Applying
   // the shared matrix also preserves mirrored, nonuniform scales exactly.
   const transformed = shape.transform(modelTransformMatrix(node.transform).elements as Mat4)
@@ -207,53 +210,55 @@ function shapeForNode(api: ManifoldToplevel, node: ModelNode) {
 }
 
 export async function evaluate(document: ModelDocument) {
+  const resolved=resolveAttachedHoles(document);if(Object.keys(resolved.errors).length)throw new Error(Object.values(resolved.errors).join(' '));document=resolved.document
+  document.nodes.filter(n=>!n.suppressed).forEach(validateEdgeTreatment)
   const api = await getModule()
+  const nodeShape=(node:ModelNode)=>{
+    let part=shapeForNode(api,node)
+    try{for(const hole of document.nodes.filter(n=>!n.suppressed&&n.faceAttachment?.targetNodeId===node.id)){
+      const cutter=shapeForNode(api,hole)
+      try{const next=part.subtract(cutter);part.delete();part=next}finally{cutter.delete()}
+    }return part}catch(error){part.delete();throw error}
+  }
   const combine = (nodes: ModelNode[]) => {
     if (!nodes.length) return null
     if (nodes[0]?.groupOperation === 'hull') {
-      const parts = nodes.map((node) => shapeForNode(api, node))
-      const hull = api.Manifold.hull(parts)
-      parts.forEach((part) => part.delete())
-      return hull
+      const parts:ManifoldType[]=[]
+      try{for(const node of nodes)parts.push(nodeShape(node));return api.Manifold.hull(parts)}finally{parts.forEach(part=>part.delete())}
     }
-    const first = shapeForNode(api, nodes[0]!)
-    let groupResult = first.asOriginal()
-    first.delete()
-    for (const node of nodes.slice(1)) {
-      const operand = shapeForNode(api, node)
-      const next = node.boolean === 'cut' ? groupResult.subtract(operand) : node.boolean === 'intersect' ? groupResult.intersect(operand) : groupResult.add(operand)
-      groupResult.delete(); operand.delete(); groupResult = next
-    }
-    return groupResult
+    let groupResult=nodeShape(nodes[0]!)
+    try{for(const node of nodes.slice(1)){
+      const operand=nodeShape(node)
+      try{const next=node.boolean==='cut'?groupResult.subtract(operand):node.boolean==='intersect'?groupResult.intersect(operand):groupResult.add(operand);groupResult.delete();groupResult=next}finally{operand.delete()}
+    }return groupResult}catch(error){groupResult.delete();throw error}
   }
-
   const evaluateScope = (active: ModelNode[]): ManifoldType | null => {
-    const groupedIds=new Set<string>(), assemblies=new Set<string>()
-    const operations: {shape:ManifoldType;mode:ModelNode['boolean']}[]=[]
-    for(const node of active) {
-      const assembly=node.assemblyPath?.[0]
-      if(assembly) {
-        if(assemblies.has(assembly))continue
-        assemblies.add(assembly)
-        const shape=evaluateScope(active.filter(n=>n.assemblyPath?.[0]===assembly).map(n=>({...n,assemblyPath:n.assemblyPath!.slice(1)})))
-        if(shape)operations.push({shape,mode:'add'})
-      } else if(node.combined&&node.groupId) {
-        if(groupedIds.has(node.groupId))continue
-        groupedIds.add(node.groupId)
-        const shape=combine(active.filter(n=>!n.assemblyPath?.length&&n.combined&&n.groupId===node.groupId))
-        if(shape)operations.push({shape,mode:'add'})
-      } else operations.push({shape:shapeForNode(api,node),mode:node.boolean})
-    }
+    const groupedIds=new Set<string>(),assemblies=new Set<string>(),operations:{shape:ManifoldType;mode:ModelNode['boolean']}[]=[]
     let result:ManifoldType|null=null
-    for(const op of operations){
-      if(!result){if(op.mode==='cut'){op.shape.delete();continue}result=op.shape.asOriginal();op.shape.delete();continue}
-      const current:ManifoldType=result
-      const next:ManifoldType=op.mode==='cut'?current.subtract(op.shape):op.mode==='intersect'?current.intersect(op.shape):current.add(op.shape)
-      result.delete();op.shape.delete();result=next
-    }
-    return result
+    try{
+      for(const node of active){
+        const assembly=node.assemblyPath?.[0]
+        if(assembly){
+          if(assemblies.has(assembly))continue
+          assemblies.add(assembly)
+          const shape=evaluateScope(active.filter(n=>n.assemblyPath?.[0]===assembly).map(n=>({...n,assemblyPath:n.assemblyPath!.slice(1)})))
+          if(shape)operations.push({shape,mode:'add'})
+        }else if(node.combined&&node.groupId){
+          if(groupedIds.has(node.groupId))continue
+          groupedIds.add(node.groupId)
+          const shape=combine(active.filter(n=>!n.assemblyPath?.length&&n.combined&&n.groupId===node.groupId))
+          if(shape)operations.push({shape,mode:'add'})
+        }else operations.push({shape:nodeShape(node),mode:node.boolean})
+      }
+      for(const op of operations){
+        if(!result){if(op.mode!=='cut')result=op.shape.asOriginal();continue}
+        const next:ManifoldType=op.mode==='cut'?result.subtract(op.shape):op.mode==='intersect'?result.intersect(op.shape):result.add(op.shape)
+        result.delete();result=next
+      }
+      return result
+    }catch(error){result?.delete();throw error}finally{operations.forEach(op=>op.shape.delete())}
   }
-  const result=evaluateScope(document.nodes.filter(n=>!n.suppressed))
+  const result=evaluateScope(document.nodes.filter(n=>!n.suppressed&&!n.faceAttachment))
 
   if (!result) return { positions: new Float32Array(), indices: new Uint32Array(), volume: 0, triangleCount: 0 }
   let finalResult: ManifoldType = result

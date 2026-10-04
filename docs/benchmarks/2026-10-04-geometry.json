@@ -1,0 +1,63 @@
+{
+  "generatedAt": "2026-10-04T04:14:14.003Z",
+  "runtime": "v22.14.0",
+  "system": "win32 x64",
+  "cpu": "AMD Ryzen 7 9800X3D 8-Core Processor           ",
+  "limitations": "Local Node/Vite evaluation of the same Manifold kernel; excludes worker transfer, browser rendering, mobile hardware and field web vitals. First fixture includes cold WASM initialization. Subsequent fixtures share the kernel.",
+  "rows": [
+    {
+      "wallCheck": {
+        "milliseconds": 37,
+        "sampled": 512,
+        "accepted": 512
+      },
+      "name": "Enclosure",
+      "inputTriangles": 0,
+      "triangles": 1784,
+      "outputBytes": 32064,
+      "firstEvaluationMs": 55.1,
+      "warmMedianMs": 32.5,
+      "overhangMedianMs": 0.2
+    },
+    {
+      "wallCheck": {
+        "milliseconds": 14.9,
+        "sampled": 512,
+        "accepted": 512
+      },
+      "name": "Calibration coupon",
+      "inputTriangles": 0,
+      "triangles": 1580,
+      "outputBytes": 28368,
+      "firstEvaluationMs": 11.2,
+      "warmMedianMs": 10.6,
+      "overhangMedianMs": 0.1
+    },
+    {
+      "wallCheck": {
+        "milliseconds": 547,
+        "sampled": 512,
+        "accepted": 512
+      },
+      "name": "Dense 20k triangles",
+      "inputTriangles": 20480,
+      "triangles": 20480,
+      "outputBytes": 368664,
+      "firstEvaluationMs": 53.9,
+      "warmMedianMs": 49,
+      "overhangMedianMs": 2.2
+    },
+    {
+      "wallCheck": {
+        "refused": "Checks require a valid closed mesh up to 100,000 triangles and 300,000 vertices."
+      },
+      "name": "Dense 205k triangles",
+      "inputTriangles": 204020,
+      "triangles": 204020,
+      "outputBytes": 3672384,
+      "firstEvaluationMs": 508.9,
+      "warmMedianMs": 590.2,
+      "overhangMedianMs": 22.7
+    }
+  ]
+}

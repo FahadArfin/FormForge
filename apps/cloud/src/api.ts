@@ -1,3 +1,4 @@
+import {encodeSnapshot,decodeSnapshot} from './snapshotCodec'
 import { parseModelDocument } from '../../../packages/model/src/index'
 
 export interface Statement {
@@ -27,7 +28,7 @@ async function body(request:Request,limit=MAX_DOCUMENT+2048):Promise<Record<stri
   try{const value:unknown=JSON.parse(new TextDecoder().decode(bytes));if(!value||typeof value!=='object'||Array.isArray(value))throw 0;return value as Record<string,unknown>}catch{reject(400,'Invalid JSON data.')}
 }
 function documentPayload(value:unknown){
-  try{const doc=parseModelDocument(value);if(doc.nodes.length>2000||doc.namedParameters.length>500||doc.name.length>120)throw 0;const json=JSON.stringify(doc);const bytes=new TextEncoder().encode(json).length;if(bytes>MAX_DOCUMENT)reject(413,'Cloud projects can contain up to 4 MB. Export a local backup for larger models.');return {doc,json,bytes}}
+  try{const doc=parseModelDocument(value);if(doc.nodes.length>2000||doc.namedParameters.length>500||doc.name.length>120)throw 0;const json=JSON.stringify(doc);const bytes=new TextEncoder().encode(json).length;if(bytes>MAX_DOCUMENT)reject(413,'Cloud projects can contain up to 4 MB. Export a local backup for larger models.');const encoded=encodeSnapshot(json);return {doc,json:encoded,bytes:new TextEncoder().encode(encoded).length}}
   catch(error){if(error instanceof HttpError)throw error;reject(400,'This is not a supported editable FormForge project.')}
 }
 const publicProject=(p:Project,user:string)=>({id:p.id,name:p.name,revision:p.revision,updated:p.updated,role:p.owner===user?'owner':'reviewer',sharing:!!p.share_hash&&Number(p.share_expires)>Date.now()})
@@ -71,7 +72,11 @@ export async function cloudApi(request:Request,env:Env):Promise<Response>{
       }
     }
     if(path==='/api/cloud/projects'){
-      if(method==='GET'){const rows=await q(`SELECT p.* FROM cloud_projects p WHERE p.owner=? OR EXISTS (SELECT 1 FROM cloud_members m WHERE m.project=p.id AND m.user=? AND m.grant=p.share_hash AND p.share_expires>?) ORDER BY p.updated DESC LIMIT 100`,user,user,Date.now()).all<Project>();return reply({projects:rows.results.map(p=>publicProject(p,user)),pendingDeletions:(await q('SELECT project AS id,name FROM cloud_deletions WHERE owner=? AND ready=1 LIMIT 50',user).all()).results})}
+      if(method==='GET'){
+        const rows=await q(`SELECT p.* FROM cloud_projects p WHERE p.owner=? OR EXISTS (SELECT 1 FROM cloud_members m WHERE m.project=p.id AND m.user=? AND m.grant=p.share_hash AND p.share_expires>?) ORDER BY p.updated DESC LIMIT 100`,user,user,Date.now()).all<Project>()
+        const used=await q('SELECT (SELECT COALESCE(SUM(v.bytes),0) FROM cloud_versions v JOIN cloud_projects p ON p.id=v.project WHERE p.owner=?) AS storedBytes,(SELECT COALESCE(SUM(bytes),0) FROM cloud_deletions WHERE owner=?) AS pendingBytes',user,user).first<{storedBytes:number;pendingBytes:number}>()
+        return reply({projects:rows.results.map(p=>publicProject(p,user)),usage:{...used,usedBytes:(used?.storedBytes??0)+(used?.pendingBytes??0),limitBytes:MAX_ACCOUNT,documentLimitBytes:MAX_DOCUMENT,snapshotLimit:20},pendingDeletions:(await q('SELECT project AS id,name,bytes FROM cloud_deletions WHERE owner=? AND ready=1 LIMIT 50',user).all()).results})
+      }
       if(method==='POST'){
         const b=await body(request),{doc,json,bytes}=documentPayload(b.document),id=uid(),blob=`projects/${id}/${uid()}.json`,now=Date.now()
         const reservation=await reserveUpload(blob,doc.name,bytes)
@@ -112,13 +117,28 @@ export async function cloudApi(request:Request,env:Env):Promise<Response>{
       ])
       await deleteBlobs();return reply({deleted:true})
     }
-    if(action==='versions'&&method==='GET'){return reply({versions:(await q('SELECT revision,created,bytes FROM cloud_versions WHERE project=? ORDER BY revision DESC LIMIT 20',id).all()).results})}
+    if(action==='versions'&&method==='GET'){return reply({versions:(await q('SELECT v.revision,v.created,v.bytes,(SELECT COUNT(*) FROM cloud_comments c WHERE c.project=v.project AND c.revision=v.revision) AS commentCount FROM cloud_versions v WHERE v.project=? ORDER BY v.revision DESC LIMIT 20',id).all()).results})}
+    if(action==='versions'&&method==='DELETE'){
+      const b=await body(request,2048),expected=requireRevision(b.expectedRevision)
+      if(!Array.isArray(b.revisions)||!b.revisions.length||b.revisions.length>19||new Set(b.revisions).size!==b.revisions.length)reject(400,'Select 1–19 distinct old snapshots.')
+      const revisions=b.revisions.map(requireRevision),placeholders=revisions.map(()=>'?').join(','),cleanup=`prune-${uid()}`
+      const eligible=`v.project=? AND v.revision IN (${placeholders}) AND v.revision<(SELECT revision FROM cloud_projects WHERE id=?) AND NOT EXISTS(SELECT 1 FROM cloud_comments c WHERE c.project=v.project AND c.revision=v.revision)`
+      const args=[id,...revisions,id]
+      const result=await db.batch([
+        q(`INSERT INTO cloud_deletions(project,owner,name,blobs,bytes,ready) SELECT ?,?,?,(SELECT json_group_array(v.blob) FROM cloud_versions v WHERE ${eligible}),(SELECT COALESCE(SUM(v.bytes),0) FROM cloud_versions v WHERE ${eligible}),1 WHERE EXISTS(SELECT 1 FROM cloud_projects WHERE id=? AND owner=? AND revision=?) AND (SELECT COUNT(*) FROM cloud_versions v WHERE ${eligible})=? AND (SELECT COUNT(*) FROM cloud_deletions WHERE owner=?)<50`,cleanup,user,`Old snapshots: ${p.name}`,...args,...args,id,user,expected,...args,revisions.length,user),
+        q('DELETE FROM cloud_versions WHERE project=? AND blob IN (SELECT value FROM json_each((SELECT blobs FROM cloud_deletions WHERE project=? AND owner=?)))',id,cleanup,user),
+      ])
+      if(!result[0]?.meta.changes)reject(409,'Nothing removed. Reload the project; latest or reviewed snapshots are protected, and the cloud revision must be current.')
+      const row=await q('SELECT blobs FROM cloud_deletions WHERE project=? AND owner=?',cleanup,user).first<{blobs:string}>()
+      try{if(row)await env.BUCKET.delete(JSON.parse(row.blobs));await q('DELETE FROM cloud_deletions WHERE project=? AND owner=?',cleanup,user).run();return reply({removed:revisions,cleanupPending:false})}
+      catch{return reply({removed:revisions,cleanupPending:true})}
+    }
     if(action==='document'){
       if(method==='GET'){
         const revision=url.searchParams.has('revision')?requireRevision(Number(url.searchParams.get('revision'))):p.revision
         const version=await q('SELECT blob FROM cloud_versions WHERE project=? AND revision=?',id,revision).first<{blob:string}>();if(!version)reject(404,'Snapshot not found.')
         const object=await env.BUCKET.get(version.blob);if(!object)reject(503,'The snapshot is temporarily unavailable. Please retry.')
-        return reply({project:publicProject(p,user),snapshotRevision:revision,document:JSON.parse(await object.text())})
+        return reply({project:publicProject(p,user),snapshotRevision:revision,document:decodeSnapshot(await object.text())})
       }
       if(method==='PUT'){
         const b=await body(request),expected=requireRevision(b.expectedRevision);if(expected!==p.revision)reject(409,'A newer cloud snapshot exists. Reload it before saving again.')
@@ -151,7 +171,7 @@ export async function cloudApi(request:Request,env:Env):Promise<Response>{
         if(!await q('SELECT revision FROM cloud_versions WHERE project=? AND revision=?',id,revision).first())reject(404,'Snapshot not found.')
         if(b.parent!==undefined&&b.parent!==null){if(typeof b.parent!=='string'||!await q('SELECT id FROM cloud_comments WHERE id=? AND project=? AND revision=? AND parent IS NULL',b.parent,id,revision).first())reject(400,'Reply to a top-level comment on the same snapshot.')}
         // Repeat access and quota checks in the write, so revocation races cannot append comments.
-        const result=await q(`INSERT INTO cloud_comments(id,project,revision,author,body,parent,resolved,created) SELECT ?,?,?,?,?,?,0,? WHERE EXISTS(SELECT 1 FROM cloud_projects p WHERE p.id=? AND (p.owner=? OR EXISTS(SELECT 1 FROM cloud_members m WHERE m.project=p.id AND m.user=? AND m.grant=p.share_hash AND p.share_expires>?))) AND (SELECT COUNT(*) FROM cloud_comments WHERE project=?)<500 AND (SELECT COUNT(*) FROM cloud_comments WHERE author=? AND created>?)<30`,uid(),id,revision,user,b.body.trim(),b.parent??null,Date.now(),id,user,user,Date.now(),id,user,Date.now()-60000).run()
+        const result=await q(`INSERT INTO cloud_comments(id,project,revision,author,body,parent,resolved,created) SELECT ?,?,?,?,?,?,0,? WHERE EXISTS(SELECT 1 FROM cloud_projects p WHERE p.id=? AND (p.owner=? OR EXISTS(SELECT 1 FROM cloud_members m WHERE m.project=p.id AND m.user=? AND m.grant=p.share_hash AND p.share_expires>?))) AND EXISTS(SELECT 1 FROM cloud_versions WHERE project=? AND revision=?) AND (SELECT COUNT(*) FROM cloud_comments WHERE project=?)<500 AND (SELECT COUNT(*) FROM cloud_comments WHERE author=? AND created>?)<30`,uid(),id,revision,user,b.body.trim(),b.parent??null,Date.now(),id,user,user,Date.now(),id,revision,id,user,Date.now()-60000).run()
         if(!result.meta.changes)reject(429,'Comment was not saved. The link may be revoked, or the comment limit has been reached. Wait a minute and retry.')
         return reply({saved:true},201)
       }

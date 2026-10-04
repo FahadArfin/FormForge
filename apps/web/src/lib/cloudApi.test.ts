@@ -31,6 +31,30 @@ async function call(path:string,method='GET',body?:unknown,user:string|null='own
 async function project(){const r=await call('/projects','POST',{document:createDocument()});expect(r.status).toBe(201);return (await r.json()).project as {id:string;revision:number}}
 async function join(id:string){const shared=await (await call(`/projects/${id}/share`,'POST',{})).json();const token=shared.url.split('review=')[1];expect((await call('/join','POST',{token},'reviewer')).status).toBe(200);return token}
 
+it('prunes an old snapshot while keeping current and reviewed snapshots protected',async()=>{
+ const p=await project();const doc=createDocument();doc.name='Second'
+ await call(`/projects/${p.id}/document`,'PUT',{expectedRevision:1,document:doc})
+ expect((await call(`/projects/${p.id}/versions`,'DELETE',{expectedRevision:2,revisions:[2]})).status).toBe(409)
+ expect((await call(`/projects/${p.id}/versions`,'DELETE',{expectedRevision:1,revisions:[1]})).status).toBe(409)
+ await join(p.id)
+ expect((await call(`/projects/${p.id}/versions`,'DELETE',{expectedRevision:2,revisions:[1]},'reviewer')).status).toBe(403)
+ expect((await call(`/projects/${p.id}/versions`,'DELETE',{expectedRevision:2,revisions:[1]})).status).toBe(200)
+ expect(objects.size).toBe(1)
+ doc.name='Third';expect((await call(`/projects/${p.id}/document`,'PUT',{expectedRevision:2,document:doc})).status).toBe(200)
+ await call(`/projects/${p.id}/comments`,'POST',{revision:2,body:'Keep this review'})
+ expect((await call(`/projects/${p.id}/versions`,'DELETE',{expectedRevision:3,revisions:[2]})).status).toBe(409)
+})
+it('keeps pruned bytes charged until storage confirms deletion',async()=>{
+ const p=await project(),doc=createDocument();doc.name='Next';await call(`/projects/${p.id}/document`,'PUT',{expectedRevision:1,document:doc})
+ const before=(await (await call('/projects')).json()).usage.usedBytes
+ failDelete=true;const result=await (await call(`/projects/${p.id}/versions`,'DELETE',{expectedRevision:2,revisions:[1]})).json()
+ expect(result.cleanupPending).toBe(true)
+ const after=await (await call('/projects')).json();expect(after.usage.usedBytes).toBe(before);expect(after.pendingDeletions).toHaveLength(1)
+ failDelete=false;await call(`/projects/${after.pendingDeletions[0].id}`,'DELETE')
+ expect((await (await call('/projects')).json()).usage.usedBytes).toBeLessThan(before)
+ expect((await (await call('/projects','GET',undefined,'stranger')).json()).usage.usedBytes).toBe(0)
+})
+
 it('requires a signed-in account and same-origin writes; ignores claimed ownership',async()=>{
  expect((await call('/projects','POST',{owner:'owner',document:createDocument()},null)).status).toBe(401)
  expect((await call('/projects','POST',{document:createDocument()},'owner','https://evil.test')).status).toBe(403)
@@ -106,4 +130,13 @@ it('tracks and retries cleanup of a rejected upload when blob deletion fails',as
  expect(pending).toHaveLength(1)
  failDelete=false;expect((await call(`/projects/${pending[0].id}`,'DELETE')).status).toBe(200)
  expect(objects.size).toBe(20);expect((await call(`/projects/${p.id}/document`)).status).toBe(200)
+})
+
+it('continues to revision 21 after pruning a full project and rejects mixed protected cleanup atomically',async()=>{
+ const p=await project()
+ for(let revision=1;revision<20;revision++)expect((await call(`/projects/${p.id}/document`,'PUT',{expectedRevision:revision,document:createDocument()})).status).toBe(200)
+ expect((await call(`/projects/${p.id}/versions`,'DELETE',{expectedRevision:20,revisions:[1,20]})).status).toBe(409);expect(objects.size).toBe(20)
+ expect((await call(`/projects/${p.id}/versions`,'DELETE',{expectedRevision:20,revisions:[1]})).status).toBe(200)
+ expect((await call(`/projects/${p.id}/document`,'PUT',{expectedRevision:20,document:createDocument()})).status).toBe(200)
+ expect((await (await call(`/projects/${p.id}/document`)).json()).snapshotRevision).toBe(21);expect(objects.size).toBe(20)
 })

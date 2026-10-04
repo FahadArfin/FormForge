@@ -45,14 +45,14 @@ export function placeDocumentFromMesh(document: ModelDocument, target: PlatePlac
   const axes = ['x', 'y', 'z'] as const
   for (const node of document.nodes) {
     if (!target.nodeIds.has(node.id)) continue
-    if (axes.some(axis => Math.abs(delta[axis]) >= 0.00001 && node.parameterBindings?.[`position${axis.toUpperCase()}` as ParameterBindingTarget])) {
+    if (!document.template?.nodeIds.includes(node.id) && axes.some(axis => Math.abs(delta[axis]) >= 0.00001 && node.parameterBindings?.[`position${axis.toUpperCase()}` as ParameterBindingTarget])) {
       throw new Error('Clear the affected position binding before placement so the saved model keeps its new location.')
     }
   }
   const translated = (value: Vec3Value): Vec3Value => ({ x: value.x + delta.x, y: value.y + delta.y, z: value.z + delta.z })
   return {
     ...document,
-    nodes: document.nodes.map(node => target.nodeIds.has(node.id) ? { ...node, transform: { ...node.transform, position: translated(node.transform.position) } } : node),
+    nodes: document.nodes.map(node => {if(!target.nodeIds.has(node.id))return node;const bindings={...node.parameterBindings};if(document.template?.nodeIds.includes(node.id))for(const axis of axes){const key=`position${axis.toUpperCase()}` as ParameterBindingTarget;if(bindings[key]&&Math.abs(delta[axis])>=.00001)bindings[key]=`(${bindings[key]}) + (${delta[axis]})`}return { ...node,parameterBindings:node.parameterBindings?bindings:undefined, transform: { ...node.transform, position: translated(node.transform.position) } }}),
     sculptStrokes: target.movesWholeDocument ? document.sculptStrokes.map(stroke => ({ ...stroke, center: translated(stroke.center) })) : document.sculptStrokes,
     revision: document.revision + 1,
     updatedAt: new Date().toISOString(),

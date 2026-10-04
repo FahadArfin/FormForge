@@ -1,3 +1,4 @@
+import {resolveAttachedHoles} from './attachedHoles'
 import {
   evaluateParameters,
   type ModelDocument,
@@ -116,5 +117,15 @@ export function resolveDocumentParameterBindings(document: ModelDocument): Resol
     return node
   })
 
-  return { document: { ...document, nodes }, errors, evaluation }
+  const attached=resolveAttachedHoles({...document,nodes})
+  return { document: attached.document, errors:{...errors,...attached.errors}, evaluation }
+}
+
+export function detachDirectBindings(before:ModelNode,after:ModelNode):ModelNode{
+ const bindings={...after.parameterBindings};let changed=false
+ for(const [key,expression] of Object.entries(before.parameterBindings??{})){
+  const target=key as ParameterBindingTarget
+  if(expression===bindings[target]&&readParameterTarget(before,target)!==readParameterTarget(after,target)){delete bindings[target];changed=true}
+ }
+ return changed?{...after,parameterBindings:Object.keys(bindings).length?bindings:undefined}:after
 }

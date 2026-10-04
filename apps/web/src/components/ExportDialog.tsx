@@ -1,3 +1,6 @@
+import {recordDiagnostic,completeTemplateJourney} from '@/lib/diagnostics'
+import {SlicerHandoff} from './SlicerHandoff'
+import {geometryKey} from '@/lib/annotations'
 import { arrangeMesh } from '@/lib/plateLayout'
 import { printReport } from '@/lib/printReport'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -29,17 +32,17 @@ export function ExportDialog({onClose,initialFormat='3mf'}:{onClose:()=>void;ini
  useEffect(()=>{setDownloaded(false)},[arrange,gap,margin])
  const settings=useMemo(()=>({arrange,gap,margin,scope,format,doc,ids}),[arrange,gap,margin,scope,format,doc,ids]),latest=useRef(settings);latest.current=settings
  const analysis=useMemo(()=>outputMesh&&scoped.document?analyzeForPrint(scoped.document,outputMesh,meshBounds(outputMesh).size):null,[outputMesh,scoped])
- const multiUnsupported=!!scoped.document&&(scoped.document.sculptStrokes.length>0||scoped.document.nodes.some(n=>!n.suppressed&&(n.boolean!=='add'||n.groupOperation==='hull'||Object.values(n.surface??{}).some(v=>v>0))))
+ const multiUnsupported=!!scoped.document&&(scoped.document.sculptStrokes.length>0||scoped.document.nodes.some(n=>!n.suppressed&&(n.boolean!=='add'||n.faceAttachment||n.edgeTreatment||n.groupOperation==='hull'||Object.values(n.surface??{}).some(v=>v>0))))
  const allowed=format==='project'||(!placing&&!!currentMesh?.triangleCount&&!building&&!scoped.error&&!layout.error&&!(arrange&&format==='ams')&&(format!=='ams'||!multiUnsupported))
- const download=async()=>{if(!allowed||busy)return;setBusy(true);setError('');const token=generation.current,snapshot=doc,selection=ids
+ const download=async()=>{if(!allowed||busy)return;setBusy(true);setError('');const started=performance.now(),token=generation.current,snapshot=doc,selection=ids
   try{const name=safeFilename(doc.name+(scope==='document'||format==='project'?'':`-${scope}`));let blob:Blob
    if(format==='project')blob=new Blob([JSON.stringify(doc,null,2)],{type:'application/json'})
    else if(format==='ams')blob=exportMultiColor3mf(scoped.document!.nodes,doc.name)
    else if(format==='glb')blob=await exportGlb(outputMesh!)
    else blob=format==='stl'?exportStl(outputMesh!):format==='obj'?exportObj(outputMesh!):export3mf(outputMesh!,doc.name)
    if(!alive.current||latest.current!==settings||token!==generation.current||useEditor.getState().document!==snapshot||(scope==='selection'&&useEditor.getState().selectedNodeIds!==selection))throw new Error('The project or selection changed. Review the new preview before downloading.')
-   downloadBlob(blob,`${name}.${format==='project'?'forge.json':format==='ams'?'3mf':format}`);setDownloaded(true)
-  }catch(e){if(alive.current)setError((e as Error).message)}finally{if(alive.current)setBusy(false)}
+   downloadBlob(blob,`${name}.${format==='project'?'forge.json':format==='ams'?'3mf':format}`);setDownloaded(true);recordDiagnostic('export','success',performance.now()-started);if(format!=='project'&&scope==='document')completeTemplateJourney(doc.id);if(format!=='project')window.dispatchEvent(new CustomEvent('formforge:workflow',{detail:{action:'exported',documentId:doc.id,key:geometryKey(doc)}}))
+  }catch(e){recordDiagnostic('export','failure',performance.now()-started);if(alive.current)setError((e as Error).message)}finally{if(alive.current)setBusy(false)}
  }
  return <WorkspaceDialog title="Preview and export" description={`Take “${doc.name}” to your slicer or save an editable copy.`} onClose={onClose} className="export-dialog">
  <div className="review-fields"><label>Export scope<select aria-label="Export scope" value={scope} disabled={format==='project'||busy} onChange={e=>setScope(e.target.value as typeof scope)}><option value="document">Complete model</option><option value="selection">Selected shapes and combined groups</option><option value="visible">Visible shapes and combined groups</option></select></label><label>File format<select aria-label="File format" value={format} disabled={busy} onChange={e=>setFormat(e.target.value)}>{formats.map(([id,title])=><option key={id} value={id}>{title}</option>)}</select></label></div>
@@ -49,6 +52,6 @@ export function ExportDialog({onClose,initialFormat='3mf'}:{onClose:()=>void;ini
  {format==='ams'&&multiUnsupported&&<p className="export-warning">Choose standard 3MF to preserve holes, hulls, sculpting and surface modifiers.</p>}{placing&&<p>Finish placing your shape first.</p>}</>}
  {(error||(format!=='project'&&scoped.error))&&<p role="alert" className="workflow-error">{error||scoped.error}</p>}{downloaded&&<p role="status">Download requested. Check your browser’s downloads.</p>}
  {analysis&&format!=='project'&&!layout.error&&<button className="workflow-text-action" onClick={()=>downloadBlob(new Blob([printReport(doc,analysis,`${scope}${arrange?' · arranged on plate':''}`)],{type:'text/plain'}),`${safeFilename(doc.name)}-print-report.txt`)}>Download this scope’s print report</button>}
- <footer className="dialog-footer"><span>{format==='project'?'A separate editable copy of your work.':'Check supports, walls and layers in your slicer.'}</span><button className="studio-primary" disabled={!allowed||busy} onClick={()=>void download()}>{busy?'Preparing…':'Download file'}</button></footer>
+ {format!=='project'&&<SlicerHandoff/>}<footer className="dialog-footer"><span>{format==='project'?'A separate editable copy of your work.':'Check supports, walls and layers in your slicer.'}</span><button className="studio-primary" disabled={!allowed||busy} onClick={()=>void download()}>{busy?'Preparing…':'Download file'}</button></footer>
  </WorkspaceDialog>
 }

@@ -1,3 +1,6 @@
+import {detachDirectBindings} from '../lib/modelParameters'
+import {recordDiagnostic} from '@/lib/diagnostics'
+import {resolveAttachedHoles} from '@/lib/attachedHoles'
 import { rememberOpenedProject } from '@/lib/projectResume'
 import { patternAssembly } from '@/lib/assemblyTools'
 import { placeNodeOnWorkplane, planeToWorld, workplaneRotation, workplaneMatrix, value } from '@/lib/workplanes'
@@ -349,7 +352,12 @@ export const useEditor = create<EditorState>((set, get) => {
         const nodeId=command.nodeId;const original=previous.nodes.find(n=>n.id===nodeId)
         if(original?.text&&(command.patch.mesh.positions!==original.mesh?.positions||command.patch.mesh.indices!==original.mesh?.indices)) command={...command,patch:{...command.patch,text:undefined}}
       }
-      const next = executeCommand(previous, command)
+      let edited=executeCommand(previous,command)
+      if(command.type==='update-node'||command.type==='replace-nodes'){
+        const nodes=edited.nodes.map(n=>{const before=previous.nodes.find(b=>b.id===n.id);return before?detachDirectBindings(before,n):n})
+        if(nodes.some((n,i)=>n!==edited.nodes[i]))edited={...edited,nodes}
+      }
+      const next=resolveAttachedHoles(edited).document
       const retainsWorldStrokes = previous.sculptStrokes.length > 0 && JSON.stringify(previous.sculptStrokes) === JSON.stringify(next.sculptStrokes)
       if (retainsWorldStrokes && previous.nodes.some(node => {
         const changed = next.nodes.find(candidate => candidate.id === node.id)
@@ -473,6 +481,7 @@ export const useEditor = create<EditorState>((set, get) => {
       if (selectedIds.length < 2) { set({ notice: 'Select at least two shapes to combine.' }); return }
       const selected = selectedIds.map(id => get().document.nodes.find(node => node.id === id)).filter((node): node is ModelNode => Boolean(node))
       if (selected.some(node => node.locked)) { set({ notice: 'Unlock selected shapes before combining them.' }); return }
+      if(selected.some(n=>n.faceAttachment||get().document.nodes.some(h=>h.faceAttachment?.targetNodeId===n.id))){set({notice:'Bake attached holes by exporting and reimporting the solid result before recombining their bodies.'});return}
       if (new Set(selected.map(node => JSON.stringify(node.assemblyPath ?? []))).size > 1) { set({ notice: 'Combine shapes within the same inserted assembly. Convert assemblies to meshes before combining across their boundaries.' }); return }
       const groupId = nanoid()
       const nodes = get().document.nodes.map((node) => {
@@ -491,7 +500,7 @@ export const useEditor = create<EditorState>((set, get) => {
     ungroupSelected() {
       const selectedGroups = new Set(get().document.nodes.filter((node) => get().selectedNodeIds.includes(node.id)).map((node) => node.groupId).filter(Boolean))
       if (!selectedGroups.size) { set({ notice: 'The selection is not a combined group.' }); return }
-      const nodes = get().document.nodes.map((node) => selectedGroups.has(node.groupId) ? { ...node, boolean: 'add' as const, combined: false, groupId: undefined, groupOperation: undefined } : node)
+      const nodes = get().document.nodes.map((node) => selectedGroups.has(node.groupId) ? { ...node, boolean: node.faceAttachment?'cut' as const:'add' as const, combined: false, groupId: undefined, groupOperation: undefined } : node)
       get().dispatch({ type: 'replace-nodes', nodes })
       set({ showResult: false, notice: 'Group separated into editable shapes.' })
     },
@@ -826,7 +835,7 @@ export const useEditor = create<EditorState>((set, get) => {
 
     mirrorSelected(axis) {
       const selection = get().document.nodes.filter(n => get().selectedNodeIds.includes(n.id))
-      if (selection.length > 1 || selection.some(n => n.combined || n.assemblyPath?.length)) {
+      if (selection.length > 1 || selection.some(n => n.combined || n.assemblyPath?.length || n.edgeTreatment || n.faceAttachment || get().document.nodes.some(h=>h.faceAttachment?.targetNodeId===n.id))) {
         set({ notice: 'Convert the complete assembly to a mesh before mirroring, so its holes stay with it.' })
         return
       }
@@ -854,7 +863,7 @@ export const useEditor = create<EditorState>((set, get) => {
 
     polarPatternSelected(axis, count, degrees, radius) {
       const selection = get().document.nodes.filter(n => get().selectedNodeIds.includes(n.id))
-      if (selection.length > 1 || selection.some(n => n.combined || n.assemblyPath?.length)) {
+      if (selection.length > 1 || selection.some(n => n.combined || n.assemblyPath?.length || n.edgeTreatment || n.faceAttachment || get().document.nodes.some(h=>h.faceAttachment?.targetNodeId===n.id))) {
         set({ notice: 'Use Prepare → Assembly arrangement for a complete assembly pattern with an explicit rotation origin.' })
         return
       }
@@ -963,6 +972,7 @@ export const useEditor = create<EditorState>((set, get) => {
         set({ notice: 'Polygon conversion would discard volume sculpting. Export and reimport the evaluated model to bake it first.' })
         return
       }
+      if(selected.edgeTreatment||selected.faceAttachment||get().document.nodes.some(n=>n.faceAttachment?.targetNodeId===selected.id)){set({notice:'Export and reimport the solid result to bake mechanical features before Polygon Sculpt.'});return}
       if (hasSurfaceModifiers(selected)) {
         set({ notice: 'Polygon conversion would discard surface modifiers. Export and reimport the evaluated model to bake them first.' })
         return
@@ -1083,7 +1093,7 @@ export const useEditor = create<EditorState>((set, get) => {
 
     duplicateSelected() {
       const ids = get().selectedNodeIds.length ? get().selectedNodeIds : get().selectedNodeId ? [get().selectedNodeId!] : []
-      if(get().document.nodes.some(n=>ids.includes(n.id)&&(n.assemblyPath?.length||n.combined))){
+      if(get().document.nodes.some(n=>ids.includes(n.id)&&(n.assemblyPath?.length||n.combined||n.faceAttachment||get().document.nodes.some(h=>h.faceAttachment?.targetNodeId===n.id)))){
         try{const previous=get().document,next=patternAssembly(previous,ids,{mode:'linear',axis:'x',count:2,spacing:8,degrees:360,origin:vec3()});const copies=next.nodes.slice(previous.nodes.length);for(const n of copies)n.transform.position.y+=8;get().dispatch({type:'replace-document',document:next});set({selectedNodeIds:copies.map(n=>n.id),selectedNodeId:copies.at(-1)!.id,notice:'Independent assembly duplicated.'})}catch(e){set({notice:(e as Error).message})}return
       }
       const copies = get().document.nodes.filter((node) => ids.includes(node.id)).map((node) => ({
@@ -1203,11 +1213,13 @@ export const useEditor = create<EditorState>((set, get) => {
           dimensions = vec3(maxX - minX, maxY - minY, maxZ - minZ)
         }
         if (busyTimer) clearTimeout(busyTimer)
+        recordDiagnostic('build','success',performance.now()-startedAt)
         set({ mesh, meshDocument: document, geometryStatus: 'ready', geometryBusyVisible: false, geometryStartedAt:null, geometryBuildMs:performance.now()-startedAt, analysis: analyzeForPrint(document, mesh, dimensions) })
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return
         if (rebuildGeneration !== generation || get().document !== document) return
         if (busyTimer) clearTimeout(busyTimer)
+        recordDiagnostic('build','failure',performance.now()-startedAt)
         set({ geometryStatus: 'error', geometryBusyVisible: false, geometryStartedAt:null, geometryError: error instanceof Error ? error.message : 'Could not rebuild model' })
       }
     },

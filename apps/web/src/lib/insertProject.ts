@@ -3,6 +3,7 @@ import {resolveDocumentParameterBindings} from './modelParameters'
 const id=()=>crypto.randomUUID()
 export function insertProject(destination:ModelDocument,source:ModelDocument):ModelDocument {
  const incoming=parseModelDocument(source)
+ if(incoming.nodes.some(n=>n.faceAttachment&&!incoming.nodes.some(t=>t.id===n.faceAttachment!.targetNodeId)))throw new Error('Repair missing attachment targets in the source project before inserting it.');
  if(!incoming.nodes.length)throw new Error('This project has no shapes.')
  if(incoming.sculptStrokes.length||destination.sculptStrokes.length)throw new Error('Convert volume-sculpted models to a mesh before inserting projects.')
  if(destination.nodes.length+incoming.nodes.length>2000)throw new Error('Insertion would exceed 2,000 shapes.')
@@ -16,7 +17,8 @@ export function insertProject(destination:ModelDocument,source:ModelDocument):Mo
  }
  const materials=new Map(incoming.materialPalette.map(m=>[m.id,id()])), groups=new Map<string,string>(),assemblyIds=new Map<string,string>(),outer=id()
  const mapped=(map:Map<string,string>,old:string)=>{if(!map.has(old))map.set(old,id());return map.get(old)!}
- const nodes=incoming.nodes.map(n=>({...structuredClone(n),id:id(),locked:false,groupId:n.groupId?mapped(groups,n.groupId):undefined,assemblyPath:[outer,...(n.assemblyPath??[]).map(a=>mapped(assemblyIds,a))],materialId:n.materialId?materials.get(n.materialId):undefined,parameterBindings:n.parameterBindings?Object.fromEntries(Object.entries(n.parameterBindings).map(([k,v])=>[k,expression(v!)])):undefined,mesh:n.mesh?{...structuredClone(n.mesh),triangleMaterials:n.mesh.triangleMaterials?.map(a=>({...a,materialId:materials.get(a.materialId)!}))}:undefined}))
+ const nodeIds=new Map(incoming.nodes.map(n=>[n.id,id()]))
+ const nodes=incoming.nodes.map(n=>({...structuredClone(n),id:nodeIds.get(n.id)!,faceAttachment:n.faceAttachment?{...n.faceAttachment,targetNodeId:nodeIds.get(n.faceAttachment.targetNodeId)??n.faceAttachment.targetNodeId}:undefined,locked:false,groupId:n.groupId?mapped(groups,n.groupId):undefined,assemblyPath:[outer,...(n.assemblyPath??[]).map(a=>mapped(assemblyIds,a))],materialId:n.materialId?materials.get(n.materialId):undefined,parameterBindings:n.parameterBindings?Object.fromEntries(Object.entries(n.parameterBindings).map(([k,v])=>[k,expression(v!)])):undefined,mesh:n.mesh?{...structuredClone(n.mesh),triangleMaterials:n.mesh.triangleMaterials?.map(a=>({...a,materialId:materials.get(a.materialId)!}))}:undefined}))
  const next=parseModelDocument({...destination,nodes:[...destination.nodes,...nodes],materialPalette:[...destination.materialPalette,...incoming.materialPalette.map(m=>({...m,id:materials.get(m.id)!,printSlot:undefined}))],namedParameters:[...destination.namedParameters,...incoming.namedParameters.map(p=>({...p,id:id(),name:names.get(p.name.trim().toLowerCase())!,expression:expression(p.expression)}))],revision:destination.revision+1,updatedAt:new Date().toISOString()})
  const resolved=resolveDocumentParameterBindings(next);if(Object.keys(resolved.errors).length)throw new Error(Object.values(resolved.errors)[0]);return resolved.document
 }

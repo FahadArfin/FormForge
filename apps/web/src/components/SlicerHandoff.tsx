@@ -1,0 +1,8 @@
+import {useState} from 'react'
+const instructions:Record<string,string[]>={
+ 'Bambu Studio':['Open the downloaded 3MF as geometry; keep your own printer and filament profile.','Confirm the plate, nozzle, orientation and material slots.','Slice the plate, inspect the first layer and supports, then send through your normal printer workflow.'],
+ 'OrcaSlicer':['Import the 3MF into a project with your printer profile.','Choose filament, layer height and supports. Check the object dimensions.','Slice and review every thin section and contact surface before printing.'],
+ 'PrusaSlicer':['Import the 3MF and keep your configured print, filament and printer presets.','Check orientation, bed contact and supports in the plater.','Slice now, inspect layer preview, then export the printer-specific G-code.'],
+ 'UltiMaker Cura':['Open the 3MF as model geometry in your configured printer workspace.','Check scale in millimeters and your material and quality settings.','Slice and review the Preview layers before saving to your printer.'],
+}
+export function SlicerHandoff(){const [slicer,setSlicer]=useState('Bambu Studio');return <section className="slicer-handoff"><h3>Continue in your slicer</h3><label>Slicer<select value={slicer} onChange={e=>setSlicer(e.target.value)}>{Object.keys(instructions).map(s=><option key={s}>{s}</option>)}</select></label><ol>{instructions[slicer]!.map(s=><li key={s}>{s}</li>)}</ol><p className="workflow-caption">3MF keeps the model’s units. FormForge does not include printer settings or send jobs to your printer. Exact menu names vary by slicer version.</p></section>}

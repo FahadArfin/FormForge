@@ -262,3 +262,21 @@ describe('new CAD workflow recovery',()=>{
   expect(copies).toHaveLength(2);expect(copies[1]!.boolean).toBe('cut');expect(copies[0]!.groupId).not.toBe('g');expect(copies[0]!.groupId).toBe(copies[1]!.groupId)
  })
 })
+
+it('keeps a direct template dimension edit after reopening and pauses semantic customization',async()=>{
+ const {createStarter}=await import('@/lib/starters'),{templateLinkIssue}=await import('@/lib/templateRecipes'),{resolveDocumentParameterBindings}=await import('@/lib/modelParameters'),{parseModelDocument}=await import('@formforge/model')
+ const doc=createStarter('washer'),node=doc.nodes[0]!
+ useEditor.setState({document:doc,selectedNodeIds:[node.id],selectedNodeId:node.id})
+ useEditor.getState().updateNode(node.id,{parameters:{...node.parameters,radius:20}})
+ const edited=useEditor.getState().document;expect(templateLinkIssue(edited)).toMatch(/paused/)
+ expect(resolveDocumentParameterBindings(parseModelDocument(edited)).document.nodes[0]!.parameters.radius).toBe(20)
+ useEditor.getState().undo();expect(useEditor.getState().document.nodes[0]!.parameters.radius).toBe(15)
+})
+it('preserves attached cut roles on ungroup and guards recombine and polygon conversion',async()=>{
+ const {createAttachedHole}=await import('@/lib/attachedHoles'),{evaluate}=await import('@/geometry/geometry.worker')
+ const box=createNode('box');box.combined=true;box.groupId='group';const hole=createAttachedHole(box,'z+',4,0,0,'through',5),doc={...createDocument(),nodes:[box,hole]}
+ useEditor.setState({document:doc,selectedNodeIds:[box.id],selectedNodeId:box.id});useEditor.getState().ungroupSelected()
+ const ungrouped=useEditor.getState().document;expect(ungrouped.nodes[1]!.boolean).toBe('cut');expect((await evaluate(ungrouped)).volume).toBeGreaterThan(0)
+ useEditor.setState({selectedNodeIds:[box.id,hole.id]});useEditor.getState().combineSelected('union');expect(useEditor.getState().document).toBe(ungrouped)
+ useEditor.getState().makeSculptable();expect(useEditor.getState().document).toBe(ungrouped)
+})
