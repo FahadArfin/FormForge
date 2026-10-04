@@ -1,6 +1,45 @@
 import { z } from 'zod'
 
 const vec3Schema = z.object({ x: z.number().finite(), y: z.number().finite(), z: z.number().finite() })
+
+// Shared by project imports and live circle measurements, so an unmeasurable
+// diameter can never become a saved annotation. Normalize before cross products.
+export const circlePointsSchema = z.array(vec3Schema).length(3, 'Pick three points around the circular edge.').superRefine((points, context) => {
+  const fail = (message: string) => context.addIssue({ code: 'custom', message })
+  if (points.length !== 3) return
+  const magnitude = Math.max(...points.flatMap(p => [Math.abs(p.x), Math.abs(p.y), Math.abs(p.z)]))
+  if (magnitude > 1e7) { fail('Circle coordinates are outside the supported measurement range.'); return }
+  const [a, b, c] = points
+  const u = [b!.x - a!.x, b!.y - a!.y, b!.z - a!.z]
+  const v = [c!.x - a!.x, c!.y - a!.y, c!.z - a!.z]
+  const w = [c!.x - b!.x, c!.y - b!.y, c!.z - b!.z]
+  const lengths = [Math.hypot(...u), Math.hypot(...v), Math.hypot(...w)]
+  const scale = Math.max(...lengths)
+  if (!scale || Math.min(...lengths) <= Math.max(scale * 1e-8, magnitude * Number.EPSILON * 64)) {
+    fail('Pick three distinct points farther apart.'); return
+  }
+  const [ux, uy, uz] = u.map(n => n / scale) as [number, number, number]
+  const [vx, vy, vz] = v.map(n => n / scale) as [number, number, number]
+  const area = Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx)
+  if (area <= 1e-6) { fail('The points lie on or too close to a straight line. Pick points farther around the circle.'); return }
+  const radius = (lengths[0]! / scale) * (lengths[1]! / scale) * (lengths[2]! / scale) / (2 * area) * scale
+  if (!Number.isFinite(radius) || radius <= 0 || radius > 1e7) fail('The estimated circle is outside the supported measurement range. Pick points farther around the circle.')
+})
+
+const dimensionAnnotationSchema = z.object({
+  id: z.string().min(1), label: z.string().min(1).max(80), kind: z.enum(['distance', 'angle', 'diameter']),
+  points: z.array(vec3Schema).min(2).max(3), geometryKey: z.string().max(32), visible: z.boolean(),
+}).superRefine((annotation, context) => {
+  if (annotation.kind === 'diameter') {
+    const result = circlePointsSchema.safeParse(annotation.points)
+    if (!result.success) for (const issue of result.error.issues) context.addIssue({ code: 'custom', path: ['points', ...issue.path], message: issue.message })
+    return
+  }
+  if (annotation.points.length !== (annotation.kind === 'angle' ? 3 : 2) || (annotation.kind === 'angle' && ![0, 2].every(i => {
+    const p = annotation.points[i], vertex = annotation.points[1]
+    return p && vertex && Math.hypot(p.x - vertex.x, p.y - vertex.y, p.z - vertex.z) > 1e-6
+  }))) context.addIssue({ code: 'custom', path: ['points'], message: 'Complete the measurement with distinct angle endpoints.' })
+})
 const transformSchema = z.object({ position: vec3Schema, rotation: vec3Schema, scale: vec3Schema })
 const parameterBindingSchema = z.object({
   width: z.string().min(1).optional(),
@@ -130,7 +169,7 @@ export const modelDocumentSchema = z.object({
   template: z.object({id:z.string().min(1).max(80),version:z.literal(1),nodeIds:z.array(z.string().min(1)).max(100)}).optional(),
   savedViews:z.array(savedCameraViewSchema).max(12).refine(views=>new Set(views.map(v=>v.id)).size===views.length,'View IDs must be unique.').optional(),
   printMaterial:z.object({priceConfigured:z.boolean().optional(),name:z.string().trim().min(1).max(80),density:z.number().min(0.1).max(25),pricePerKg:z.number().min(0).max(100000),currency:z.string().regex(/^[A-Z]{3}$/),slicerGrams:z.number().min(0).max(100000).optional(),slicerMinutes:z.number().min(0).max(100000).optional(),slicerGeometryKey:z.string().max(32).optional()}).optional(),
-  annotations: z.array(z.object({id:z.string().min(1),label:z.string().min(1).max(80),kind:z.enum(['distance','angle']),points:z.array(vec3Schema).min(2).max(3),geometryKey:z.string().max(32),visible:z.boolean()}).refine(a=>a.points.length===(a.kind==='angle'?3:2) && (a.kind!=='angle' || [0,2].every(i=>Math.hypot(a.points[i]!.x-a.points[1]!.x,a.points[i]!.y-a.points[1]!.y,a.points[i]!.z-a.points[1]!.z)>1e-6)), 'Complete the measurement with distinct angle endpoints.')).max(64).optional(),
+  annotations: z.array(dimensionAnnotationSchema).max(64).optional(),
   workplane: workplaneSchema.optional(),
   referenceImages: z.array(z.object({id:z.string().min(1),name:z.string().max(120),dataUrl:z.string().max(3000000).regex(/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/),width:z.number().int().min(1).max(2048),height:z.number().int().min(1).max(2048),mmPerPixel:z.number().min(0.0001).max(1000),opacity:z.number().min(0.1).max(1),visible:z.boolean(),plane:workplaneSchema})).max(1).optional(),
   schemaVersion: z.literal(1),

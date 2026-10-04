@@ -5,11 +5,10 @@ import {geometryKey} from '@/lib/annotations'
 import { printReport } from '@/lib/printReport'
 import { downloadBlob,safeFilename } from '@/lib/download'
 import { MaterialProfilesPanel } from './MaterialProfilesPanel'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AlertCircle, ArrowRight, CheckCircle2, Download, LoaderCircle, Printer, RefreshCw, Settings2, Undo2, Wrench } from 'lucide-react'
 import type { PrinterProfile } from '@formforge/model'
 import { useEditor } from '@/store/editor'
-import { analyzeMesh } from '@/lib/meshTools'
 import { getPrintReadiness, withPrinterSettings } from '@/lib/printReadiness'
 import './InspectorWorkflows.css'
 import { PlatePlacementPanel } from './PlatePlacementPanel'
@@ -45,6 +44,7 @@ export function PrintPanel() {
   const document = useEditor((state) => state.document)
   const meshDocument = useEditor((state) => state.meshDocument)
   const geometryStatus = useEditor((state) => state.geometryStatus)
+  const buildMode = useEditor((state) => state.buildMode)
   const geometryError = useEditor((state) => state.geometryError)
   const placingNodeId = useEditor((state) => state.placingNodeId)
   const analysis = useEditor((state) => state.analysis)
@@ -56,9 +56,8 @@ export function PrintPanel() {
   const dispatch = useEditor((state) => state.dispatch)
   const setNotice = useEditor((state) => state.setNotice)
   const selected = document.nodes.find((node) => node.id === selectedNodeId)
-  const diagnostics = useMemo(() => selected?.mesh ? analyzeMesh(selected.mesh) : null, [selected?.mesh])
   const [editingPrinter, setEditingPrinter] = useState(false)
-  const readiness = getPrintReadiness({ document, meshDocument, geometryStatus, geometryError, placingNodeId, analysis })
+  const readiness = getPrintReadiness({ document, meshDocument, geometryStatus, geometryError, placingNodeId, analysis, buildMode })
   const currentAnalysis = readiness.analysis
   const openModel = () => window.dispatchEvent(new CustomEvent('formforge:open-inspector', { detail: { tab: 'model' } }))
 
@@ -79,6 +78,7 @@ export function PrintPanel() {
     </div>
     {readiness.status === 'error' && <div className="workflow-actions"><button className="workflow-action" onClick={() => void rebuild()}><RefreshCw size={15} /> Retry build</button><button className="workflow-action secondary" disabled={!canUndo} onClick={undo}><Undo2 size={15} /> Undo edit</button></div>}
     {readiness.status === 'empty' && <button className="workflow-action secondary" onClick={openModel}>Return to modeling <ArrowRight size={15} /></button>}
+    {readiness.status === 'stale' && <button className="workflow-action" onClick={() => void rebuild()}><RefreshCw size={15} /> Rebuild for current checks</button>}
 
     {currentAnalysis && <section className="workflow-card">
       <h3>Current solid · dimensions</h3>
@@ -98,11 +98,9 @@ export function PrintPanel() {
       <p className="workflow-caption">These checks use overall dimensions, bed position and mesh presence. They do not certify printability.</p>
     </section>}
 
-    {diagnostics && <section className="workflow-card selected-mesh-checks">
-      <h3>Selected mesh topology</h3><p className="workflow-caption">Source mesh: {selected?.name}. This checks the selected part before final modeling operations.</p>
-      <dl className="print-summary"><div><dt>Boundary edges</dt><dd>{diagnostics.boundaryEdges.toLocaleString()}</dd></div><div><dt>Non-manifold edges</dt><dd>{diagnostics.nonManifoldEdges.toLocaleString()}</dd></div><div><dt>Invalid / duplicate faces</dt><dd>{(diagnostics.degenerateTriangles + diagnostics.duplicateTriangles).toLocaleString()}</dd></div></dl>
-      <p className={diagnostics.watertight ? 'workflow-passed' : 'workflow-warning'}>{diagnostics.watertight ? 'No boundary or non-manifold edges detected.' : 'Open or non-manifold edges detected. Inspect this part before slicing.'}</p>
-      <button className="workflow-action secondary" onClick={repairSelectedMesh}><Wrench size={15} /> Weld and clean selected mesh</button>
+    {selected?.mesh && <section className="workflow-card selected-mesh-checks">
+      <h3>Inspect the selected mesh</h3><p>Check {selected.name} for open edges, inconsistent winding, and duplicate faces. Mesh Doctor previews cleanup before applying it.</p>
+      <button className="workflow-action secondary" onClick={repairSelectedMesh}><Wrench size={15} /> Preview cleanup in Mesh Doctor</button>
     </section>}
 
     <PrintEvidencePanel key={`evidence-${document.id}`}/>

@@ -1,0 +1,6 @@
+import {it,expect} from 'vitest'
+import {createDocument,createNode} from '@formforge/model'
+import {describeChange,jumpToHistory} from './sessionHistory'
+it('labels additions, renames, transforms and parameter edits',()=>{const a={...createDocument(),nodes:[]},n=createNode('box'),b={...a,nodes:[n]};expect(describeChange(a,b)).toContain('Add');const c={...b,nodes:[{...n,name:'Bracket'}]};expect(describeChange(b,c)).toContain('Rename');const d={...c,nodes:[{...c.nodes[0]!,transform:{...n.transform,position:{x:1,y:0,z:0}}}]};expect(describeChange(c,d)).toContain('Move');expect(describeChange(d,{...d,namedParameters:[{id:'p',name:'W',unit:'mm',value:2,expression:''}]})).toContain('parameter')})
+it('jumps backward and forward without losing future states',()=>{const a=createDocument(),b={...a,name:'B'},c={...a,name:'C'},d={...a,name:'D'};const past=jumpToHistory(c,[a,b],[d],1);expect(past).toEqual({document:b,undoStack:[a],redoStack:[c,d]});expect(jumpToHistory(past.document,past.undoStack,past.redoStack,3)).toEqual({document:d,undoStack:[a,b,c],redoStack:[]})})
+it('rejects invalid indices and mixed projects',()=>{const a=createDocument();expect(()=>jumpToHistory(a,[],[],1)).toThrow();expect(()=>jumpToHistory(a,[],[],-1)).toThrow();expect(()=>jumpToHistory(a,[],[],NaN)).toThrow();expect(()=>jumpToHistory(a,[createDocument()],[],0)).toThrow(/project/i)})

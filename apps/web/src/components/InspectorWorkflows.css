@@ -29,7 +29,7 @@
 .inspector-workflow .workflow-action { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 39px; padding: 9px 11px; border: 1px solid transparent; border-radius: 8px; color: #fff; background: #7762d4; font-weight: 600; line-height: 1.4; text-align: center; white-space: normal; }
 .inspector-workflow .workflow-action:hover:not(:disabled) { background: #6651c3; }
 .inspector-workflow .workflow-action.secondary { color: var(--text); background: var(--surface-raised); border-color: var(--line); }
-.inspector-workflow .workflow-action.secondary:hover:not(:disabled) { border-color: var(--accent); }
+.inspector-workflow .workflow-action.secondary:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-wash); }
 .inspector-workflow .workflow-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .inspector-workflow .workflow-actions > button { flex: 1; }
 .inspector-workflow .workflow-text-action { display: inline-flex; align-items: center; gap: 5px; color: var(--accent-bright); border: 0; background: transparent; padding: 5px 0; align-self: flex-start; text-align: left; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }

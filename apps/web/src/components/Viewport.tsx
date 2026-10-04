@@ -5,11 +5,12 @@ import {snapSketchPoint} from '@/lib/sketchPrecision'
 import {analyzeOverhangs} from '@/lib/overhangs'
 import { overlapChoices } from '@/lib/selectionFocus'
 import { geometryKey,annotationValue } from '@/lib/annotations'
+import { circleMeasurementGeometry } from '@/lib/circleMeasurement'
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { TransformControls } from 'three/addons/controls/TransformControls.js'
-import type { ModelNode, ToolMode } from '@formforge/model'
+import type { ModelNode, ToolMode, Vec3Value } from '@formforge/model'
 import { meshPayloadToGeometry } from '@/lib/exporters'
 import { makeSourceGeometry, nodeGeometrySignature, nodeWorldBounds } from '@/lib/modelGeometry'
 import {
@@ -103,6 +104,18 @@ function makeBrushCircle(color: string) {
   )
 }
 
+function addCircleOverlay(group: THREE.Group, picks: Vec3Value[], color: string) {
+  const { circle, ring, diameter } = circleMeasurementGeometry(picks)
+  const material = () => new THREE.LineBasicMaterial({ color, depthTest: false, depthWrite: false })
+  const circleLine = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(ring.map(vector)), material())
+  const diameterLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(diameter.map(vector)), material())
+  circleLine.renderOrder = 44; diameterLine.renderOrder = 44
+  const center = new THREE.Mesh(new THREE.SphereGeometry(Math.min(.6, circle.radius * .025), 12, 8), new THREE.MeshBasicMaterial({ color, depthTest: false, depthWrite: false }))
+  center.position.copy(vector(circle.center)); center.renderOrder = 45
+  group.add(circleLine, diameterLine, center)
+  return circle
+}
+
 const transformModeFor = (tool: ToolMode) => tool === 'rotate' ? 'rotate' : tool === 'scale' ? 'scale' : 'translate'
 
 interface PlacementPreview {
@@ -153,6 +166,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
   const brushStrength = useEditor((state) => state.brushStrength)
   const measurement = useEditor((state) => state.measurement)
   const anglePoints = useInspection(state => state.anglePoints)
+  const circlePoints = useInspection(state => state.circlePoints)
   const section = useInspection(state => state.section)
   const meshComponentMode = useEditor((state) => state.meshComponentMode)
   const selectedMeshVertices = useEditor((state) => state.selectedMeshVertices)
@@ -370,6 +384,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     const measurementPoint = (event: PointerEvent) => {
       updateRay(event)
       const state = useEditor.getState()
+      if (state.tool === 'measure-circle' && !state.showResult) return null
       if (state.showResult && (state.meshDocument !== state.document || state.geometryStatus !== 'ready')) return null
       const targets: THREE.Object3D[] = state.showResult
         ? resultGroup.children.filter(object => object.visible)
@@ -683,7 +698,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
         event.preventDefault()
         return
       }
-      if (state.tool === 'measure-angle' || state.tool === 'measure') return
+      if (state.tool === 'measure-angle' || state.tool === 'measure-circle' || state.tool === 'measure') return
       if (state.tool === 'place' && state.placingNodeId) {
         const point = pointOnWorkplane(event)
         if (!point) return
@@ -709,6 +724,11 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
           orbit.enabled = false
           renderer.domElement.setPointerCapture(event.pointerId)
           updateBrushCursor(directHit)
+          event.preventDefault()
+          return
+        }
+        if (state.meshDocument !== state.document || state.geometryStatus !== 'ready') {
+          state.setNotice('Rebuild the current model before starting a volume sculpt stroke.')
           event.preventDefault()
           return
         }
@@ -844,7 +864,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       }
       if (state.tool.startsWith('sculpt')) {
         const directHit = polygonToolMode(state.tool) ? polygonHit(event) : null
-        const hit = directHit ?? resultHit(event)
+        const hit = directHit ?? (sculpting || (state.meshDocument === state.document && state.geometryStatus === 'ready') ? resultHit(event) : null)
         updateBrushCursor(hit)
         if (polygonStroke) {
           const scale = polygonStroke.object.getWorldScale(new THREE.Vector3())
@@ -890,11 +910,14 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     const onPointerUp = (event: PointerEvent) => {
       const state = useEditor.getState()
       const tapped = measurementTap.up(event)
-      if (state.tool === 'measure' || state.tool === 'measure-angle') {
+      if (state.tool === 'measure' || state.tool === 'measure-angle' || state.tool === 'measure-circle') {
         if (!tapped) return
         const point = measurementPoint(event)
         if (!point) return
-        if (state.tool === 'measure-angle') {
+        if (state.tool === 'measure-circle') {
+          const inspection = useInspection.getState(), old = inspection.circlePoints
+          inspection.setCirclePoints([...(old.length === 3 ? [] : old), value(point)])
+        } else if (state.tool === 'measure-angle') {
           const old = useInspection.getState().anglePoints
           useInspection.getState().setAnglePoints([...(old.length === 3 ? [] : old), value(point)])
         } else if (!measuring || !state.measurement || state.measurement.complete) {
@@ -1359,7 +1382,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
   }, [showReferencePlanes])
 
   useEffect(() => { useInspection.getState().resetSection() }, [document.id])
-  useEffect(() => { useEditor.getState().setMeasurement(null); useInspection.getState().setAnglePoints([]) }, [document.nodes, document.sculptStrokes, document.id, showResult, section])
+  useEffect(() => { useEditor.getState().setMeasurement(null); useInspection.getState().setAnglePoints([]); useInspection.getState().setCirclePoints([]) }, [document.nodes, document.sculptStrokes, document.id, showResult, section])
 
   useEffect(() => {
     const rt = runtime.current
@@ -1434,18 +1457,34 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       if(points.length>1)group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:'#ffd36a',depthTest:false})))
       for(const point of points){const marker=new THREE.Mesh(new THREE.SphereGeometry(0.6,12,8),new THREE.MeshBasicMaterial({color:'#ffd36a',depthTest:false}));marker.position.copy(point);marker.renderOrder=45;group.add(marker)}
     }
+    if (tool === 'measure-circle' && circlePoints.length && showResult && geometryStatus === 'ready' && meshDocument === document) {
+      for (const point of circlePoints) {
+        const marker = new THREE.Mesh(new THREE.SphereGeometry(.6, 12, 8), new THREE.MeshBasicMaterial({ color: '#ffd36a', depthTest: false }))
+        marker.position.copy(vector(point)); marker.renderOrder = 45; group.add(marker)
+      }
+      if (circlePoints.length === 3) {
+        try { addCircleOverlay(group, circlePoints, '#ffd36a') }
+        catch { /* The readout explains rejected point sets; never draw an unsafe ring. */ }
+      }
+    }
     const key=geometryKey(document)
     for(const a of document.annotations??[]){
       if(!a.visible||a.geometryKey!==key)continue
       const points=a.points.map(vector)
-      const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:'#b68518',depthTest:false}));line.renderOrder=42;group.add(line)
+      let labelPosition = points[1]!
+      if (a.kind === 'diameter') {
+        try { labelPosition = vector(addCircleOverlay(group, a.points, '#b68518').center) }
+        catch { continue }
+      } else {
+        const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:'#b68518',depthTest:false}));line.renderOrder=42;group.add(line)
+      }
       const canvas=window.document.createElement('canvas');canvas.width=512;canvas.height=64;const ctx=canvas.getContext('2d')!
-      ctx.fillStyle='#201c35';ctx.fillRect(0,0,512,64);ctx.fillStyle='#ffffff';ctx.font='24px sans-serif';ctx.textAlign='center';ctx.fillText(`${a.label}: ${annotationValue(a).toFixed(2)} ${a.kind==='angle'?'deg':'mm'}`,256,42,492)
-      const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(canvas),depthTest:false}));sprite.position.copy(points[1]!).add(new THREE.Vector3(0,0,3));sprite.scale.set(32,4,1);sprite.renderOrder=43;group.add(sprite)
+      ctx.fillStyle='#201c35';ctx.fillRect(0,0,512,64);ctx.fillStyle='#ffffff';ctx.font='24px sans-serif';ctx.textAlign='center';ctx.fillText(`${a.label}: ${a.kind==='diameter'?'Ø ≈ ':''}${annotationValue(a).toFixed(2)} ${a.kind==='angle'?'deg':'mm'}`,256,42,492)
+      const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(canvas),depthTest:false}));sprite.position.copy(labelPosition).add(new THREE.Vector3(0,0,3));sprite.scale.set(32,4,1);sprite.renderOrder=46;group.add(sprite)
     }
-  },[document.annotations,document.nodes,document.sculptStrokes,anglePoints,tool])
+  },[document,anglePoints,circlePoints,tool,showResult,geometryStatus,meshDocument])
 
   useEffect(()=>{window.dispatchEvent(new Event('formforge:cancel-sketch'))},[document.workplane])
 
-  return <div ref={hostRef} tabIndex={0} role="region" className={`viewport-canvas ${tool === 'place' || tool === 'draw-profile' || tool === 'measure' ? 'is-placing' : tool.startsWith('sculpt') ? 'is-sculpting' : ''}`} aria-label="3D modeling viewport" />
+  return <div ref={hostRef} tabIndex={0} role="region" className={`viewport-canvas ${tool === 'place' || tool === 'draw-profile' || tool === 'measure' || tool === 'measure-angle' || tool === 'measure-circle' ? 'is-placing' : tool.startsWith('sculpt') ? 'is-sculpting' : ''}`} aria-label="3D modeling viewport" />
 }

@@ -15,7 +15,7 @@ let root: Root
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   boundary.listVersions.mockReset()
-  boundary.state = { document: createDocument(), importDocument: vi.fn(), setNotice: vi.fn() }
+  boundary.state = { document: createDocument(), importDocument: vi.fn(), setNotice: vi.fn(), undoStack: [], redoStack: [], placingNodeId: null, jumpHistory: vi.fn(), buildMode: 'automatic', setBuildMode: vi.fn() }
   host = document.createElement('div')
   document.body.append(host)
   root = createRoot(host)

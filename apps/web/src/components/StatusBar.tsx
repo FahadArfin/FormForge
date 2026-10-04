@@ -5,6 +5,7 @@ import { getPrintReadiness } from '@/lib/printReadiness'
 
 export function StatusBar({backup}:{backup?:import("react").ReactNode}) {
   const status = useEditor((state) => state.geometryStatus)
+  const mode = useEditor((state) => state.buildMode)
   const snap=useInspection(s=>s.snapLabel),tool=useEditor(s=>s.tool),buildMs=useEditor(s=>s.geometryBuildMs)
   const analysis = useEditor((state) => state.analysis)
   const document = useEditor((state) => state.document)
@@ -12,14 +13,14 @@ export function StatusBar({backup}:{backup?:import("react").ReactNode}) {
   const meshDocument = useEditor((state) => state.meshDocument)
   const placingNodeId = useEditor((state) => state.placingNodeId)
   const geometryError = useEditor((state) => state.geometryError)
-  const readiness = getPrintReadiness({ document, meshDocument, analysis, geometryStatus: status, geometryError, placingNodeId })
+  const readiness = getPrintReadiness({ document, meshDocument, analysis, geometryStatus: status, geometryError, placingNodeId, buildMode: mode })
   const current = meshDocument === document && !placingNodeId
   const dimensions = current ? analysis?.dimensions : undefined
   const printReady = readiness.status === 'ready'
   return (
     <footer className="statusbar">{backup}
       {tool==='draw-profile'&&<span role="status">{snap||'Click to place the first point'} · Shift locks an axis</span>}
-      <div className={`engine-status ${status}`}><Cpu size={14} /><span>{placingNodeId ? 'Place your shape' : status === 'error' ? 'Geometry needs attention' : !current ? 'Updating model…' : 'Live preview ready'}</span></div>
+      <div className={`engine-status ${status}`}><Cpu size={14} /><span>{placingNodeId ? 'Place your shape' : status === 'error' ? 'Geometry needs attention' : !current ? mode === 'manual' && status !== 'building' ? 'Preview needs rebuild' : 'Updating model…' : 'Live preview ready'}</span></div>
       <div className="status-divider" />
       <div><Layers3 size={14} /><span>{document.nodes.length} features</span></div>
       <div title={buildMs!==null?`Last completed build: ${Math.round(buildMs)} ms`:undefined}><span>{current ? `${mesh?.triangleCount.toLocaleString() ?? 0} triangles` : 'Preview is not current'}</span></div>

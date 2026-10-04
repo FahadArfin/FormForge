@@ -18,6 +18,8 @@ export const useInspection = create<{
   setPickOverlaps:(enabled:boolean)=>void
   anglePoints:Vec3Value[]
   setAnglePoints:(points:Vec3Value[])=>void
+  circlePoints:Vec3Value[]
+  setCirclePoints:(points:Vec3Value[])=>void
   measurementMode: 'surface' | 'vertex'
   setMeasurementMode: (mode: 'surface' | 'vertex') => void
   section: SectionSettings
@@ -36,7 +38,8 @@ export const useInspection = create<{
     set({focus})
   },pickOverlaps:false,setPickOverlaps:pickOverlaps=>set({pickOverlaps}),
   anglePoints:[],setAnglePoints:anglePoints=>set({anglePoints}),
-  measurementMode: 'vertex', setMeasurementMode: measurementMode => set({ measurementMode }),
+  circlePoints:[],setCirclePoints:circlePoints=>set({circlePoints}),
+  measurementMode: 'vertex', setMeasurementMode: measurementMode => set(state => ({ measurementMode, circlePoints: state.measurementMode === measurementMode ? state.circlePoints : [] })),
   section: { ...defaultSection },
   setSection: patch => set(state => ({ section: { ...state.section, ...patch, offset: patch.offset !== undefined && Number.isFinite(patch.offset) ? Math.max(-100000, Math.min(100000, patch.offset)) : state.section.offset } })),
   resetSection: () => set({ section: { ...defaultSection } }),
