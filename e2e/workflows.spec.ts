@@ -18,7 +18,7 @@ test('template → linked dimensions → undo → saved reopen → 3MF download'
  await page.getByRole('button',{name:'Undo',exact:true}).click();await openDimensions(page);await expect(page.getByLabel('Outer diameter',{exact:true})).toHaveValue('30')
  await page.getByLabel('Outer diameter',{exact:true}).fill('36');await page.getByRole('button',{name:'Apply dimensions',exact:true}).click();await closeDrawer(page)
  await expect(page.getByRole('button',{name:'Saved on this device',exact:true})).toBeVisible();await page.reload();await openDimensions(page);await expect(page.getByLabel('Outer diameter',{exact:true})).toHaveValue('36');await closeDrawer(page)
- await page.getByRole('button',{name:'Export',exact:true}).click();await expect(page.getByRole('dialog')).toBeVisible();const download=page.waitForEvent('download');await page.getByRole('button',{name:'Download file',exact:true}).click();expect((await download).suggestedFilename()).toMatch(/\.3mf$/)
+ await page.getByRole('button',{name:'Export',exact:true}).click();await expect(page.getByRole('dialog')).toBeVisible();const download=page.waitForEvent('download');await page.getByRole('button',{name:'Download 3MF',exact:true}).click();expect((await download).suggestedFilename()).toMatch(/\.3mf$/)
  await expect(page.getByText('Download requested. Check your browser’s downloads.',{exact:true})).toBeVisible();expect(errors).toEqual([])
 })
 test('invalid dimensions recover and dialogs preserve keyboard access',async({page})=>{
