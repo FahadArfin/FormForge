@@ -154,8 +154,11 @@ export interface ParameterVariant {
   parameters: ParameterDefinition[]
 }
 
-export interface SavedCameraView { id:string;name:string;position:Vec3Value;target:Vec3Value;up:Vec3Value;zoom:number }
+export interface InspectionBookmark { section:{enabled:boolean;axis:'x'|'y'|'z';offset:number;inverted:boolean};displayMode:'solid'|'wireframe'|'vertices';showGrid:boolean;showReferencePlanes:boolean;xrayEnabled:boolean;showResult:boolean;focusIds:string[] }
+export interface SavedCameraView { id:string;name:string;position:Vec3Value;target:Vec3Value;up:Vec3Value;zoom:number;projection?:'perspective'|'orthographic';span?:number;inspection?:InspectionBookmark }
+export interface SelectionSet {id:string;name:string;nodeIds:string[]}
 export interface ModelDocument {
+  selectionSets?: SelectionSet[]
   printTests?: {id:string;protocol:string;date:string;printer:string;material:string;nozzle:number;layerHeight:number;expected:number;measured:number;tolerance:number;geometryKey:string;notes:string;photoDataUrl?:string}[]
   template?: { id: string; version: 1; nodeIds: string[] }
   savedViews?: SavedCameraView[]

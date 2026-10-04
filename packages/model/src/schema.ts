@@ -119,11 +119,13 @@ const workplaneSchema = z.object({ name: z.string().min(1).max(64), origin: vec3
   }, 'Workplane axes must be orthonormal.')
 
 const cameraVector= z.object({x:z.number().finite().min(-1e6).max(1e6),y:z.number().finite().min(-1e6).max(1e6),z:z.number().finite().min(-1e6).max(1e6)})
-export const savedCameraViewSchema=z.object({id:z.string().min(1).max(128),name:z.string().trim().min(1).max(60),position:cameraVector,target:cameraVector,up:cameraVector,zoom:z.number().finite().min(.01).max(100)}).refine(v=>{
+const selectionIds=z.array(z.string().min(1).max(128)).max(256).refine(ids=>new Set(ids).size===ids.length,'Shape IDs must be unique.')
+export const savedCameraViewSchema=z.object({id:z.string().min(1).max(128),name:z.string().trim().min(1).max(60),position:cameraVector,target:cameraVector,up:cameraVector,zoom:z.number().finite().min(.01).max(100),projection:z.enum(['perspective','orthographic']).optional(),span:z.number().finite().min(.01).max(1e7).optional(),inspection:z.object({section:z.object({enabled:z.boolean(),axis:z.enum(['x','y','z']),offset:z.number().finite().min(-100000).max(100000),inverted:z.boolean()}),displayMode:z.enum(['solid','wireframe','vertices']),showGrid:z.boolean(),showReferencePlanes:z.boolean(),xrayEnabled:z.boolean(),showResult:z.boolean(),focusIds:selectionIds}).optional()}).refine(v=>{
  const d={x:v.target.x-v.position.x,y:v.target.y-v.position.y,z:v.target.z-v.position.z},u=v.up
  return Math.hypot(d.x,d.y,d.z)>.001&&Math.hypot(d.y*u.z-d.z*u.y,d.z*u.x-d.x*u.z,d.x*u.y-d.y*u.x)>.000001
 },'Camera position, target and up direction must define a valid view.')
 export const modelDocumentSchema = z.object({
+  selectionSets:z.array(z.object({id:z.string().min(1).max(128),name:z.string().trim().min(1).max(60),nodeIds:selectionIds.refine(ids=>ids.length>0,'Select at least one shape.')})).max(24).refine(sets=>new Set(sets.map(s=>s.id)).size===sets.length&&new Set(sets.map(s=>s.name.toLowerCase())).size===sets.length,'Selection set IDs and names must be unique.').optional(),
   printTests:z.array(z.object({id:z.string().min(1).max(128),protocol:z.string().min(1).max(80),date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),printer:z.string().trim().min(1).max(120),material:z.string().trim().min(1).max(80),nozzle:z.number().min(.1).max(5),layerHeight:z.number().min(.02).max(2),expected:z.number().positive().max(10000),measured:z.number().positive().max(10000),tolerance:z.number().min(0).max(10),geometryKey:z.string().max(40),notes:z.string().max(1000),photoDataUrl:z.string().max(800000).regex(/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/).optional()})).max(20).optional(),
   template: z.object({id:z.string().min(1).max(80),version:z.literal(1),nodeIds:z.array(z.string().min(1)).max(100)}).optional(),
   savedViews:z.array(savedCameraViewSchema).max(12).refine(views=>new Set(views.map(v=>v.id)).size===views.length,'View IDs must be unique.').optional(),

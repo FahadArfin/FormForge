@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { useEditor } from '@/store/editor'
 import { applyParameterVariant, captureParameterVariant, variantMatches } from '@/lib/parameterVariants'
+const VariantManagerDialog=lazy(()=>import('./VariantManagerDialog').then(m=>({default:m.VariantManagerDialog})))
 
 export function ParameterVariants() {
   const document = useEditor(state => state.document)
@@ -8,9 +9,12 @@ export function ParameterVariants() {
   const [name, setName] = useState('')
   const [error, setError] = useState('')
   const [feedback, setFeedback] = useState('')
+  const [manager,setManager]=useState(false)
   const variants = document.parameterVariants ?? []
   return <section className="parameter-variants workflow-card">
     <h3>Parameter variants</h3>
+    <button className="workflow-action secondary" disabled={!document.namedParameters.length} onClick={()=>setManager(true)}>Compare and export variants</button>
+    {manager&&<Suspense fallback={<p role="status">Opening comparison…</p>}><VariantManagerDialog onClose={()=>setManager(false)}/></Suspense>}
     <p className="workflow-caption">Save named dimensions as Small, Large, or a tested clearance. Applying a variant updates bound shapes in one undoable step.</p>
     <form onSubmit={event => {
       event.preventDefault(); setError(''); setFeedback('')

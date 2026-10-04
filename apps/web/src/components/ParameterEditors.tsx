@@ -9,6 +9,7 @@ import {
 import { evaluateNamedParameters, getParameterTargetInfo, parameterTargets } from '@/lib/modelParameters'
 import { useEditor } from '@/store/editor'
 import { ParameterVariants } from './ParameterVariants'
+import { parameterUsage } from '@/lib/parameterManagement'
 import './InspectorWorkflows.css'
 
 const parameterReference = (name: string) => /^[\p{L}_][\p{L}\p{N}_]*$/u.test(name.trim()) ? name.trim() : `[${name.trim()}]`
@@ -16,9 +17,12 @@ const parameterReference = (name: string) => /^[\p{L}_][\p{L}\p{N}_]*$/u.test(na
 function ParameterRow({ parameter, resolved }: { parameter: ParameterDefinition; resolved?: { value: number; unit: string } }) {
   const update = useEditor((state) => state.updateNamedParameter)
   const remove = useEditor((state) => state.removeNamedParameter)
+  const document = useEditor((state) => state.document)
+  const usage = useMemo(() => { try { return {items:parameterUsage(document,parameter.id),error:''} } catch { return {items:[],error:'Fix invalid expressions before checking references or removing this parameter.'} } },[document,parameter.id])
   const [draft, setDraft] = useState(parameter)
   useEffect(() => setDraft(parameter), [parameter])
 
+  const literal = !draft.expression.trim() || /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(draft.expression.trim())
   const commit = () => {
     if (draft.name === parameter.name && draft.expression === parameter.expression && draft.value === parameter.value && draft.unit === parameter.unit) return
     update(parameter.id, {
@@ -31,15 +35,17 @@ function ParameterRow({ parameter, resolved }: { parameter: ParameterDefinition;
 
   return <article className="parameter-row">
     <header>
-      <input aria-label="Parameter name" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} onBlur={commit} />
-      <button title={`Remove ${parameter.name}`} onClick={() => remove(parameter.id)}><Trash2 size={13} /></button>
+      <input aria-label={`Rename parameter ${parameter.name}`} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} onBlur={commit} />
+      <button aria-label={`Remove ${parameter.name}`} title={usage.items.length?'Remove references listed below first':`Remove ${parameter.name}`} disabled={!!usage.items.length||!!usage.error} onClick={() => remove(parameter.id)}><Trash2 size={16} /></button>
     </header>
     <div className="parameter-base">
-      <label><span>Base value</span><input type="number" step="0.1" value={draft.value} onChange={(event) => setDraft({ ...draft, value: Number(event.target.value) })} onBlur={commit} /></label>
+      <label><span>{literal?'Value':'Fallback value'}</span><input type="number" step="0.1" disabled={!literal} value={draft.value} onChange={(event) => setDraft({ ...draft, value: Number(event.target.value), expression: draft.expression.trim()?String(Number(event.target.value)):'' })} onBlur={commit} /></label>
       <label><span>Unit</span><select value={draft.unit} onChange={(event) => { const unit = event.target.value as ParameterUnit; setDraft({ ...draft, unit }); update(parameter.id, { unit }) }}><option value="mm">mm</option><option value="cm">cm</option><option value="m">m</option><option value="in">in</option><option value="deg">degrees</option><option value="rad">radians</option></select></label>
     </div>
     <label className="parameter-expression"><span>Expression <em>optional</em></span><input value={draft.expression} placeholder="e.g. Width / 2" onChange={(event) => setDraft({ ...draft, expression: event.target.value })} onBlur={commit} /></label>
+    {!literal&&<p className="parameter-usage">This value is driven by the expression below.</p>}
     {resolved && <footer><CheckCircle2 size={12} /><span>Resolved</span><strong>{Number(resolved.value.toFixed(4))} {resolved.unit}</strong></footer>}
+    {usage.error?<p role="status">{usage.error}</p>:usage.items.length?<details className="parameter-usage"><summary>Used by {usage.items.length} item{usage.items.length===1?'':'s'}</summary><ul>{usage.items.map((use,i)=><li key={i}>{use.nodeId?<button onClick={()=>{useEditor.getState().selectNode(use.nodeId!);window.dispatchEvent(new CustomEvent('formforge:frame',{detail:{selectedOnly:true}}))}}>{use.label}</button>:use.label}</li>)}</ul><p>Renaming updates these links. Remove references before deleting.</p></details>:<p className="parameter-usage">No references yet</p>}
   </article>
 }
 

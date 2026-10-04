@@ -207,6 +207,31 @@ function tokenize(expression: string, parameterName?: string): Token[] {
   return tokens
 }
 
+/** Rewrite complete identifiers, retaining arithmetic, numeric literals and whitespace. */
+export function renameParameterReferences(expression: string, previous: string, next: string): string {
+  return mapParameterReferences(expression, { [previous]: next })
+}
+
+/** Apply a simultaneous name mapping; renamed tokens are never rewritten twice. */
+export function mapParameterReferences(expression: string, names: Readonly<Record<string, string>>): string {
+  if (!expression.trim()) return expression
+  parseParameterExpression(expression)
+  const replacements = new Map(Object.entries(names).map(([previous, next]) => {
+    const name = next.trim()
+    if (!name || name.length > 128 || /[\[\]\r\n]/u.test(name)) throw new Error('Use a parameter name without brackets or line breaks.')
+    return [normalizeName(previous), /^[\p{L}_][\p{L}\p{N}_]*$/u.test(name) ? name : `[${name}]`]
+  }))
+  let result = expression
+  for (const token of tokenize(expression).reverse()) {
+    if (token.kind !== 'reference') continue
+    const replacement = replacements.get(normalizeName(String(token.value)))
+    if (!replacement) continue
+    const end = expression[token.position] === '[' ? expression.indexOf(']', token.position) + 1 : token.position + String(token.value).length
+    result = result.slice(0, token.position) + replacement + result.slice(end)
+  }
+  return result
+}
+
 class ExpressionParser {
   private index = 0
 

@@ -1,15 +1,23 @@
 import { SavedViewsDialog } from './SavedViewsDialog'
 import { WorkspaceDialog } from './WorkspaceDialog'
 import { focusSelection } from '@/lib/selectionFocus'
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Eye, EyeOff, Focus, Grid3X3, Magnet, Maximize2, Box, Grid2X2, MoreHorizontal, Ruler, SlidersHorizontal, ChevronDown } from 'lucide-react'
 import { useEditor } from '@/store/editor'
 import { useInspection } from '@/store/inspection'
 import './ViewportTools.css'
 
 const snapOptions = [null, 0.1, 0.5, 1, 5, 10] as const
+const SelectionSetsDialog=lazy(()=>import('./SelectionSetsDialog').then(m=>({default:m.SelectionSetsDialog})))
+const VariantManagerDialog=lazy(()=>import('./VariantManagerDialog').then(m=>({default:m.VariantManagerDialog})))
+const PartsPackageDialog=lazy(()=>import('./PartsPackageDialog').then(m=>({default:m.PartsPackageDialog})))
 
 export function ViewportTools() {
+  const projection=useInspection(s=>s.projection)
+  const [selectionSetsOpen,setSelectionSetsOpen]=useState(false),[variantsOpen,setVariantsOpen]=useState(false)
+  const [partsOpen,setPartsOpen]=useState(false)
+  useEffect(()=>{const open=()=>setPartsOpen(true);window.addEventListener('formforge:parts-package',open);return()=>window.removeEventListener('formforge:parts-package',open)},[])
+  useEffect(()=>{const sets=()=>setSelectionSetsOpen(true),variants=()=>setVariantsOpen(true);window.addEventListener('formforge:selection-sets',sets);window.addEventListener('formforge:variants',variants);return()=>{window.removeEventListener('formforge:selection-sets',sets);window.removeEventListener('formforge:variants',variants)}},[])
   const focus=useInspection(s=>s.focus),setFocus=useInspection(s=>s.setFocus),pickOverlaps=useInspection(s=>s.pickOverlaps),setPickOverlaps=useInspection(s=>s.setPickOverlaps)
   const documentId=useEditor(s=>s.document.id),showResult=useEditor(s=>s.showResult)
   const [overlaps,setOverlaps]=useState<string[]|null>(null)
@@ -60,6 +68,8 @@ export function ViewportTools() {
   return (
     <div className="viewport-tools viewport-controls" role="group" aria-label="Viewport controls">
       {savedViewsOpen&&<SavedViewsDialog onClose={()=>setSavedViewsOpen(false)}/>}
+      <Suspense fallback={null}>{selectionSetsOpen&&<SelectionSetsDialog onClose={()=>setSelectionSetsOpen(false)}/>} {variantsOpen&&<VariantManagerDialog onClose={()=>setVariantsOpen(false)}/>}</Suspense>
+      <Suspense fallback={null}>{partsOpen&&<PartsPackageDialog onClose={()=>setPartsOpen(false)}/>}</Suspense>
       {overlaps&&<WorkspaceDialog title="Choose a part under the pointer" onClose={()=>setOverlaps(null)}><div className="project-action-list">{overlaps.map(id=>{const node=useEditor.getState().document.nodes.find(n=>n.id===id);return node&&<button key={id} onClick={()=>{useEditor.getState().selectNode(id);setOverlaps(null);window.dispatchEvent(new CustomEvent('formforge:open-inspector',{detail:{tab:'model',nodeId:id}}))}}>{node.name} · {node.kind}</button>})}</div>{!overlaps.length&&<p>No editable visible parts here. Try another point.</p>}</WorkspaceDialog>}
       {focus&&<button className="active" onClick={endFocus}>Exit isolation ({focus.ids.length})</button>}
       {pickOverlaps&&<button className="active" onClick={()=>setPickOverlaps(false)}>Finish overlap picking</button>}
@@ -88,6 +98,8 @@ export function ViewportTools() {
         <button className={`viewport-display-trigger ${displayOpen ? 'active' : ''}`} aria-label="Display options" aria-expanded={displayOpen} aria-controls="viewport-display-panel" onClick={() => setDisplayOpen((current) => !current)} title="Display options"><SlidersHorizontal size={16} /><ChevronDown size={12} /></button>
         {displayOpen && <div id="viewport-display-panel" className="viewport-display-panel" role="group" aria-label="Display options">
           <span className="viewport-menu-label">Canvas display</span><button onClick={()=>{setSavedViewsOpen(true);setDisplayOpen(false)}}><Eye size={16}/><span>Saved camera views</span></button>
+          <button aria-pressed={projection==='orthographic'} onClick={()=>useInspection.setState({projection:projection==='perspective'?'orthographic':'perspective'})}><Box size={16}/><span>Orthographic projection</span><em>{projection==='orthographic'?'On':'Off'}</em></button>
+          <button onClick={()=>{setSelectionSetsOpen(true);setDisplayOpen(false)}}><Focus size={16}/><span>Named selection sets</span></button>
           <button disabled={!selectedNodeId&&!focus} onClick={()=>{if(focus)endFocus();else{const s=useEditor.getState();setFocus({documentId:s.document.id,ids:focusSelection(s.document.nodes,s.selectedNodeIds),wasResult:s.showResult});s.setShowResult(false)}setDisplayOpen(false)}}><Focus size={16}/><span>{focus?'Exit isolation':'Isolate selected assembly'}</span></button>
           <button aria-pressed={pickOverlaps} onClick={()=>{setPickOverlaps(!pickOverlaps);useEditor.getState().setShowResult(false);useEditor.getState().setTool('select');setDisplayOpen(false)}}><Focus size={16}/><span>Pick overlapping parts</span></button>
           <button aria-pressed={sectionEnabled} onClick={() => { window.dispatchEvent(new CustomEvent('formforge:open-inspector', { detail: { tab: 'tools', toolkit: 'inspect' } })); setDisplayOpen(false) }}><Box size={16} /><span>Section inspection</span><em>{sectionEnabled ? 'On' : 'Open'}</em></button>

@@ -280,3 +280,12 @@ it('preserves attached cut roles on ungroup and guards recombine and polygon con
  useEditor.setState({selectedNodeIds:[box.id,hole.id]});useEditor.getState().combineSelected('union');expect(useEditor.getState().document).toBe(ungrouped)
  useEditor.getState().makeSculptable();expect(useEditor.getState().document).toBe(ungrouped)
 })
+
+it('renames parameter dependencies in one undoable edit and protects used dimensions from deletion',()=>{
+ const s=useEditor.getState(),node=s.document.nodes[0]!,doc={...s.document,nodes:[{...node,parameterBindings:{width:'Width'}}],namedParameters:[{id:'w',name:'Width',expression:'20',value:20,unit:'mm' as const},{id:'h',name:'Half',expression:'Width/2',value:10,unit:'mm' as const}]}
+ useEditor.setState({document:doc,undoStack:[],redoStack:[]});useEditor.getState().updateNamedParameter('w',{name:'Outside width',expression:'20',value:20,unit:'mm'})
+ expect(useEditor.getState().document.nodes[0]!.parameterBindings!.width).toBe('[Outside width]')
+ expect(useEditor.getState().document.namedParameters[1]!.expression).toBe('[Outside width]/2')
+ expect(useEditor.getState().undoStack).toEqual([doc]);useEditor.getState().removeNamedParameter('w');expect(useEditor.getState().document.namedParameters).toHaveLength(2)
+ useEditor.getState().undo();expect(useEditor.getState().document).toEqual(doc)
+})

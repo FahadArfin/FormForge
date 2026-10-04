@@ -1,0 +1,29 @@
+.precision-dialog { width: min(980px, calc(100vw - 32px)); }
+.precision-dialog .dialog-inner { min-width: 0; }
+.precision-table { overflow: auto; border: 1px solid var(--line); border-radius: 10px; margin: 18px 0 10px; max-height: 350px; }
+.precision-table table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.precision-table th, .precision-table td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.precision-table thead th { background: var(--surface-raised); position: sticky; top: 0; z-index: 1; }
+.precision-table th:first-child { position: sticky; left: 0; background: var(--surface-raised); }
+.precision-table td { font-variant-numeric: tabular-nums; }
+.precision-table .different { background: var(--accent-wash); font-weight: 650; }
+.precision-list { display: grid; gap: 12px; margin: 18px 0; }
+.precision-list article { border: 1px solid var(--line); border-radius: 10px; padding: 14px; background: var(--surface-raised); }
+.precision-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.precision-row input { flex: 1; min-width: 140px; }
+.precision-dialog input:not([type=checkbox]), .precision-dialog select, .precision-dialog button:not(.studio-icon) { min-height: 40px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 7px; color: var(--text); background: var(--surface); font-size: 13px; }
+.precision-dialog button.studio-primary { background: #6750b9; color: white; border-color: transparent; }
+.precision-dialog button:disabled { opacity: .45; cursor: not-allowed; }
+.precision-dialog p { font-size: 13px; line-height: 1.6; color: var(--subtle); }
+.precision-dialog .workflow-error { color: #c43a4c; }
+.precision-check { display: flex; gap: 10px; align-items: center; font-size: 13px; min-height: 30px; }
+.precision-check input { width: 17px; height: 17px; accent-color: var(--accent); }
+.precision-dialog input:focus-visible, .precision-dialog button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media(max-width:600px){.precision-dialog {width:calc(100vw - 16px)}.precision-row>* {flex:1 1 100%}.precision-table th,.precision-table td{padding:10px}}
+.precision-dialog .dialog-footer { position: sticky; bottom: -26px; z-index: 3; margin: 20px -26px -26px; padding: 14px 26px; background: var(--surface); box-shadow: 0 -8px 18px color-mix(in srgb, var(--surface) 85%, transparent); }
+@media(max-width:600px){.precision-dialog .dialog-footer { gap: 10px; flex-wrap: wrap; }.precision-dialog .dialog-footer > button { flex: 1; }.precision-dialog .dialog-footer > span { width: 100%; max-width: none; }}
+/* Keep the fixed action edge inside the dialog at every breakpoint. */
+.precision-dialog .dialog-inner { padding: 24px; }
+.precision-dialog .dialog-footer { bottom: -24px; margin: 20px -24px -24px; padding: 14px 24px; }
+@media(max-width:600px){.precision-dialog .dialog-inner {padding:18px}.precision-dialog .dialog-footer {bottom:-18px;margin:20px -18px -18px;padding:14px 18px}}
+.precision-dialog .dialog-footer { bottom: 0; }
