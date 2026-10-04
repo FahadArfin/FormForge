@@ -1,4 +1,7 @@
 import { savedCameraViewSchema } from '@formforge/model'
+import { PointerTap } from '@/lib/pointerTap'
+import {snapSketchPoint} from '@/lib/sketchPrecision'
+import {analyzeOverhangs} from '@/lib/overhangs'
 import { overlapChoices } from '@/lib/selectionFocus'
 import { geometryKey,annotationValue } from '@/lib/annotations'
 import { useEffect, useRef } from 'react'
@@ -134,6 +137,8 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
   const selectedNodeIds = useEditor((state) => state.selectedNodeIds)
   const tool = useEditor((state) => state.tool)
   const focus = useInspection(s=>s.focus)
+  const overhangs=useInspection(s=>s.overhangs),meshDocument=useEditor(s=>s.meshDocument),geometryStatus=useEditor(s=>s.geometryStatus)
+  useEffect(()=>{useInspection.setState({overhangs:false})},[document.id])
   const showResult = useEditor((state) => state.showResult)
   const showGrid = useEditor((state) => state.showGrid)
   const showReferencePlanes = useEditor((state) => state.showReferencePlanes)
@@ -602,8 +607,10 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     }
 
     let emptyPress: { x: number; y: number } | null = null
+    const measurementTap = new PointerTap()
     const onPointerDown = (event: PointerEvent) => {
       host.focus({ preventScroll: true })
+      measurementTap.down(event)
       if (event.button !== 0 || !event.isPrimary) return
       emptyPress = null
       const state = useEditor.getState()
@@ -664,35 +671,15 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       if (state.tool === 'draw-profile') {
         let point = pointOnWorkplane(event)
         if (!point) return
-        const previous = sketchPoints.at(-1)
-        if (previous && event.shiftKey) {
-          if (Math.abs(point.x - previous.x) > Math.abs(point.y - previous.y)) point.y = previous.y
-          else point.x = previous.x
-        }
-        if (state.translationSnap) {
-          point.x = Math.round(point.x / state.translationSnap) * state.translationSnap
-          point.y = Math.round(point.y / state.translationSnap) * state.translationSnap
-        }
+        const snapped=snapSketchPoint(point,sketchPoints.at(-1),state.translationSnap,event.shiftKey)
+        point.x=snapped.point.x;point.y=snapped.point.y
+        state.setNotice(snapped.label)
         if (sketchPoints.length >= 3 && point.distanceTo(sketchPoints[0]!) < 3) completeSketch()
         else { sketchPoints.push(point); refreshSketch() }
         event.preventDefault()
         return
       }
-      if(state.tool==='measure-angle'){const point=measurementPoint(event);if(point){const old=useInspection.getState().anglePoints;useInspection.getState().setAnglePoints([...(old.length===3?[]:old),value(point)])}return}
-      if (state.tool === 'measure') {
-        const point = measurementPoint(event)
-        if (!point) return
-        const value = { x: point.x, y: point.y, z: point.z }
-        if (!measuring || !state.measurement) {
-          measuring = true
-          state.setMeasurement({ start: value, end: value, complete: false })
-        } else {
-          measuring = false
-          state.setMeasurement({ ...state.measurement, end: value, complete: true })
-        }
-        event.preventDefault()
-        return
-      }
+      if (state.tool === 'measure-angle' || state.tool === 'measure') return
       if (state.tool === 'place' && state.placingNodeId) {
         const point = pointOnWorkplane(event)
         if (!point) return
@@ -797,9 +784,11 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     }
 
     const onPointerMove = (event: PointerEvent) => {
+      measurementTap.move(event)
       const state = useEditor.getState()
       if (state.tool === 'draw-profile') {
         const point = pointOnWorkplane(event)
+        if(point){const snapped=snapSketchPoint(point,sketchPoints.at(-1),state.translationSnap,event.shiftKey);point.x=snapped.point.x;point.y=snapped.point.y;const close=sketchPoints.length>=3&&point.distanceTo(sketchPoints[0]!)<3;if(close)point.copy(sketchPoints[0]!);useInspection.getState().setSnapLabel(close?'Close outline':snapped.label)}
         refreshSketch(point)
         return
       }
@@ -888,7 +877,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       } else {
         brushCursor.visible = false
       }
-      if (state.tool === 'measure' && measuring && state.measurement) {
+      if (state.tool === 'measure' && measuring && state.measurement && event.buttons === 0) {
         const point = measurementPoint(event)
         if (point) state.setMeasurement({ ...state.measurement, end: { x: point.x, y: point.y, z: point.z }, complete: false })
       }
@@ -896,6 +885,21 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
 
     const onPointerUp = (event: PointerEvent) => {
       const state = useEditor.getState()
+      const tapped = measurementTap.up(event)
+      if (state.tool === 'measure' || state.tool === 'measure-angle') {
+        if (!tapped) return
+        const point = measurementPoint(event)
+        if (!point) return
+        if (state.tool === 'measure-angle') {
+          const old = useInspection.getState().anglePoints
+          useInspection.getState().setAnglePoints([...(old.length === 3 ? [] : old), value(point)])
+        } else if (!measuring || !state.measurement || state.measurement.complete) {
+          measuring = true; state.setMeasurement({ start: value(point), end: value(point), complete: false })
+        } else {
+          measuring = false; state.setMeasurement({ ...state.measurement, end: value(point), complete: true })
+        }
+        return
+      }
       if (event.button !== 0 && event.type !== 'pointercancel') return
       if (emptyPress && Math.hypot(event.clientX - emptyPress.x, event.clientY - emptyPress.y) < 4) state.selectNode(null)
       emptyPress = null
@@ -933,6 +937,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     }
 
     const onPointerLeave = () => {
+      measurementTap.cancel()
       renderer.domElement.classList.remove('sculpt-hit')
       if (!sculpting) brushCursor.visible = false
     }
@@ -965,6 +970,12 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       orbit.update()
     }
     const frameListener = (event: Event) => frameObjects(Boolean((event as CustomEvent<{ selectedOnly: boolean }>).detail?.selectedOnly))
+    const zoomListener = (event: Event) => {
+      const factor = (event as CustomEvent<{ direction: string }>).detail?.direction === 'in' ? 0.8 : 1.25
+      const offset = camera.position.clone().sub(orbit.target), distance = offset.length()
+      camera.position.copy(orbit.target).add(offset.normalize().multiplyScalar(Math.min(100000, Math.max(0.5, distance * factor))))
+      orbit.update()
+    }
     const viewListener = (event: Event) => {
       const view = (event as CustomEvent<{ view: string }>).detail?.view ?? 'iso'
       const targetObject = resultGroup.children[0] ?? sourceGroup
@@ -989,6 +1000,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     window.addEventListener('formforge:capture-camera',captureCamera)
     window.addEventListener('formforge:restore-camera',restoreCamera)
     window.addEventListener('formforge:frame', frameListener)
+    window.addEventListener('formforge:zoom', zoomListener)
     window.addEventListener('formforge:view', viewListener)
     window.addEventListener('formforge:finish-sketch', completeSketch)
     window.addEventListener('formforge:cancel-sketch', cancelSketch)
@@ -1028,6 +1040,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       window.removeEventListener('formforge:capture-camera',captureCamera)
       window.removeEventListener('formforge:restore-camera',restoreCamera)
       window.removeEventListener('formforge:frame', frameListener)
+      window.removeEventListener('formforge:zoom', zoomListener)
       window.removeEventListener('formforge:view', viewListener)
       window.removeEventListener('formforge:finish-sketch', completeSketch)
       window.removeEventListener('formforge:cancel-sketch', cancelSketch)
@@ -1301,6 +1314,17 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       object.add(points)
     }
   }, [meshPayload, displayMode])
+
+  useEffect(()=>{
+    const rt=runtime.current
+    if(!rt||!overhangs||!showResult||!meshPayload||meshDocument!==document||geometryStatus!=='ready')return
+    let indices:Uint32Array
+    try{indices=analyzeOverhangs(meshPayload,document.printer.overhangAngle).indices}catch{return}
+    const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(meshPayload.positions,3));geometry.setIndex(new THREE.BufferAttribute(indices,1))
+    const material=new THREE.MeshBasicMaterial({color:'#e77b16',side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2,depthWrite:false,clippingPlanes:section.enabled?[sectionPlane(section)]:[]})
+    const overlay=new THREE.Mesh(geometry,material);overlay.raycast=()=>undefined;rt.resultGroup.add(overlay)
+    return()=>{rt.resultGroup.remove(overlay);geometry.dispose();material.dispose()}
+  },[overhangs,showResult,meshPayload,meshDocument,document,geometryStatus,displayMode,section])
 
   useEffect(() => {
     const rt = runtime.current

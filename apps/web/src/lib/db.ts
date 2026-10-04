@@ -32,6 +32,7 @@ class FormForgeDatabase extends Dexie {
   projects!: EntityTable<SavedProject, 'id'>
   versions!: EntityTable<ProjectVersion, 'id'>
   collections!: EntityTable<ProjectCollection, 'id'>
+  recovery!: EntityTable<ProjectVersion, 'id'>
 
   constructor() {
     super('formforge')
@@ -45,15 +46,21 @@ class FormForgeDatabase extends Dexie {
       versions: 'id, projectId, createdAt',
       collections: 'id, name, createdAt',
     })
+    this.version(4).stores({projects:'id, name, collectionId, updatedAt, deletedAt',versions:'id, projectId, createdAt',collections:'id, name, createdAt',recovery:'id, projectId, createdAt'})
   }
 }
 
 export const db = new FormForgeDatabase()
 
 export async function saveProject(document: ModelDocument) {
-  await db.transaction('rw',db.projects,async()=>{
+  await db.transaction('rw',db.projects,db.recovery,async()=>{
   const existing = await db.projects.get(document.id)
   if(existing?.deletedAt)throw new Error('This project is in Trash. Restore it before saving.')
+  if(existing && (existing.document.revision!==document.revision || existing.document.updatedAt!==document.updatedAt || existing.document.name!==document.name || JSON.stringify(existing.document)!==JSON.stringify(document))) {
+    const previous = await listAutomaticRecovery(document.id)
+    const copies = [{id:'',projectId:document.id,label:`Automatic copy · ${existing.document.name}`,document:existing.document,createdAt:new Date().toISOString()},...previous].slice(0,3)
+    await db.recovery.bulkPut(copies.map((copy,index)=>({...copy,id:`${document.id}:recovery:${index}`})))
+  }
   await db.projects.put({
     id: document.id,
     name: document.name,
@@ -69,6 +76,10 @@ export async function loadMostRecentProject() {
   const id=readLastOpenedProject()
   if(id){const project=await loadProject(id);if(project)return project}
   return db.projects.orderBy('updatedAt').filter(p=>!p.deletedAt).last()
+}
+
+export async function listAutomaticRecovery(projectId?:string):Promise<ProjectVersion[]> {
+  return projectId ? db.recovery.where('projectId').equals(projectId).sortBy('id') : db.recovery.orderBy('createdAt').reverse().toArray()
 }
 
 export async function listProjects() {

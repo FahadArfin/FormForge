@@ -1,0 +1,45 @@
+{
+  "generatedAt": "2026-10-04T00:41:33.579Z",
+  "runtime": "v22.14.0",
+  "system": "win32 x64",
+  "cpu": "AMD Ryzen 7 9800X3D 8-Core Processor           ",
+  "limitations": "Local Node/Vite evaluation of the same Manifold kernel; excludes worker transfer, browser rendering, mobile hardware and field web vitals. First fixture includes cold WASM initialization. Subsequent fixtures share the kernel.",
+  "rows": [
+    {
+      "name": "Enclosure",
+      "inputTriangles": 0,
+      "triangles": 1400,
+      "outputBytes": 25152,
+      "firstEvaluationMs": 91.7,
+      "warmMedianMs": 36,
+      "overhangMedianMs": 0.4
+    },
+    {
+      "name": "Calibration coupon",
+      "inputTriangles": 0,
+      "triangles": 2348,
+      "outputBytes": 42192,
+      "firstEvaluationMs": 32.9,
+      "warmMedianMs": 29.7,
+      "overhangMedianMs": 0.2
+    },
+    {
+      "name": "Dense 20k triangles",
+      "inputTriangles": 20480,
+      "triangles": 20480,
+      "outputBytes": 368664,
+      "firstEvaluationMs": 99.4,
+      "warmMedianMs": 87.8,
+      "overhangMedianMs": 2.6
+    },
+    {
+      "name": "Dense 205k triangles",
+      "inputTriangles": 204020,
+      "triangles": 204020,
+      "outputBytes": 3672384,
+      "firstEvaluationMs": 929.5,
+      "warmMedianMs": 776.8,
+      "overhangMedianMs": 16.5
+    }
+  ]
+}

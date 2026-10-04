@@ -1,10 +1,11 @@
-import { StarterDialog } from './components/StarterDialog'
-import { ImportReview } from './components/ImportReview'
+import { templateCatalog, type StarterId } from './lib/templateCatalog'
+import { useMobilePanel } from './lib/useMobilePanel'
+import { BuildProgress } from './components/BuildProgress'
+import { SelectionDimensions } from './components/SelectionDimensions'
 import type { ImportMesh } from './lib/importReview'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { BoxSelect, Eye, EyeOff, MousePointerClick, X, Box, CircleHelp, PanelLeft, PanelRight } from 'lucide-react'
 import { parseModelDocument } from '@formforge/model'
-import { Viewport } from './components/Viewport'
 import { Toolbox } from './components/Toolbox'
 import { Inspector } from './components/Inspector'
 import { TopBar } from './components/TopBar'
@@ -20,28 +21,42 @@ import { WorkspaceHelp } from './components/WorkspaceHelp'
 import { CommandMenu } from './components/CommandMenu'
 import { WorkspaceDialog } from './components/WorkspaceDialog'
 import { downloadBlob, safeFilename } from './lib/download'
-import { CloudWorkspace, type CloudLink } from './components/CloudWorkspace'
+import type { CloudLink } from './components/CloudWorkspace'
 import { saveBeforeReplace } from './lib/saveBeforeReplace'
 
 const Community = lazy(() => import('./components/Community').then((module) => ({ default: module.Community })))
 const GenerateStudio = lazy(() => import('./components/GenerateStudio').then((module) => ({ default: module.GenerateStudio })))
+const RecoveryDialog = lazy(() => import('./components/RecoveryDialog').then(module=>({default:module.RecoveryDialog})))
+const StarterDialog = lazy(() => import('./components/StarterDialog').then(module=>({default:module.StarterDialog})))
+const ImportReview = lazy(() => import('./components/ImportReview').then(module=>({default:module.ImportReview})))
+const CloudWorkspace = lazy(() => import('./components/CloudWorkspace').then(module=>({default:module.CloudWorkspace})))
+const Viewport = lazy(() => import('./components/Viewport').then(module=>({default:module.Viewport})))
+const requestedStarter = (): StarterId | undefined => {
+  if (window.location.hash.split('?')[0] !== '#studio') return
+  const id = new URLSearchParams(window.location.hash.split('?')[1]).get('starter')
+  return templateCatalog.find(item=>item.id===id)?.id
+}
 
 type Area = 'projects' | 'studio' | 'community'
 const readArea = (): Area => window.location.hash.split('?')[0] === '#studio' ? 'studio' : window.location.hash.split('?')[0] === '#community' ? 'community' : 'projects'
 const readTheme = (): AppearanceTheme => { try { return localStorage.getItem('formforge-theme') === 'dark' ? 'dark' : 'light' } catch { return 'light' } }
 
-export function App() {
+export function App({ active = true }: { active?: boolean }) {
   const [theme, setTheme] = useState<AppearanceTheme>(readTheme)
   const [area, updateArea] = useState<Area>(readArea)
   const setArea = (next: Area) => { updateArea(next); if (window.location.hash !== `#${next}`) window.location.hash = next }
   const [cloudOpen,setCloudOpen]=useState(()=>window.location.hash.includes('review='))
   const [cloudLink,setCloudLink]=useState<CloudLink|null>(null)
-  const [startersOpen,setStartersOpen]=useState(false)
+  const [starterId,setStarterId]=useState<StarterId|undefined>(requestedStarter)
+  const [startersOpen,setStartersOpen]=useState(()=>!!requestedStarter())
+  const [recoveryOpen,setRecoveryOpen]=useState(false)
+  const recoveryGeneration=useRef(0)
   const starterGeneration=useRef(0)
   const [helpOpen, setHelpOpen] = useState(false)
   const [commandsOpen, setCommandsOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const [mobilePanel, setMobilePanel] = useState<'tools' | 'inspector' | null>(null)
+  useMobilePanel(active && area === 'studio' ? mobilePanel : null, () => setMobilePanel(null))
   const fileRef = useRef<HTMLInputElement>(null)
   const importAsNew = useRef(false)
   const importGeneration = useRef(0)
@@ -94,25 +109,39 @@ export function App() {
   const startExample = () => {starterGeneration.current++;setHelpOpen(false);setStartersOpen(true)}
 
   useEffect(() => { void hydrate() }, [hydrate])
-  useEffect(() => { window.document.title = area === 'studio' ? `${document.name || 'Untitled project'} · FormForge` : area === 'community' ? 'Community · FormForge' : 'Your workshop · FormForge' }, [area, document.name])
-  useEffect(() => { const onHash = () => updateArea(readArea()); window.addEventListener('hashchange', onHash); return () => window.removeEventListener('hashchange', onHash) }, [])
+  useEffect(() => { if (active) window.document.title = area === 'studio' ? `${document.name || 'Untitled project'} · FormForge` : area === 'community' ? 'Community · FormForge' : 'Your workshop · FormForge' }, [active, area, document.name])
+  useEffect(() => { const onHash = () => {
+    updateArea(readArea())
+    const id=requestedStarter();setStarterId(id)
+    starterGeneration.current++;setStartersOpen(!!id)
+    if (['', '#home', '#templates'].includes(window.location.hash.split('?')[0]!)) {
+      setCloudOpen(false);setHelpOpen(false);setRecoveryOpen(false);setImportReview(null)
+      recoveryGeneration.current++;importGeneration.current++
+    }
+  }; window.addEventListener('hashchange', onHash); return () => window.removeEventListener('hashchange', onHash) }, [])
   useEffect(() => { setCommandsOpen(false); setGenerateOpen(false); setExportOpen(false); setMobilePanel(null) }, [area])
   useEffect(() => {
     const openInspector = () => { if (window.innerWidth <= 980) setMobilePanel('inspector') }
     const openStarters=()=>{starterGeneration.current++;setStartersOpen(true)}
     window.addEventListener('formforge:starters',openStarters)
     const openCloud = () => setCloudOpen(true)
+    const openRecovery = () => {recoveryGeneration.current++;setRecoveryOpen(true)}
+    window.addEventListener('formforge:recovery',openRecovery)
     window.addEventListener('formforge:open-cloud',openCloud)
     const openExport = () => { setMobilePanel(null); setExportOpen(true) }
     window.addEventListener('formforge:open-inspector', openInspector)
     window.addEventListener('formforge:open-export', openExport)
-    return () => { window.removeEventListener('formforge:starters',openStarters);window.removeEventListener('formforge:open-cloud',openCloud); window.removeEventListener('formforge:open-inspector', openInspector); window.removeEventListener('formforge:open-export', openExport) }
+    return () => { window.removeEventListener('formforge:recovery',openRecovery);window.removeEventListener('formforge:starters',openStarters);window.removeEventListener('formforge:open-cloud',openCloud); window.removeEventListener('formforge:open-inspector', openInspector); window.removeEventListener('formforge:open-export', openExport) }
   }, [])
   useEffect(() => { if (['place','draw-profile','pick-workplane','place-face','measure-angle','measure'].includes(tool)) setMobilePanel(null) }, [tool])
   useEffect(() => {
     const protectUnsavedWork = (event: BeforeUnloadEvent) => { if (useEditor.getState().saveStatus !== 'saved') { event.preventDefault(); event.returnValue = '' } }
     window.addEventListener('beforeunload', protectUnsavedWork)
-    return () => window.removeEventListener('beforeunload', protectUnsavedWork)
+    const flush = () => {const s=useEditor.getState();if(s.hydrated&&s.saveStatus!=='saved')void s.saveNow()}
+    const onHidden = () => {if(window.document.visibilityState==='hidden')flush()}
+    window.addEventListener('pagehide',flush)
+    window.document.addEventListener('visibilitychange',onHidden)
+    return () => {window.removeEventListener('beforeunload', protectUnsavedWork);window.removeEventListener('pagehide',flush);window.document.removeEventListener('visibilitychange',onHidden)}
   }, [])
 
   useEffect(() => {
@@ -125,7 +154,7 @@ export function App() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement
-      if (area !== 'studio' || window.document.querySelector('dialog[open]') || generateOpen) return
+      if (!active || area !== 'studio' || window.document.querySelector('dialog[open]') || generateOpen) return
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); void saveNow(); return }
       if (target.isContentEditable || target.closest('input, textarea, select, [contenteditable="true"]')) return
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setCommandsOpen(true); return }
@@ -159,7 +188,7 @@ export function App() {
       if (event.key === 'Enter' && tool === 'draw-profile') window.dispatchEvent(new Event('formforge:finish-sketch'))
       if (event.key === '[') setBrushSetting({ brushRadius: Math.max(0.5, brushRadius - 0.5) })
       if (event.key === ']') setBrushSetting({ brushRadius: Math.min(24, brushRadius + 0.5) })
-      if (selectedNodeId && !target.closest('button, a, summary, [role="slider"]') && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'].includes(event.key)) {
+      if (selectedNodeId && !target.closest('button, a, summary, [role="slider"], [role="button"], .sketch-canvas') && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'].includes(event.key)) {
         event.preventDefault()
         const baseStep = translationSnap ?? 0.1
         const step = baseStep * (event.shiftKey ? 10 : event.altKey ? 0.1 : 1)
@@ -186,7 +215,7 @@ export function App() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [area, generateOpen, saveNow, undo, redo, removeSelected, duplicateSelected, cancelPlacement, selectedNodeId, translateSelection, selectAll, translationSnap, setBrushSetting, brushRadius, tool, setTool, meshComponentMode, setMeshComponentMode, clearMeshComponentSelection, translateMeshComponents, deleteSelectedMeshComponents])
+  }, [active, area, generateOpen, saveNow, undo, redo, removeSelected, duplicateSelected, cancelPlacement, selectedNodeId, translateSelection, selectAll, translationSnap, setBrushSetting, brushRadius, tool, setTool, meshComponentMode, setMeshComponentMode, clearMeshComponentSelection, translateMeshComponents, deleteSelectedMeshComponents])
 
   useEffect(() => {
     if (!notice) return
@@ -209,7 +238,7 @@ export function App() {
     setArea('studio')
   })
 
-  const shared = <>
+  const shared = <Suspense fallback={<p role="status">Opening workspace tools…</p>}>
     <input ref={fileRef} hidden type="file" accept=".json,.forge.json,.3mf,.stl,.obj,.glb,.gltf" aria-label="Import a model or project" onChange={async (event) => {
       const file = event.target.files?.[0]
       event.target.value = ''
@@ -243,7 +272,8 @@ export function App() {
         setArea('studio')
       } catch (error) { setNotice(error instanceof Error ? error.message : 'That file could not be opened.') }
     }} />
-    {startersOpen&&<StarterDialog onClose={()=>{starterGeneration.current++;setStartersOpen(false)}} onCreate={async doc=>{const generation=starterGeneration.current;await safelyContinue(()=>{importDocument(doc);setStartersOpen(false);setArea('studio')},()=>generation===starterGeneration.current)}}/>}
+    {startersOpen&&<StarterDialog key={starterId??"library"} initialId={starterId} onClose={()=>{starterGeneration.current++;setStartersOpen(false)}} onCreate={async doc=>{const generation=starterGeneration.current;await safelyContinue(()=>{importDocument(doc);setStartersOpen(false);setArea('studio')},()=>generation===starterGeneration.current)}}/>}
+    {recoveryOpen&&<Suspense fallback={<p role="status">Opening recovery copies…</p>}><RecoveryDialog onClose={()=>{recoveryGeneration.current++;setRecoveryOpen(false)}} onOpen={async doc=>{const generation=recoveryGeneration.current;await safelyContinue(()=>{importDocument(doc);setRecoveryOpen(false);setArea('studio')},()=>generation===recoveryGeneration.current)}}/></Suspense>}
     {importReview && <ImportReview name={importReview.name} mesh={importReview.mesh} onClose={()=>{importGeneration.current++;setImportReview(null)}} onConfirm={importReview.confirm}/>}
     {notice && <div className="toast" role="status"><span>{notice}</span><button aria-label="Dismiss notification" onClick={() => setNotice(null)}><X size={17} /></button></div>}
     {helpOpen && <WorkspaceHelp onClose={() => setHelpOpen(false)} onExample={startExample} onLaunch={(tab,toolkit)=>{setHelpOpen(false);if(tab==='cloud')setCloudOpen(true);else{setArea('studio');setTimeout(()=>window.dispatchEvent(new CustomEvent('formforge:open-inspector',{detail:{tab,toolkit}})),100)}}}/> }
@@ -253,7 +283,9 @@ export function App() {
       <div className="save-recovery-actions"><button className="studio-secondary" onClick={() => { const current = useEditor.getState().document; downloadBlob(new Blob([JSON.stringify(current, null, 2)], { type: 'application/json' }), `${safeFilename(current.name)}.forge.json`); setNotice('Backup download requested. Check your browser’s downloads.') }}>Download editable backup</button>
       <button className="studio-primary" disabled={retryingSave} onClick={async () => { setRetryingSave(true); const pending = pendingNavigation.current; if (pending && await safelyContinue(pending.action, pending.isCurrent)) { setSaveBlocked(false); pendingNavigation.current = null }; setRetryingSave(false) }}>{retryingSave ? 'Saving…' : 'Retry save and continue'}</button></div>
     </WorkspaceDialog>}
-  </>
+  </Suspense>
+
+  if (!active) return null
 
   if (area === 'community') return <>{shared}<Suspense fallback={<div className="route-loading"><span className="brand-mark large"><span /></span><strong>Opening the community…</strong></div>}>
     <Community theme={theme} onToggleTheme={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')} document={document} openPublishRequest={publishRequest} onPublishRequestHandled={() => setPublishRequest(0)} onOpenStudio={() => setArea('studio')} onOpenProjects={() => setArea('projects')} onRemix={remix} onPublished={(model) => void markProjectPublic(document.id, model.id)} />
@@ -275,12 +307,13 @@ export function App() {
 
   return (
     <div className={`app-shell mode-${document.workspaceMode} mobile-panel-${mobilePanel ?? 'none'}`}>
+      <a className="skip-link" href="#studio" onClick={event=>{event.preventDefault();window.document.querySelector<HTMLElement>('.viewport-canvas')?.focus()}}>Skip to 3D canvas</a>
       <TopBar theme={theme} onToggleTheme={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')} onNewProject={createProject} onOpenProjects={() => void openProjects()} onOpenCommunity={() => setArea('community')} onOpenGenerate={() => setGenerateOpen(true)} onImport={() => openImport()} onCommands={() => setCommandsOpen(true)} onHelp={() => setHelpOpen(true)} exportOpen={exportOpen} onExportChange={setExportOpen} />
       <main className="workspace">
         {mobilePanel && <button className="mobile-panel-scrim" aria-label="Close side panel backdrop" onClick={() => setMobilePanel(null)} />}
-        <Toolbox />
+        <Toolbox onClose={()=>setMobilePanel(null)} />
         <section className="viewport-wrap">
-          <Viewport theme={theme} />
+          <Suspense fallback={<p role="status">Opening 3D canvas…</p>}><Viewport theme={theme} /></Suspense>
           <ViewportTools />
           <div className="view-pills">
             <button aria-pressed={!showResult} className={!showResult ? 'active' : ''} onClick={() => setShowResult(false)}><BoxSelect size={15} /> Edit shapes</button>
@@ -290,11 +323,13 @@ export function App() {
           <div className="mobile-panel-controls"><button aria-pressed={mobilePanel === 'tools'} onClick={() => setMobilePanel(mobilePanel === 'tools' ? null : 'tools')}><PanelLeft size={17} /> Build tools</button><button aria-pressed={mobilePanel === 'inspector'} onClick={() => setMobilePanel(mobilePanel === 'inspector' ? null : 'inspector')}><PanelRight size={17} /> Inspector</button>{mobilePanel && <button aria-label="Close side panel" onClick={() => setMobilePanel(null)}><X size={17} /></button>}</div>
           <div className="interaction-hint"><MousePointerClick size={16} /><span>{tool === 'place' ? 'Click-drag on the plane to draw · Esc to cancel' : tool === 'draw-profile' ? 'Click polygon points · click the green start or press Enter to extrude' : tool === 'move' ? 'Drag the model to move it · use the axis handles for precision' : tool === 'sculpt-add' || tool === 'sculpt-carve' ? 'Paint volume · Shift inverts · [ and ] change radius' : tool.startsWith('sculpt') ? 'Drag directly on the mesh · Shift inverts · one Undo step per stroke' : 'Drag to orbit · wheel to zoom · right-drag to pan'}</span></div>
           {['pick-workplane','place-face','measure-angle'].includes(tool)&&<div className="canvas-task-prompt" role="status"><span>{tool==='pick-workplane'?'Pick a flat face for the workplane':tool==='place-face'?'Pick an outer face to put on the plate':'Pick three points: arm, vertex, arm'}</span><button className="workflow-text-action" onClick={()=>setTool('select')}>Cancel</button></div>}
-          {geometryBusyVisible && <div className="rebuild-chip"><span /> Refining solid in background</div>}
+          <SelectionDimensions />
+          <div className="mobile-review-actions" role="group" aria-label="Phone review tools"><button onClick={()=>window.dispatchEvent(new CustomEvent('formforge:open-inspector',{detail:{tab:'print'}}))}>Print review</button><button aria-pressed={tool==='measure'} onClick={()=>{useEditor.getState().setMeasurement(null);setTool(tool==='measure'?'select':'measure')}}>Measure</button><button onClick={()=>setCloudOpen(true)}>Share / review</button></div>
+          {geometryBusyVisible && <BuildProgress />}
           {(tool === 'place' || tool === 'draw-profile') && <div className="placement-actions">{tool === 'draw-profile' && <button className="studio-primary" onClick={() => window.dispatchEvent(new Event('formforge:finish-sketch'))}>Finish outline</button>}<button className="studio-secondary" onClick={() => { cancelPlacement(); if (tool === 'draw-profile') window.dispatchEvent(new Event('formforge:cancel-sketch')) }}>Cancel {tool === 'place' ? 'placement' : 'outline'}</button></div>}
           {geometryError && <div className="geometry-error" role="alert"><strong>That operation did not work</strong><span>{geometryError}</span><button onClick={() => void useEditor.getState().rebuild()}>Retry model</button></div>}
         </section>
-        <Inspector />
+        <Inspector onClose={()=>setMobilePanel(null)} />
       </main>
       <StatusBar />
       {shared}

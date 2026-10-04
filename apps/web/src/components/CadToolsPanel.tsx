@@ -5,6 +5,8 @@ import { createFitCoupon, createHoleRecipe, type FitCoupon, type HoleRecipeOptio
 import { nodeWorldBounds } from '@/lib/modelGeometry'
 import { parseNumericExpression } from '@/lib/numericExpression'
 import { useEditor } from '@/store/editor'
+import {useInspection} from '@/store/inspection'
+import {calibrationMatches} from '@/lib/fitCalibration'
 import './CadToolsPanel.css'
 
 const initialHoleDraft = { diameter: '4', depth: '10', clearance: '0.2', x: '0', y: '0', bottomZ: '0', headDiameter: '8', headDepth: '3', includedAngle: '90', length: '14', acrossFlats: '7' }
@@ -22,6 +24,7 @@ function insertRecipe(nodes: ModelNode[], notice: string) {
 }
 
 function HoleBuilder() {
+  const pendingFit=useInspection(s=>s.pendingFit)
   const [kind, setKind] = useState<HoleRecipeOptions['kind']>('plain')
   const [draft, setDraft] = useState<HoleDraft>(initialHoleDraft)
   const [error, setError] = useState<string | null>(null)
@@ -31,6 +34,7 @@ function HoleBuilder() {
   const hasSolid = useEditor(state => state.document.nodes.some(node => node.boolean === 'add' && !node.suppressed))
   const documentId = useEditor(state => state.document.id)
   useEffect(() => { setCreated(null); setError(null) }, [documentId])
+  useEffect(()=>{if(!pendingFit)return;const doc=useEditor.getState().document;if(calibrationMatches(pendingFit,doc.printer,doc.printMaterial?.name??'Unspecified material')){setKind('plain');setDraft(current=>({...current,diameter:String(pendingFit.nominalDiameter),clearance:String(pendingFit.diametralClearance)}));setCreated(`Measured ${pendingFit.fit} fit loaded for review: ${pendingFit.layerHeight} mm layers, upright ${pendingFit.nominalDiameter} mm hole. Check the rest of your print settings.`)}else setError('That fit result belongs to a different printer, nozzle or material.');useInspection.setState({pendingFit:null})},[pendingFit])
   const field = (key: keyof HoleDraft, label: string, suffix = 'mm') => <label className="cad-recipe-field" key={key}>
     <span>{label} <small>{suffix}</small></span>
     <input aria-label={`${label} (${suffix})`} type="text" inputMode="decimal" value={draft[key]} maxLength={160} onChange={event => {

@@ -140,7 +140,7 @@ function ShapeInspector({ node }: { node: ModelNode }) {
       {node.mesh && <div className="pro-property"><MeshComponentEditor /></div>}
       {(node.kind === 'extrude' || node.kind === 'revolve') && <>
         <ProfileEditor node={node} unit={documentUnit} onUpdate={(patch) => updateNode(node.id, patch)} />
-        <div className="pro-property"><SketchConstraintEditor node={node} unit={documentUnit} onUpdate={(patch) => updateNode(node.id, patch)} /></div>
+        <details className="property-section"><summary>Sketch dimensions & rules</summary><SketchConstraintEditor node={node} unit="mm" onUpdate={(patch) => updateNode(node.id, patch)} /></details>
       </>}
       <div className="property-group pro-property layer-editor">
         <h3><Layers3 size={13} /> Layer</h3>
@@ -220,7 +220,7 @@ function SelectionActions({ count }: { count: number }) {
   </div>
 }
 
-export function Inspector() {
+export function Inspector({ onClose }: { onClose?: () => void }) {
   const [panel, setPanel] = useState<'model' | 'parameters' | 'print' | 'history' | 'tools'>('model')
   const [toolkitTab, setToolkitTab] = useState<'create' | 'inspect' | 'prepare'>('create')
   const [toolTarget, setToolTarget] = useState<{id: string} | null>(null)
@@ -263,6 +263,7 @@ export function Inspector() {
 
   return (
     <aside aria-label="Model inspector" className={`inspector inspector-review panel-surface ${document.workspaceMode === 'simple' ? 'simple-inspector' : ''}`}>
+      <button className="drawer-close" onClick={onClose}>Close inspector ×</button>
       <div className="panel-title-row">
         <div className="inspector-tabs" role="group" aria-label="Inspector panels"><button aria-pressed={panel === 'model'} className={panel === 'model' ? 'active' : ''} onClick={() => setPanel('model')}><BoxSelect size={14} /> Model</button>{<button aria-pressed={panel === 'parameters'} aria-label="Parameters" className={panel === 'parameters' ? 'active' : ''} onClick={() => setPanel('parameters')}><span className="parameter-tab-icon" aria-hidden="true">{'{}'}</span> Params</button>}<button aria-pressed={panel === 'print'} className={panel === 'print' ? 'active' : ''} onClick={() => setPanel('print')}><Printer size={14} /> Print</button><button aria-pressed={panel === 'history'} className={panel === 'history' ? 'active' : ''} onClick={() => setPanel('history')}><History size={14} /> History</button></div>
       </div>

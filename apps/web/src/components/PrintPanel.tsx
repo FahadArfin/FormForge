@@ -9,6 +9,10 @@ import { analyzeMesh } from '@/lib/meshTools'
 import { getPrintReadiness, withPrinterSettings } from '@/lib/printReadiness'
 import './InspectorWorkflows.css'
 import { PlatePlacementPanel } from './PlatePlacementPanel'
+import {OverhangReview} from './OverhangReview'
+import {FitCalibrationPanel} from './FitCalibrationPanel'
+import {useInspection} from '@/store/inspection'
+import {NumberInput} from './NumberInput'
 
 function PrinterSettings({ printer, onApply }: { printer: PrinterProfile; onApply: (printer: PrinterProfile) => void }) {
   const toDraft = (value: PrinterProfile) => ({ name: value.name, x: String(value.buildVolume.x), y: String(value.buildVolume.y), z: String(value.buildVolume.z), nozzle: String(value.nozzleDiameter), wall: String(value.minimumWall) })
@@ -33,6 +37,7 @@ function PrinterSettings({ printer, onApply }: { printer: PrinterProfile; onAppl
 }
 
 export function PrintPanel() {
+  const mesh=useEditor(s=>s.mesh),overhangs=useInspection(s=>s.overhangs)
   const document = useEditor((state) => state.document)
   const meshDocument = useEditor((state) => state.meshDocument)
   const geometryStatus = useEditor((state) => state.geometryStatus)
@@ -68,7 +73,9 @@ export function PrintPanel() {
     </section>}
 
     {currentAnalysis&&<button className="workflow-action secondary" onClick={()=>downloadBlob(new Blob([printReport(document,currentAnalysis)],{type:'text/plain'}),`${safeFilename(document.name)}-print-report.txt`)}>Download print report</button>}
-    <PlatePlacementPanel /><MaterialProfilesPanel key={document.id}/>
+    <PlatePlacementPanel /><MaterialProfilesPanel key={`material-${document.id}`}/>
+    <section className="workflow-card"><h3>Overhang guidance</h3><NumberInput label="Warn for slopes below" accessibleLabel="Overhang threshold, degrees from bed" suffix="°" min={0} max={90} step={1} value={document.printer.overhangAngle} onChange={angle=>dispatch({type:'replace-document',document:withPrinterSettings(useEditor.getState().document,{...useEditor.getState().document.printer,overhangAngle:angle})})}/><p className="workflow-caption">Downward slopes are measured from the horizontal build plate.</p><label><input type="checkbox" checked={overhangs} onChange={e=>{useInspection.setState({overhangs:e.target.checked});if(e.target.checked)useEditor.getState().setShowResult(true)}}/> Highlight potential overhangs in the studio</label>{currentAnalysis&&mesh?<OverhangReview mesh={mesh} threshold={document.printer.overhangAngle}/>:<p>Build a current solid to review its slopes.</p>}</section>
+    <FitCalibrationPanel key={`fit-${document.id}`}/>
     <section className="workflow-card printer-setup">
       <div className="workflow-card-heading"><h3><Printer size={17} /> Printer setup</h3><button className="workflow-icon" aria-label={editingPrinter ? 'Close printer setup' : 'Edit printer setup'} aria-expanded={editingPrinter} onClick={() => setEditingPrinter((value) => !value)}><Settings2 size={17} /></button></div>
       {!editingPrinter && <><strong className="printer-name">{document.printer.name}</strong><p>{document.printer.buildVolume.x} × {document.printer.buildVolume.y} × {document.printer.buildVolume.z} mm build volume</p><p>Wall target: {document.printer.minimumWall} mm · Nozzle: {document.printer.nozzleDiameter} mm</p><button className="workflow-text-action" onClick={() => setEditingPrinter(true)}>Change printer setup</button></>}

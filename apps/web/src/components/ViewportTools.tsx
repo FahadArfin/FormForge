@@ -68,6 +68,8 @@ export function ViewportTools() {
         <select aria-label="Camera view" value="" onChange={(event) => setView(event.target.value)}><option value="" disabled>View</option><option value="iso">Isometric</option><option value="top">Top</option><option value="front">Front</option><option value="right">Right</option><option value="back">Back</option><option value="left">Left</option><option value="bottom">Bottom</option></select>
       </label>
       <button onClick={() => frame(false)} title="Frame the complete model (F)"><Maximize2 size={15} /><span>Fit all</span></button>
+      <button aria-label="Zoom in" onClick={()=>window.dispatchEvent(new CustomEvent('formforge:zoom',{detail:{direction:'in'}}))}>+</button>
+      <button aria-label="Zoom out" onClick={()=>window.dispatchEvent(new CustomEvent('formforge:zoom',{detail:{direction:'out'}}))}>−</button>
       <label className="snap-control" title={`${tool === 'rotate' ? 'Rotation' : tool === 'scale' ? 'Scale' : 'Movement'} snap increment`}>
         <Magnet size={15} />
         <span>Snap</span>
