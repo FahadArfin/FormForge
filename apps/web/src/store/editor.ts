@@ -800,15 +800,22 @@ export const useEditor = create<EditorState>((set, get) => {
 
     updateNamedParameter(id, patch) {
       const document = get().document
-      const namedParameters = document.namedParameters.map((parameter) => parameter.id === id ? { ...parameter, ...patch } : parameter)
-      commitParameterizedDocument({ ...document, namedParameters })
+      try {
+        const current=document.namedParameters.find(p=>p.id===id)
+        const renamed=patch.name!==undefined&&patch.name!==current?.name?renameDocumentParameter(document,id,patch.name):document
+        const effectivePatch={...patch}
+        if(renamed!==document&&patch.expression===current?.expression)delete effectivePatch.expression
+        const namedParameters = renamed.namedParameters.map((parameter) => parameter.id === id ? { ...parameter, ...effectivePatch, name:patch.name?.trim()??parameter.name } : parameter)
+        commitParameterizedDocument({ ...renamed, namedParameters })
+      } catch(error) { set({notice:(error as Error).message}) }
     },
 
     removeNamedParameter(id) {
       const document = get().document
       const removed = document.namedParameters.find((parameter) => parameter.id === id)
       if (!removed) return
-      commitParameterizedDocument({ ...document, namedParameters: document.namedParameters.filter((parameter) => parameter.id !== id) }, `${removed.name} removed. Existing bindings that reference it are flagged.`)
+      try { commitParameterizedDocument(removeDocumentParameter(document,id), `${removed.name} removed. Undo restores it.`) }
+      catch(error) { set({notice:(error as Error).message}) }
     },
 
     setNodeParameterBinding(nodeId, target, expression) {
@@ -1225,3 +1232,4 @@ export const useEditor = create<EditorState>((set, get) => {
     },
   }
 })
+import {renameDocumentParameter,removeDocumentParameter} from '@/lib/parameterManagement'

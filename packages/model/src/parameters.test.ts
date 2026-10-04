@@ -231,3 +231,10 @@ describe('parameter dependency evaluation', () => {
     )
   })
 })
+import { renameParameterReferences } from './parameters.js'
+
+it('renames only parsed references, preserving numeric exponents and partial names', () => {
+  expect(renameParameterReferences('Width + wall_width + 1e3 + [ width ]', 'width', 'Outside width'))
+    .toBe('[Outside width] + wall_width + 1e3 + [Outside width]')
+  expect(() => renameParameterReferences('Width +', 'width', 'Size')).toThrow()
+})

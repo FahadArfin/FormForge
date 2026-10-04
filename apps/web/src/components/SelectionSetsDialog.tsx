@@ -1,0 +1,17 @@
+import {useState} from 'react'
+import {useEditor} from '@/store/editor'
+import {useInspection} from '@/store/inspection'
+import {resolveSelectionSet,saveSelectionSet,renameSelectionSet} from '@/lib/selectionSets'
+import {WorkspaceDialog} from './WorkspaceDialog'
+import './PrecisionWorkflows.css'
+export function SelectionSetsDialog({onClose}:{onClose:()=>void}){
+ const doc=useEditor(s=>s.document),ids=useEditor(s=>s.selectedNodeIds),placing=useEditor(s=>s.placingNodeId),[name,setName]=useState(''),[error,setError]=useState(''),[status,setStatus]=useState('')
+ const apply=(next:typeof doc)=>{useEditor.getState().dispatch({type:'replace-document',document:next});setError('')}
+ const save=(newName:string,nodeIds:string[],id?:string)=>{try{apply(saveSelectionSet(useEditor.getState().document,newName,nodeIds,id));setStatus('Selection set saved. Undo restores the previous sets.');setName('')}catch(e){setError((e as Error).message)}}
+ return <WorkspaceDialog portal title="Named selection sets" description="Recall an assembly or a collection of shapes without finding each part again." onClose={onClose} className="precision-dialog">
+ <form onSubmit={e=>{e.preventDefault();save(name,ids)}}><label className="cad-select-label">Selection set name<input value={name} maxLength={60} placeholder="e.g. Lid and fasteners" onChange={e=>setName(e.target.value)}/></label><button className="studio-primary" disabled={!ids.length||!name.trim()||!!placing||(doc.selectionSets?.length??0)>=24}>Save current selection</button></form>
+ <p>Combined groups, assemblies, and attached holes stay together. Up to 24 sets. Hidden shapes remain hidden; locked shapes stay protected.</p>
+ <div className="precision-list">{doc.selectionSets?.map(set=>{const resolved=resolveSelectionSet(doc,set);return <article key={set.id}><div className="precision-row"><input aria-label={`Rename selection set ${set.name}`} defaultValue={set.name} key={set.name} maxLength={60} onBlur={e=>{if(e.target.value!==set.name){try{apply(renameSelectionSet(useEditor.getState().document,set.id,e.target.value))}catch(error){setError((error as Error).message)}}}}/><span>{resolved.ids.length} available · {resolved.missing} missing · {resolved.suppressed} suppressed</span></div><p>{resolved.locked} locked · {resolved.hidden} hidden</p><div className="precision-row"><button disabled={!resolved.ids.length||!!placing} onClick={()=>{const s=useEditor.getState();useInspection.getState().setFocus(null);s.selectNode(null);useEditor.setState({selectedNodeIds:resolved.ids,selectedNodeId:resolved.ids.at(-1)??null,showResult:false});setStatus(`Recalled ${set.name}.`);onClose()}}>Recall</button><button disabled={!resolved.ids.length||!!placing} onClick={()=>{const s=useEditor.getState();const wasResult=s.showResult;s.setShowResult(false);useInspection.getState().setFocus({documentId:doc.id,ids:resolved.ids,wasResult});onClose()}}>Isolate</button><button disabled={!ids.length||!!placing} onClick={()=>save(set.name,ids,set.id)}>Update from selection</button><button onClick={()=>apply({...doc,selectionSets:doc.selectionSets!.filter(s=>s.id!==set.id),revision:doc.revision+1,updatedAt:new Date().toISOString()})}>Remove</button></div></article>})}</div>
+ {!doc.selectionSets?.length&&<p>No saved selections yet. Select parts in the canvas or model list, then give the set a name.</p>}{error&&<p role="alert" className="workflow-error">{error}</p>}{status&&<p role="status">{status}</p>}
+ </WorkspaceDialog>
+}

@@ -1,3 +1,4 @@
+import {changeProjection,frameCamera,resizeCamera,zoomCamera,cameraDistanceLimits,updateCameraClipping,type StudioCamera} from '@/lib/cameraProjection'
 import { savedCameraViewSchema } from '@formforge/model'
 import { PointerTap } from '@/lib/pointerTap'
 import {snapSketchPoint} from '@/lib/sketchPrecision'
@@ -113,7 +114,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const runtime = useRef<{
     scene: THREE.Scene
-    camera: THREE.PerspectiveCamera
+    camera: StudioCamera
     renderer: THREE.WebGLRenderer
     orbit: OrbitControls
     transform: TransformControls
@@ -166,7 +167,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     scene.background = new THREE.Color('#14151d')
     scene.fog = new THREE.FogExp2('#14151d', 0.0028)
 
-    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 4000)
+    let camera: StudioCamera = new THREE.PerspectiveCamera(38, 1, 0.1, 4000)
     camera.up.set(0, 0, 1)
     camera.position.set(92, -108, 82)
 
@@ -184,8 +185,11 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     orbit.enableDamping = true
     orbit.dampingFactor = 0.08
     orbit.target.set(0, 0, 12)
-    orbit.minDistance = 8
-    orbit.maxDistance = 1200
+    // Projection conversion can preserve an orthographic span at very near or far distances.
+    orbit.minDistance = cameraDistanceLimits.min
+    orbit.maxDistance = cameraDistanceLimits.max
+    const updateClipping=()=>updateCameraClipping(camera,orbit.target)
+    orbit.addEventListener('change',updateClipping)
 
     scene.add(new THREE.HemisphereLight('#b9d4ff', '#20202b', 1.7))
     const key = new THREE.DirectionalLight('#fff5e4', 3.6)
@@ -475,7 +479,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       const normal = polygonStroke.mode === 'grab'
         ? polygonStroke.object.worldToLocal(hit.point.clone().add(hit.normal)).sub(polygonStroke.object.worldToLocal(hit.point.clone())).normalize()
         : hit.localNormal
-      const worldView = camera.position.clone().sub(hit.point).normalize()
+      const worldView = camera instanceof THREE.OrthographicCamera?camera.getWorldDirection(new THREE.Vector3()).negate():camera.position.clone().sub(hit.point).normalize()
       const localView = worldView.transformDirection(polygonStroke.object.matrixWorld.clone().invert()).normalize()
       if (state.dynamicTopology && !['grab', 'snake', 'mask'].includes(polygonStroke.mode) && performance.now() - polygonStroke.lastTopologyAt >= 100) {
         const current = geometryToSculptMesh(polygonStroke.object.geometry, polygonStroke.mask)
@@ -624,13 +628,13 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
           const axisVector = axis === 'X' ? new THREE.Vector3(1, 0, 0) : axis === 'Y' ? new THREE.Vector3(0, 1, 0) : axis === 'Z' ? new THREE.Vector3(0, 0, 1) : null
           let normal: THREE.Vector3
           if (axisVector) {
-            const eye = camera.position.clone().sub(worldPosition).normalize()
+            const eye = camera instanceof THREE.OrthographicCamera?camera.getWorldDirection(new THREE.Vector3()).negate():camera.position.clone().sub(worldPosition).normalize()
             normal = eye.sub(axisVector.clone().multiplyScalar(eye.dot(axisVector))).normalize()
             if (normal.lengthSq() < 1e-5) normal = axisVector.x ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0)
           } else if (axis === 'XY') normal = new THREE.Vector3(0, 0, 1)
           else if (axis === 'XZ') normal = new THREE.Vector3(0, 1, 0)
           else if (axis === 'YZ') normal = new THREE.Vector3(1, 0, 0)
-          else normal = camera.position.clone().sub(worldPosition).normalize()
+          else normal = camera instanceof THREE.OrthographicCamera?camera.getWorldDirection(new THREE.Vector3()).negate():camera.position.clone().sub(worldPosition).normalize()
           const dragPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, worldPosition)
           updateRay(event)
           const startPoint = raycaster.ray.intersectPlane(dragPlane, new THREE.Vector3())
@@ -959,21 +963,13 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       if (bounds.isEmpty()) return
       const center = bounds.getCenter(new THREE.Vector3())
       const size = bounds.getSize(new THREE.Vector3())
-      const direction = camera.position.clone().sub(orbit.target).normalize()
-      const limitingView = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * Math.min(1, camera.aspect)
-      const distance = Math.max(12, size.length() / (2 * limitingView) * 1.15)
-      orbit.target.copy(center)
-      camera.position.copy(center).addScaledVector(direction, distance)
-      camera.near = Math.max(0.01, distance / 1000)
-      camera.far = distance * 20
-      camera.updateProjectionMatrix()
+      frameCamera(camera,orbit.target,center,size,Math.max(.01,host.clientWidth/Math.max(1,host.clientHeight)))
       orbit.update()
     }
     const frameListener = (event: Event) => frameObjects(Boolean((event as CustomEvent<{ selectedOnly: boolean }>).detail?.selectedOnly))
     const zoomListener = (event: Event) => {
       const factor = (event as CustomEvent<{ direction: string }>).detail?.direction === 'in' ? 0.8 : 1.25
-      const offset = camera.position.clone().sub(orbit.target), distance = offset.length()
-      camera.position.copy(orbit.target).add(offset.normalize().multiplyScalar(Math.min(100000, Math.max(0.5, distance * factor))))
+      zoomCamera(camera,orbit.target,factor)
       orbit.update()
     }
     const viewListener = (event: Event) => {
@@ -995,8 +991,24 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       camera.updateProjectionMatrix()
       orbit.update()
     }
-    const captureCamera=(event:Event)=>{(event as CustomEvent).detail?.receive?.({position:{x:camera.position.x,y:camera.position.y,z:camera.position.z},target:{x:orbit.target.x,y:orbit.target.y,z:orbit.target.z},up:{x:camera.up.x,y:camera.up.y,z:camera.up.z},zoom:camera.zoom})}
-    const restoreCamera=(event:Event)=>{const result=savedCameraViewSchema.safeParse((event as CustomEvent).detail);if(!result.success)return;const v=result.data;camera.position.set(v.position.x,v.position.y,v.position.z);orbit.target.set(v.target.x,v.target.y,v.target.z);camera.up.set(v.up.x,v.up.y,v.up.z).normalize();camera.zoom=v.zoom;const distance=camera.position.distanceTo(orbit.target);camera.near=Math.max(.001,distance/1000);camera.far=Math.max(1000,distance*20);camera.updateProjectionMatrix();orbit.update()}
+    const switchProjection=(projection:'perspective'|'orthographic')=>{
+      if((camera instanceof THREE.OrthographicCamera)===(projection==='orthographic'))return
+      camera=changeProjection(camera,orbit.target,projection,Math.max(.01,host.clientWidth/Math.max(1,host.clientHeight)))
+      orbit.object=camera;transform.camera=camera
+      if(runtime.current)runtime.current.camera=camera
+      orbit.update()
+    }
+    orbit.minZoom=.01;orbit.maxZoom=100
+    switchProjection(useInspection.getState().projection)
+    const unsubscribeProjection=useInspection.subscribe((state,previous)=>{if(state.projection!==previous.projection)switchProjection(state.projection)})
+    const captureCamera=(event:Event)=>{(event as CustomEvent).detail?.receive?.({position:{x:camera.position.x,y:camera.position.y,z:camera.position.z},target:{x:orbit.target.x,y:orbit.target.y,z:orbit.target.z},up:{x:camera.up.x,y:camera.up.y,z:camera.up.z},zoom:camera.zoom,projection:camera instanceof THREE.OrthographicCamera?'orthographic':'perspective',...(camera instanceof THREE.OrthographicCamera?{span:camera.top-camera.bottom}:{})})}
+    const restoreCamera=(event:Event)=>{
+      const result=savedCameraViewSchema.safeParse((event as CustomEvent).detail);if(!result.success)return
+      const v=result.data;useInspection.setState({projection:v.projection??'perspective'});switchProjection(v.projection??'perspective')
+      camera.position.set(v.position.x,v.position.y,v.position.z);orbit.target.set(v.target.x,v.target.y,v.target.z);camera.up.set(v.up.x,v.up.y,v.up.z).normalize();camera.zoom=v.zoom
+      if(camera instanceof THREE.OrthographicCamera){const half=(v.span??100)/2,aspect=Math.max(.01,host.clientWidth/Math.max(1,host.clientHeight));camera.top=half;camera.bottom=-half;camera.left=-half*aspect;camera.right=half*aspect}
+      const distance=camera.position.distanceTo(orbit.target);camera.near=Math.max(.001,distance/1000);camera.far=Math.max(1000,distance*20);camera.updateProjectionMatrix();orbit.update()
+    }
     const diagnosticMarker=new THREE.Mesh(new THREE.SphereGeometry(.6,16,12),new THREE.MeshBasicMaterial({color:0xff374b,depthTest:false}));diagnosticMarker.visible=false;diagnosticMarker.renderOrder=999;scene.add(diagnosticMarker)
     const markDiagnostic=(event:Event)=>{const point=(event as CustomEvent).detail?.point;diagnosticMarker.visible=Array.isArray(point)&&point.length===3&&point.every(Number.isFinite);if(diagnosticMarker.visible)diagnosticMarker.position.set(point[0],point[1],point[2])}
     window.addEventListener('formforge:diagnostic-point',markDiagnostic)
@@ -1014,10 +1026,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       if (!width || !height) return
       renderer.setSize(width, height, false)
       const nextAspect = width / height
-      const framingScale = Math.min(1, camera.aspect) / Math.min(1, nextAspect)
-      camera.position.sub(orbit.target).multiplyScalar(framingScale).add(orbit.target)
-      camera.aspect = nextAspect
-      camera.updateProjectionMatrix()
+      resizeCamera(camera,orbit.target,nextAspect)
       orbit.update()
     })
     resize.observe(host)
@@ -1035,6 +1044,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     return () => {
       cancelAnimationFrame(frame)
       resize.disconnect()
+      unsubscribeProjection()
       renderer.domElement.removeEventListener('pointerdown', onPointerDown)
       renderer.domElement.removeEventListener('pointermove', onPointerMove)
       renderer.domElement.removeEventListener('pointerup', onPointerUp)
@@ -1049,6 +1059,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       window.removeEventListener('formforge:finish-sketch', completeSketch)
       window.removeEventListener('formforge:cancel-sketch', cancelSketch)
       transform.dispose()
+      orbit.removeEventListener('change',updateClipping)
       orbit.dispose()
       disposeGroup(sourceGroup)
       disposeGroup(resultGroup)
@@ -1169,7 +1180,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       }
     }
     const selectedObject = selectedNodeId ? rt.sourceById.get(selectedNodeId) : undefined
-    if (selectedObject && document.sculptStrokes.length === 0 && !document.nodes.find(node => node.id === selectedNodeId)?.locked && ['move', 'rotate', 'scale'].includes(tool)) {
+    if (selectedObject?.visible && document.sculptStrokes.length === 0 && !document.nodes.find(node => node.id === selectedNodeId)?.locked && !document.nodes.find(node => node.id === selectedNodeId)?.suppressed && ['move', 'rotate', 'scale'].includes(tool)) {
       rt.transform.setMode(transformModeFor(tool))
       rt.transform.setSpace(tool === 'scale' ? 'local' : 'world')
       rt.transform.attach(selectedObject)

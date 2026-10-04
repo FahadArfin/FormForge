@@ -27,6 +27,16 @@ export function variantMatches(document: ModelDocument, variant: ParameterVarian
   })
 }
 
+export function editParameterVariant(document: ModelDocument, id: string, name: string, replaceValues = false): ModelDocument {
+  const variant = document.parameterVariants?.find(v => v.id === id)
+  if (!variant) throw new Error('This variant no longer exists.')
+  const trimmed = name.trim()
+  if (!trimmed || trimmed.length > 64) throw new Error('Use a variant name of 1–64 characters.')
+  if (document.parameterVariants?.some(v => v.id !== id && v.name.toLowerCase() === trimmed.toLowerCase())) throw new Error('Choose a different variant name.')
+  if (replaceValues) { if (!document.namedParameters.length) throw new Error('Add named parameters first.'); assertResolved(document) }
+  return parseModelDocument({ ...document, parameterVariants: document.parameterVariants!.map(v => v.id === id ? { ...v, name: trimmed, parameters: replaceValues ? structuredClone(document.namedParameters) : v.parameters } : v), revision: document.revision + 1, updatedAt: new Date().toISOString() })
+}
+
 export function applyParameterVariant(document: ModelDocument, variant: ParameterVariant): ModelDocument {
   if (document.nodes.some(node => node.locked && Object.keys(node.parameterBindings ?? {}).length)) throw new Error('Unlock shapes with parameter bindings before applying a variant.')
   if (document.sculptStrokes.length) throw new Error('Parameter variants cannot reshape a model with retained volume strokes. Export and reimport its evaluated mesh first.')

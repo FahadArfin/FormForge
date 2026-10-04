@@ -2,10 +2,12 @@ import type {Vec3Value} from '@formforge/model'
 import type {FitCalibration} from '@/lib/fitCalibration'
 import { create } from 'zustand'
 import type { SectionSettings } from '@/lib/sectionView'
+import { useEditor } from './editor'
 
 const defaultSection: SectionSettings = { enabled: false, axis: 'z', offset: 10, inverted: false }
 
 export const useInspection = create<{
+  projection:'perspective'|'orthographic'
   pendingFit:FitCalibration|null
   overhangs:boolean
   snapLabel:string
@@ -22,9 +24,17 @@ export const useInspection = create<{
   setSection: (patch: Partial<SectionSettings>) => void
   resetSection: () => void
 }>((set) => ({
+  projection:'perspective',
   snapLabel:'',setSnapLabel:snapLabel=>set({snapLabel}),
   pendingFit:null,overhangs:false,
-  focus:null,setFocus:focus=>set({focus}),pickOverlaps:false,setPickOverlaps:pickOverlaps=>set({pickOverlaps}),
+  focus:null,setFocus:focus=>{
+    const editor=useEditor.getState()
+    if(focus?.documentId===editor.document.id){
+      const ids=editor.selectedNodeIds.filter(id=>focus.ids.includes(id)&&editor.document.nodes.some(n=>n.id===id&&!n.suppressed&&n.visible))
+      useEditor.setState({selectedNodeIds:ids,selectedNodeId:ids.includes(editor.selectedNodeId??'')?editor.selectedNodeId:ids.at(-1)??null,selectedMeshVertices:[],selectedMeshEdges:[],selectedMeshFaces:[]})
+    }
+    set({focus})
+  },pickOverlaps:false,setPickOverlaps:pickOverlaps=>set({pickOverlaps}),
   anglePoints:[],setAnglePoints:anglePoints=>set({anglePoints}),
   measurementMode: 'vertex', setMeasurementMode: measurementMode => set({ measurementMode }),
   section: { ...defaultSection },

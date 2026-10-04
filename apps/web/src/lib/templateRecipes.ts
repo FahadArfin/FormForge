@@ -1,4 +1,4 @@
-import {createDocument,createNode,evaluateParameters,type ModelDocument,type ModelNode,type ParameterBindingTarget} from '@formforge/model'
+import {createDocument,createNode,evaluateParameters,mapParameterReferences,parseParameterExpression,type ModelDocument,type ModelNode,type ParameterBindingTarget} from '@formforge/model'
 import {resolveDocumentParameterBindings} from './modelParameters'
 import {templateCatalog,type StarterId} from './templateCatalog'
 type Field={key:string;label:string;value:number;min:number;max:number;step?:number}
@@ -17,7 +17,13 @@ export function templateDefaults(id:StarterId){return Object.fromEntries(templat
 export function templateValues(doc:ModelDocument):Record<string,number>{
  const id=doc.template?.id as StarterId;if(!templateFields[id])return {}
  const evaluated=evaluateParameters(doc.namedParameters)
- return Object.fromEntries(templateFields[id].map(f=>[f.key,evaluated.get(f.key)?.canonicalValue??f.value]))
+ return Object.fromEntries(templateFields[id].map(f=>[f.key,evaluated.get(doc.namedParameters.find(p=>p.id===`recipe:${f.key}`)?.name??f.key)?.canonicalValue??f.value]))
+}
+function useRecipeNames(source:ModelDocument,target:ModelDocument):ModelDocument{
+ // Recipe IDs remain stable when the user gives a reusable dimension a clearer name.
+ const names=source.namedParameters.map(p=>({from:p.name,to:target.namedParameters.find(t=>t.id===p.id)?.name??p.name}))
+ const rewrite=(expression:string)=>mapParameterReferences(expression,Object.fromEntries(names.map(n=>[n.from,n.to])))
+ return {...source,namedParameters:source.namedParameters.map(p=>({...p,name:names.find(n=>n.from===p.name)!.to})),nodes:source.nodes.map(n=>({...n,parameterBindings:Object.fromEntries(Object.entries(n.parameterBindings??{}).map(([key,value])=>[key,rewrite(value!)]))}))}
 }
 export function validateTemplate(id:StarterId,v:Record<string,number>){
  for(const field of templateFields[id])if(!Number.isFinite(v[field.key])||v[field.key]!<field.min||v[field.key]!>field.max)throw new Error(`${field.label} must be ${field.min}–${field.max} mm.`)
@@ -74,11 +80,12 @@ export function createTemplateDocument(id:StarterId,values=templateDefaults(id))
 }
 export function templateLinkIssue(doc:ModelDocument):string|null{
  const id=doc.template?.id as StarterId;if(!templateFields[id])return 'This project has no supported template recipe.'
- let expected:ModelDocument;try{expected=createTemplateDocument(id,templateValues(doc))}catch(e){return (e as Error).message}
+ let expected:ModelDocument;try{expected=useRecipeNames(createTemplateDocument(id,templateValues(doc)),doc)}catch(e){return (e as Error).message}
  if(doc.template!.nodeIds.length!==expected.nodes.length)return 'Template source shapes changed. Continue with shape editing or undo the change.'
  for(const [i,nodeId] of doc.template!.nodeIds.entries()){
   const node=doc.nodes.find(n=>n.id===nodeId),original=expected.nodes[i]
-  if(!node||!original||node.kind!==original.kind||node.boolean!==original.boolean||(Object.keys(node.parameterBindings??{}).filter(k=>!k.startsWith("position")).length!==Object.keys(original.parameterBindings??{}).filter(k=>!k.startsWith("position")).length||Object.entries(original.parameterBindings??{}).some(([key,value])=>!key.startsWith("position")&&node.parameterBindings?.[key as ParameterBindingTarget]!==value))||node.mesh||(node.deformation?.kind&&node.deformation.kind!=='none'))return 'Template links changed. Undo the advanced edit or keep editing shapes; linked customization is paused.'
+  const equivalent=(a:string|undefined,b:string|undefined)=>{try{return !!a&&!!b&&JSON.stringify(parseParameterExpression(a),(_key,value)=>typeof value==='string'?value.toLowerCase():value)===JSON.stringify(parseParameterExpression(b),(_key,value)=>typeof value==='string'?value.toLowerCase():value)}catch{return false}}
+  if(!node||!original||node.kind!==original.kind||node.boolean!==original.boolean||(Object.keys(node.parameterBindings??{}).filter(k=>!k.startsWith("position")).length!==Object.keys(original.parameterBindings??{}).filter(k=>!k.startsWith("position")).length||Object.entries(original.parameterBindings??{}).some(([key,value])=>!key.startsWith("position")&&!equivalent(node.parameterBindings?.[key as ParameterBindingTarget],value)))||node.mesh||(node.deformation?.kind&&node.deformation.kind!=='none'))return 'Template links changed. Undo the advanced edit or keep editing shapes; linked customization is paused.'
   if(node.locked)return 'Unlock template shapes before changing their dimensions.'
   if(Object.values(node.transform.rotation).some((v,j)=>Math.abs(v-Object.values(original.transform.rotation)[j]!)>.001)||Object.values(node.transform.scale).some(v=>Math.abs(v-1)>.001))return 'Template shapes were transformed. Undo the transform to use linked dimensions, or continue with shape editing.'
  }
@@ -87,11 +94,11 @@ export function templateLinkIssue(doc:ModelDocument):string|null{
 export function applyTemplateDimensions(doc:ModelDocument,values:Record<string,number>):ModelDocument{
  const issue=templateLinkIssue(doc);if(issue)throw new Error(issue)
  const id=doc.template!.id as StarterId;validateTemplate(id,values)
- const generated=createTemplateDocument(id,values),original=createTemplateDocument(id,templateValues(doc)),byId=new Map(doc.template!.nodeIds.map((id,i)=>[id,i]))
+ const generated=useRecipeNames(createTemplateDocument(id,values),doc),original=useRecipeNames(createTemplateDocument(id,templateValues(doc)),doc),byId=new Map(doc.template!.nodeIds.map((id,i)=>[id,i]))
  const nodes=doc.nodes.map(node=>{const index=byId.get(node.id);if(index===undefined)return node;const replacement=generated.nodes[index]!,before=original.nodes[index]!,bindings={...replacement.parameterBindings},position={...replacement.transform.position}
   for(const axis of ['x','y','z'] as const){const offset=node.transform.position[axis]-before.transform.position[axis];position[axis]+=offset;const key=`position${axis.toUpperCase()}` as ParameterBindingTarget;if(node.parameterBindings?.[key])bindings[key]=node.parameterBindings[key];else if(Math.abs(offset)>.00001)bindings[key]=`(${bindings[key]??0}) + (${offset})`}
   return {...node,parameters:replacement.parameters,parameterBindings:bindings,transform:{...replacement.transform,position},name:replacement.name}
  })
- const parameterNames=new Set(templateFields[id].map(f=>f.key))
+ const parameterNames=new Set(generated.namedParameters.map(p=>p.name.trim().toLowerCase()))
  const resolved=resolveDocumentParameterBindings({...doc,nodes,namedParameters:[...doc.namedParameters.filter(p=>!parameterNames.has(p.name.trim().toLowerCase())&&!generated.namedParameters.some(g=>g.id===p.id)),...generated.namedParameters],revision:doc.revision+1,updatedAt:new Date().toISOString()});if(Object.keys(resolved.errors).length)throw new Error(Object.values(resolved.errors)[0]);return resolved.document
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Search, ArrowUpRight, Box, CircleDot, Cylinder, MousePointer2, Hand, RotateCw, Scaling, Maximize2, Save, Download, FolderOpen, Undo2, Redo2, Copy, CircleHelp, Sparkles } from 'lucide-react'
 import { useEditor } from '@/store/editor'
+import { useInspection } from '@/store/inspection'
 import { cadTools, searchCommands } from '@/lib/cadToolCatalog'
 import { WorkspaceDialog } from './WorkspaceDialog'
 
@@ -20,6 +21,10 @@ export function CommandMenu({ onClose, onImport, onExport, onProjects, onHelp, o
     ...cadTools.map(tool => ({ ...tool, icon: Sparkles, run: () => window.dispatchEvent(new CustomEvent('formforge:open-inspector', { detail: { tab: tool.tab, toolkit: 'toolkit' in tool ? tool.toolkit : undefined, tool: tool.id } })) })),
     ...(['roundedBox','cone','torus','capsule','tube','wedge','star','gear','loft','spring'] as const).map(kind=>({name:`Add ${kind==='roundedBox'?'a soft rounded box':`a ${kind}`}`,group:'Build',icon:Box,run:()=>editor.addPrimitive(kind)})),
     {name:'Saved camera views',group:'View',icon:Maximize2,run:()=>window.dispatchEvent(new Event('formforge:saved-views'))},
+    {name:'Toggle orthographic projection',group:'View',keywords:'perspective parallel exact CAD',icon:Box,run:()=>useInspection.setState({projection:useInspection.getState().projection==='perspective'?'orthographic':'perspective'})},
+    {name:'Named selection sets',group:'Edit',keywords:'recall isolate assembly collection',icon:Box,run:()=>window.dispatchEvent(new Event('formforge:selection-sets'))},
+    {name:'Compare and export variants',group:'Parameters',keywords:'configuration table batch sizes CSV ZIP',icon:Download,run:()=>window.dispatchEvent(new Event('formforge:variants'))},
+    {name:'Export separate parts and manifest',group:'Export',keywords:'parts list BOM CSV ZIP solids',icon:Download,run:()=>window.dispatchEvent(new Event('formforge:parts-package'))},
     {name:'Choose an editable starter part',group:'Project',icon:Box,run:()=>window.dispatchEvent(new Event('formforge:starters'))},
     {name:'Arrange parts on a build plate',group:'Export',icon:Download,run:onExport},
     { name: 'Center and drop whole model', group: 'Print', icon: Download, disabled: !editor.document.nodes.length, run: () => void editor.placeOnPlate('document', 'center-and-drop') },
