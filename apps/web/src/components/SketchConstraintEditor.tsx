@@ -1,5 +1,7 @@
 import { AlertTriangle, CheckCircle2, Plus, Trash2, WandSparkles } from 'lucide-react'
 import { useEffect, useId, useMemo, useState } from 'react'
+import {SketchCanvas} from './SketchCanvas'
+import {constraintReferences} from '@/lib/sketchPrecision'
 import {
   normalizeSketchAngleDegrees,
   solveSketchConstraints,
@@ -131,6 +133,7 @@ export function SketchConstraintEditor({ node, onUpdate, unit = 'mm' }: SketchCo
   const [distanceValue, setDistanceValue] = useState(10)
   const [angleValue, setAngleValue] = useState(90)
   const [message, setMessage] = useState<string | null>(null)
+  const [picking,setPicking]=useState<'a'|'b'>('a')
 
   useEffect(() => {
     const highestIndex = Math.max(0, pointCount - 1)
@@ -224,7 +227,7 @@ export function SketchConstraintEditor({ node, onUpdate, unit = 'mm' }: SketchCo
   }
 
   const status = diagnostics
-    ? diagnostics.overconstrained
+    ? !diagnostics.converged || diagnostics.invalidConstraints.length > 0
       ? 'conflict'
       : diagnostics.converged
         ? diagnostics.estimatedDegreesOfFreedom === 0 ? 'complete' : 'solved'
@@ -238,6 +241,9 @@ export function SketchConstraintEditor({ node, onUpdate, unit = 'mm' }: SketchCo
         ? 'Constraints need attention'
         : 'No sketch to solve'
   const segmentReferences = usesSegments(type)
+  const badIndices=new Set(diagnostics?.residuals.filter(r=>!r.satisfied).map(r=>r.constraintIndex)??[])
+  const previewRules=previewIncludesDraft&&draftConstraint?[...constraints,draftConstraint]:constraints
+  const badReferences=previewRules.filter((_,i)=>badIndices.has(i)).map(c=>constraintReferences(c,pointCount))
 
   return (
     <section className="sketch-constraint-editor" aria-labelledby={`${id}-title`}>
@@ -259,9 +265,9 @@ export function SketchConstraintEditor({ node, onUpdate, unit = 'mm' }: SketchCo
           <strong>{statusTitle}</strong>
           <span>
             {diagnostics
-              ? diagnostics.overconstrained
+              ? !diagnostics.converged || diagnostics.invalidConstraints.length > 0
                 ? 'Remove or change conflicting rules.'
-                : `${diagnostics.estimatedDegreesOfFreedom} ${diagnostics.estimatedDegreesOfFreedom === 1 ? 'movement' : 'movements'} left`
+                : `${diagnostics.estimatedDegreesOfFreedom} ${diagnostics.estimatedDegreesOfFreedom === 1 ? 'movement' : 'movements'} left${diagnostics.overconstrained?' · some rules are redundant':''}`
               : 'Add profile points to begin.'}
           </span>
         </div>
@@ -273,6 +279,8 @@ export function SketchConstraintEditor({ node, onUpdate, unit = 'mm' }: SketchCo
       )}
 
       <div className="sketch-constraint-builder">
+        <div className="sketch-pick-controls" role="group" aria-label="Choose sketch reference"><button type="button" aria-pressed={picking==='a'} onClick={()=>setPicking('a')}>Pick first {segmentReferences?'edge':'point'}</button><button type="button" aria-pressed={picking==='b'} onClick={()=>setPicking('b')}>Pick second {segmentReferences?'edge':'point'}</button></div>
+        <SketchCanvas points={profile} mode={segmentReferences?'edge':'point'} selection={[{kind:segmentReferences?'edge':'point',index:referenceA},{kind:segmentReferences?'edge':'point',index:referenceB}]} conflictPoints={badReferences.flatMap(r=>r.points)} conflictEdges={badReferences.flatMap(r=>r.edges)} disabled={node.locked} onSelect={pick=>{if(picking==='a'){setReferenceA(pick.index);setPicking('b')}else{setReferenceB(pick.index);setPicking('a')}setMessage(`${pick.kind==='point'?'Point':'Edge'} ${pick.index+1} selected as ${picking==='a'?'first':'second'} reference.`)}}/>
         <label className="sketch-constraint-field sketch-constraint-type-field" htmlFor={`${id}-type`}>
           <span>Rule</span>
           <select id={`${id}-type`} value={type} onChange={(event) => { setType(event.target.value as ConstraintType); setMessage(null) }}>

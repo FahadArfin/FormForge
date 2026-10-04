@@ -34,7 +34,7 @@ const tools: { value: ToolMode; label: string; shortcut: string; icon: typeof Ha
 
 const defaultParameters: ModelNode['parameters'] = { width: 20, depth: 20, height: 20, radius: 10, radiusTop: 4, segments: 48, fillet: 2, count: 12, twist: 0, topWidth: 12, topDepth: 12, wall: 0 }
 
-export function Toolbox() {
+export function Toolbox({ onClose }: { onClose?: () => void }) {
   const [task, setTask] = useState<'build' | 'sculpt'>('build')
   const [search, setSearch] = useState('')
   const [moreShapes, setMoreShapes] = useState(false)
@@ -84,6 +84,7 @@ export function Toolbox() {
 
   return (
     <aside className="toolbox panel-surface modeling-toolbox" aria-label="Modeling tools">
+      <button className="drawer-close" onClick={onClose}>Close build tools <X size={18}/></button>
       <div className="toolbox-section transform-section">
         <span className="section-kicker">Tools</span>
         <div className="transform-tools" role="group" aria-label="Transform tools">

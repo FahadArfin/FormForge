@@ -9,10 +9,10 @@ export class GeometryClient {
   private active: Job | null = null
   private queued: Job | null = null
   private cache = new Map<ModelDocument, MeshPayload>()
+  private timer: ReturnType<typeof setTimeout> | null = null
+  private cachedBytes = 0
 
-  constructor() {
-    this.worker = this.createWorker()
-  }
+  constructor(private options: { timeoutMs?: number; cacheBytes?: number } = {}) {}
 
   private createWorker() {
     const worker = new Worker(new URL('./geometry.worker.ts', import.meta.url), { type: 'module' })
@@ -20,11 +20,20 @@ export class GeometryClient {
       if (this.worker !== worker || this.disposed) return
       const job = this.active
       if (!job || job.id !== event.data.id) return
+      this.clearTimer()
       this.active = null
       if (event.data.ok) {
         const mesh: MeshPayload = event.data
+        const previous = this.cache.get(job.document)
+        if (previous) this.cachedBytes -= previous.positions.byteLength + previous.indices.byteLength
         this.cache.set(job.document, mesh)
-        while (this.cache.size > 12) this.cache.delete(this.cache.keys().next().value!)
+        this.cachedBytes += mesh.positions.byteLength + mesh.indices.byteLength
+        while (this.cache.size > 6 || this.cachedBytes > (this.options.cacheBytes ?? 64 * 1024 * 1024)) {
+          const key = this.cache.keys().next().value!
+          const removed = this.cache.get(key)!
+          this.cachedBytes -= removed.positions.byteLength + removed.indices.byteLength
+          this.cache.delete(key)
+        }
         job.resolve(mesh)
       } else job.reject(new Error(event.data.error))
       this.pump()
@@ -35,6 +44,7 @@ export class GeometryClient {
   }
 
   private fail(error: Error) {
+    this.clearTimer()
     this.active?.reject(error)
     this.queued?.reject(error)
     this.active = null
@@ -42,7 +52,13 @@ export class GeometryClient {
     this.worker?.terminate()
     this.worker = null
     this.cache.clear()
+    this.cachedBytes = 0
   }
+
+  private clearTimer() { if (this.timer) clearTimeout(this.timer); this.timer = null }
+
+  /** Terminate work immediately; unlike disposal this client can be used again. */
+  cancel() { this.fail(new DOMException('Model build stopped. Your editable design is preserved.', 'AbortError')) }
 
   /** Isolated callers own their worker and must release it after success, failure, or cancellation. */
   dispose(reason: Error = new DOMException('Geometry evaluation cancelled.', 'AbortError')) {
@@ -51,8 +67,9 @@ export class GeometryClient {
     this.fail(reason)
   }
 
-  evaluate(document: ModelDocument) {
+  evaluate(document: ModelDocument, options: { replaceActive?: boolean } = {}) {
     if (this.disposed) return Promise.reject(this.disposed)
+    if (options.replaceActive && this.active) this.cancel()
     // Imports and branched edits may reuse all metadata. Only the identical
     // immutable document snapshot can safely reuse its evaluated geometry.
     const cached = this.cache.get(document)
@@ -71,6 +88,7 @@ export class GeometryClient {
     this.queued = null
     try {
       this.worker ??= this.createWorker()
+      this.timer = setTimeout(() => this.fail(new Error('Model build timed out. Undo a complex edit, simplify the model, or retry.')), this.options.timeoutMs ?? 60_000)
       this.worker.postMessage({ id: this.active.id, document: this.active.document })
     } catch (error) { this.fail(error instanceof Error ? error : new Error('The geometry worker could not start.')) }
   }

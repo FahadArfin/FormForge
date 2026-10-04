@@ -103,6 +103,9 @@ interface EditorState extends ProjectSaveState {
   sculptDetail: number
   geometryStatus: GeometryStatus
   geometryBusyVisible: boolean
+  geometryStartedAt: number | null
+  geometryBuildMs: number | null
+  cancelBuild: () => void
   geometryError: string | null
   mesh: MeshPayload | null
   meshDocument: ModelDocument | null
@@ -243,7 +246,7 @@ export const useEditor = create<EditorState>((set, get) => {
   const resetDocumentTransientState = {
     tool: 'select' as const, placingNodeId: null, measurement: null, profileOperation: 'extrude' as const,
     mesh: null, meshDocument: null, analysis: null, geometryStatus: 'idle' as const,
-    geometryBusyVisible: false, geometryError: null, showResult: true,
+    geometryBusyVisible: false, geometryError: null, geometryStartedAt: null, geometryBuildMs: null, showResult: true,
   }
 
   const scheduleSideEffects = (rebuildGeometry = true) => {
@@ -320,6 +323,8 @@ export const useEditor = create<EditorState>((set, get) => {
     dynamicTopology: true,
     sculptDetail: 0.45,
     geometryStatus: 'idle',
+    geometryStartedAt: null,
+    geometryBuildMs: null,
     geometryBusyVisible: false,
     geometryError: null,
     mesh: null,
@@ -1166,16 +1171,25 @@ export const useEditor = create<EditorState>((set, get) => {
       if (get().document.id === projectId) get().newDocument()
     },
 
+    cancelBuild() {
+      ++rebuildGeneration
+      if (rebuildTimer) clearTimeout(rebuildTimer)
+      if (busyTimer) clearTimeout(busyTimer)
+      geometryClient.cancel()
+      set({geometryStatus:'error', geometryBusyVisible:false, geometryStartedAt:null, geometryError:'Build stopped. Your editable design is preserved. Retry when you are ready.'})
+    },
+
     async rebuild() {
       const document = get().document
       const generation = ++rebuildGeneration
-      set({ geometryStatus: 'building', geometryError: null })
+      const startedAt = performance.now()
+      set({ geometryStatus: 'building', geometryError: null, geometryStartedAt:Date.now() })
       if (busyTimer) clearTimeout(busyTimer)
       busyTimer = setTimeout(() => {
         if (rebuildGeneration === generation && get().geometryStatus === 'building') set({ geometryBusyVisible: true })
       }, 450)
       try {
-        const mesh = await geometryClient.evaluate(document)
+        const mesh = await geometryClient.evaluate(document, {replaceActive:true})
         if (rebuildGeneration !== generation || get().document !== document) return
         let dimensions = vec3()
         if (mesh.positions.length) {
@@ -1189,12 +1203,12 @@ export const useEditor = create<EditorState>((set, get) => {
           dimensions = vec3(maxX - minX, maxY - minY, maxZ - minZ)
         }
         if (busyTimer) clearTimeout(busyTimer)
-        set({ mesh, meshDocument: document, geometryStatus: 'ready', geometryBusyVisible: false, analysis: analyzeForPrint(document, mesh, dimensions) })
+        set({ mesh, meshDocument: document, geometryStatus: 'ready', geometryBusyVisible: false, geometryStartedAt:null, geometryBuildMs:performance.now()-startedAt, analysis: analyzeForPrint(document, mesh, dimensions) })
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return
         if (rebuildGeneration !== generation || get().document !== document) return
         if (busyTimer) clearTimeout(busyTimer)
-        set({ geometryStatus: 'error', geometryBusyVisible: false, geometryError: error instanceof Error ? error.message : 'Could not rebuild model' })
+        set({ geometryStatus: 'error', geometryBusyVisible: false, geometryStartedAt:null, geometryError: error instanceof Error ? error.message : 'Could not rebuild model' })
       }
     },
   }

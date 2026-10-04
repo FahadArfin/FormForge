@@ -1,0 +1,608 @@
+.skip-link{
+  position:fixed;
+  top:-80px;
+  left:16px;
+  background:#fff;
+  color:#42278c;
+  padding:12px 18px;
+  border:2px solid #654cbe;
+  border-radius:8px;
+  z-index:99999}
+.skip-link:focus{
+  top:12px}
+.sr-only{
+  position:absolute;
+  width:1px;
+  height:1px;
+  padding:0;
+  margin:-1px;
+  overflow:hidden;
+  clip:rect(0,0,0,0);
+  white-space:nowrap;
+  border:0}
+.preview-controls{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+  margin-top:10px}
+.preview-controls button{
+  font:inherit;
+  font-size:11px;
+  min-height:32px;
+  padding:5px 9px;
+  border:1px solid var(--border,#d3cce0);
+  border-radius:7px;
+  background:var(--surface,#fff);
+  color:var(--text,#352952)}
+.recovery-list,.calibration-list{
+  list-style:none;
+  padding:0;
+  display:grid;
+  gap:14px}
+.recovery-list li,.calibration-list li{
+  padding:14px;
+  border:1px solid var(--border,#ded8e8);
+  border-radius:10px}
+.recovery-list li>span{
+  display:block;
+  font-size:12px;
+  margin:5px 0 12px}
+.recovery-list li>div{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap}
+.rebuild-chip>span:not(:first-child){
+  background:none;
+  width:auto;
+  height:auto;
+  border-radius:0;
+  animation:none}
+.rebuild-chip button{
+  background:transparent;
+  color:inherit;
+  border:1px solid currentColor;
+  border-radius:6px;
+  padding:5px 10px;
+  min-height:32px;
+  font:inherit}
+.selection-dimensions{
+  position:absolute;
+  left:16px;
+  bottom:76px;
+  max-width:min(330px,calc(100% - 32px));
+  border:1px solid var(--border,#ded8e8);
+  border-radius:10px;
+  background:var(--panel,#fff);
+  color:var(--text,#282733);
+  box-shadow:0 6px 18px #0001;
+  padding:10px 12px;
+  font-size:12px;
+  z-index:12}
+.selection-dimensions summary{
+  cursor:pointer;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  min-height:24px;
+  font-weight:650}
+.selection-dimensions p{
+  font-size:11px;
+  color:var(--muted,#645975);
+  margin:10px 0}
+.selection-dimensions .size-fields{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px}
+.selection-dimensions label:has(input[type=checkbox]){
+  display:flex;
+  gap:8px;
+  align-items:center;
+  margin-top:12px}
+.sketch-canvas{
+  padding:8px;
+  background:var(--surface,#f8f7fc);
+  border-radius:10px;
+  width:100%;
+  overflow:hidden}
+.profile-editor-preview:has(.sketch-canvas){
+  display:block;
+  height:auto;
+  padding:0}
+.sketch-canvas svg{
+  display:block;
+  width:100%;
+  height:auto;
+  max-height:300px;
+  aspect-ratio:320/230}
+.sketch-canvas .sketch-outline{
+  fill:#8365cc18;
+  stroke:#74638f;
+  stroke-width:1.5}
+.sketch-canvas .sketch-edge>line:not(.sketch-hit){
+  stroke:#7552bd;
+  stroke-width:2}
+.sketch-canvas .sketch-hit{
+  stroke:transparent!important;
+  fill:transparent!important;
+  stroke-width:24!important;
+  pointer-events:all}
+.sketch-canvas .sketch-point>circle:not(.sketch-hit){
+  fill:#fff;
+  stroke:#654cbe;
+  stroke-width:2}
+.sketch-canvas g[role=button]{
+  cursor:pointer;
+  outline:none}
+.sketch-canvas g[aria-disabled=true]{
+  cursor:default}
+.sketch-canvas text{
+  fill:var(--text,#37244e);
+  stroke:none;
+  font-size:10px;
+  font-weight:650;
+  pointer-events:none}
+.sketch-canvas .selected>circle:not(.sketch-hit){
+  fill:#654cbe}
+.sketch-canvas .selected>line:not(.sketch-hit){
+  stroke-width:5}
+.sketch-canvas g:focus-visible>circle:not(.sketch-hit),.sketch-canvas g:focus-visible>line:not(.sketch-hit){
+  stroke:#149eaf;
+  stroke-width:5}
+.sketch-canvas .conflict>line:not(.sketch-hit),.sketch-canvas .conflict>circle:not(.sketch-hit){
+  stroke:#d44828;
+  stroke-width:4}
+.sketch-canvas .conflict text{
+  fill:#b32d15}
+.sketch-picked-fields{
+  padding:12px;
+  border:1px solid var(--border,#d8d0e4);
+  border-radius:9px;
+  margin:10px 0}
+.sketch-picked-fields>strong{
+  display:block;
+  margin-bottom:10px}
+.sketch-pick-controls{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap}
+.sketch-pick-controls button{
+  font:inherit;
+  font-size:12px;
+  min-height:38px;
+  padding:7px;
+  border:1px solid var(--border,#ccc);
+  border-radius:7px;
+  background:var(--surface,#fff);
+  color:var(--text,#333)}
+.sketch-pick-controls button[aria-pressed=true]{
+  outline:2px solid #8565d6;
+  outline-offset:-2px}
+.overhang-review h3{
+  font-size:14px}
+.fit-calibration details>summary{
+  cursor:pointer;
+  padding:12px 0;
+  font-weight:650}
+.fit-calibration form{
+  display:grid;
+  gap:12px}
+.fit-calibration textarea{
+  min-height:70px;
+  resize:vertical;
+  font:inherit;
+  padding:8px}
+.fit-calibration label:has(input[type=checkbox]){
+  display:flex;
+  gap:10px;
+  align-items:flex-start}
+.mobile-review-actions{
+  display:none}
+.number-step-controls{
+  display:flex;
+  gap:6px;
+  margin-top:4px}
+.number-step-controls button{
+  font:inherit;
+  background:var(--surface,#fff);
+  color:var(--text,#333);
+  border:1px solid var(--border,#ccc);
+  min-width:32px;
+  min-height:28px;
+  border-radius:5px}
+.number-expression-help{
+  font-size:10px;
+  line-height:1.4;
+  color:var(--muted,#666);
+  margin-top:4px;
+  display:none}
+.number-field:focus-within .number-expression-help{
+  display:block}
+.mobile-drawer-close{
+  display:none}
+.workshop-shell:not([data-appearance=dark]){
+  --ws-subtle:#666574;
+  --ws-violet:#6048b7}
+.workshop-shell:not([data-appearance=dark]) .workshop-button-primary{
+  background:#654cbe}
+.workspace-dialog :focus-visible,.app-shell :focus-visible,.workshop-shell :focus-visible{
+  outline:3px solid #8c64df;
+  outline-offset:3px}
+.workspace-dialog{
+  scroll-padding-bottom:95px}
+.workspace-dialog input,.workspace-dialog button,.workspace-dialog select{
+  scroll-margin-block:80px}
+.preview-controls button:focus-visible{
+  outline:3px solid #654cbe;
+  outline-offset:2px}
+
+@media(max-width:980px){
+  .mobile-drawer-close{
+  display:block;
+  width:calc(100% - 24px);
+  margin:10px 12px;
+  padding:10px;
+  border:1px solid var(--border,#ccc);
+  border-radius:8px;
+  background:var(--surface,#fff);
+  color:var(--text,#333)}
+.mobile-review-actions{
+  display:flex;
+  position:absolute;
+  bottom:59px;
+  left:50%;
+  transform:translateX(-50%);
+  gap:6px;
+  z-index:14}
+.mobile-review-actions button{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  min-height:40px;
+  padding:7px 12px;
+  background:var(--panel,#fff);
+  color:var(--text,#333);
+  border:1px solid var(--border,#ccc);
+  border-radius:8px;
+  font:inherit;
+  font-size:11px}
+.selection-dimensions{
+  bottom:110px;
+  left:10px;
+  max-width:calc(100% - 20px);
+  padding:8px 10px}
+.selection-dimensions summary{
+  min-height:28px}
+.mobile-panel-inspector .selection-dimensions,.mobile-panel-tools .selection-dimensions{
+  display:none}
+.selection-dimensions[open]{
+  z-index:25}
+.measurement-details{
+  max-height:42vh;
+  overflow:auto}
+.rebuild-chip{
+  max-width:calc(100% - 24px);
+  flex-wrap:wrap;
+  white-space:normal}
+.mobile-panel-controls{
+  z-index:30}
+}
+
+@media(pointer:coarse){
+  .studio-icon,.studio-home,.workshop-project-menu>summary,.workshop-view-toggle button,.viewport-toolbar button,.viewport-toolbar select,.viewport-toolbar .view-control,.viewport-toolbar .snap-control,.preview-controls button,.number-step-controls button,.mobile-review-actions button,.workshop-mobile-collections button{
+  min-width:44px;
+  min-height:44px}
+.studio-project>div>.studio-icon{
+  width:44px}
+.profile-editor-point-row button,.sketch-pick-controls button{
+  min-width:44px;
+  min-height:44px}
+.viewport-toolbar{
+  flex-wrap:wrap;
+  gap:6px;
+  max-width:calc(100% - 16px)}
+.preview-controls{
+  gap:8px}
+.number-field input{
+  min-height:44px}
+.workspace-dialog .studio-icon{
+  min-width:44px;
+  min-height:44px}
+.public-site summary{
+  min-height:44px}
+.selection-dimensions summary{
+  min-height:36px}
+}
+
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+  scroll-behavior:auto!important;
+  animation-duration:.01ms!important;
+  animation-iteration-count:1!important;
+  transition-duration:.01ms!important}
+}
+
+.drawer-close{
+  display:none}
+.template-filters{
+  display:flex;
+  gap:12px;
+  flex-wrap:wrap}
+.template-filters label{
+  flex:1;
+  min-width:150px}
+.template-instructions{
+  padding-left:22px;
+  line-height:1.65;
+  font-size:13px}
+.template-instructions li+li{
+  margin-top:7px}
+
+@media(max-width:980px){
+  .drawer-close{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  width:100%;
+  min-height:44px;
+  padding:10px 14px;
+  background:var(--surface,#fff);
+  border:0;
+  border-bottom:1px solid var(--border,#ddd);
+  color:var(--text,#333);
+  font:inherit;
+  font-weight:650}
+.mobile-review-actions{
+  position:absolute;
+  bottom:60px;
+  left:12px;
+  right:12px;
+  display:flex;
+  gap:6px;
+  justify-content:center;
+  z-index:11}
+.mobile-review-actions button{
+  min-height:44px;
+  padding:8px 12px;
+  border:1px solid var(--border,#ccc);
+  border-radius:8px;
+  background:var(--panel,#fff);
+  color:var(--text,#333);
+  font:inherit;
+  font-size:12px}
+.selection-dimensions{
+  bottom:114px}
+.viewport-tools>button,.viewport-tools select,.mobile-panel-controls button,.preview-controls button{
+  min-height:44px;
+  min-width:44px}
+.viewport-tools{
+  max-width:calc(100% - 24px);
+  flex-wrap:wrap}
+.view-pills{
+  top:118px}
+.interaction-hint{
+  display:none}
+.measurement-details{
+  max-width:calc(100vw - 40px)}
+}
+
+@media(max-width:980px){
+
+ .app-shell .viewport-tools.viewport-controls{
+  flex-wrap:wrap;
+  top:10px;
+  left:10px;
+  right:10px;
+  max-width:none;
+  gap:2px}
+
+ .app-shell .viewport-tools.viewport-controls>button,.app-shell .viewport-tools.viewport-controls select,.app-shell .viewport-tools.viewport-controls .viewport-display-trigger{
+  min-height:44px;
+  min-width:44px}
+
+ .app-shell .mobile-review-actions{
+  left:10px;
+  right:10px;
+  bottom:60px;
+  transform:none;
+  width:auto;
+  max-width:none;
+  justify-content:center;
+  gap:6px}
+
+ .app-shell .view-pills{
+  top:auto;
+  bottom:113px}
+
+ .app-shell .selection-dimensions{
+  bottom:165px}
+
+ .app-shell .measurement-details{
+  left:0;
+  right:auto;
+  top:100%;
+  max-width:calc(100vw - 40px)}
+
+}
+
+.app-shell .profile-editor{
+  background:var(--surface-raised);
+  border-color:var(--line);
+  padding:12px;
+  margin:0 0 14px;
+  color:var(--text)}
+
+.app-shell .profile-editor-heading strong{
+  color:var(--text);
+  font-size:13px}
+.app-shell .profile-editor-heading>div>span{
+  color:var(--muted);
+  font-size:11px;
+  line-height:1.5}
+.app-shell .profile-editor-heading>span{
+  color:var(--text);
+  background:var(--accent-wash);
+  font-size:10px}
+
+.app-shell .profile-editor-mode-grid button{
+  background:var(--surface);
+  border-color:var(--line);
+  color:var(--muted);
+  min-height:44px}
+.app-shell .profile-editor-mode-grid button strong{
+  color:var(--text);
+  font-size:11px}
+.app-shell .profile-editor-mode-grid button small{
+  font-size:10px}
+.app-shell .profile-editor-mode-grid button.active{
+  background:var(--accent-wash);
+  border-color:var(--accent-bright)}
+
+.app-shell .profile-editor-settings>label{
+  color:var(--text);
+  font-size:11px}
+.app-shell .profile-editor-settings>label>div,.app-shell .profile-editor-point-row label{
+  background:var(--surface);
+  border-color:var(--line)}
+.app-shell .profile-editor-settings input[type=number],.app-shell .profile-editor-point-row input{
+  font-size:13px;
+  min-height:36px;
+  color:var(--text)}
+.app-shell .profile-editor-settings em,.app-shell .profile-editor-settings small,.app-shell .profile-editor-point-row label em{
+  font-size:10px;
+  color:var(--muted);
+  line-height:1.5}
+
+.app-shell .profile-editor-preview{
+  background:var(--surface);
+  border-color:var(--line)}
+.app-shell .profile-editor-preview.invalid p{
+  color:var(--danger);
+  font-size:12px}
+.app-shell .profile-editor-points{
+  background:var(--surface);
+  border-color:var(--line)}
+.app-shell .profile-editor-points summary strong{
+  font-size:12px;
+  color:var(--text)}
+.app-shell .profile-editor-points summary small{
+  font-size:11px;
+  color:var(--muted)}
+.app-shell .profile-editor-points summary{
+  min-height:44px;
+  padding:9px}
+.app-shell .profile-editor-point-list{
+  border-color:var(--line);
+  padding:8px 4px;
+  gap:8px;
+  max-height:280px}
+.app-shell .profile-editor-point-row{
+  grid-template-columns:16px minmax(0,1fr) minmax(0,1fr) 30px 30px}
+.app-shell .profile-editor-point-row>span{
+  font-size:11px;
+  color:var(--muted)}
+
+.app-shell .profile-editor-point-row button,.app-shell .profile-editor-point-actions button,.app-shell .profile-editor-actions button{
+  background:var(--surface);
+  border-color:var(--line);
+  color:var(--text);
+  font-size:12px;
+  min-height:36px}
+.app-shell .profile-editor-actions button.primary{
+  background:#654cbe;
+  color:#fff}
+.app-shell .profile-editor-message{
+  font-size:12px;
+  color:var(--text);
+  background:var(--accent-wash);
+  line-height:1.5}
+.app-shell .profile-editor-message.error{
+  color:var(--danger)}
+.app-shell .profile-editor-rebuild-note{
+  font-size:11px;
+  color:var(--muted);
+  line-height:1.5}
+
+@media(max-width:980px){
+  .app-shell .profile-editor-point-row{
+  grid-template-columns:16px minmax(0,1fr) minmax(0,1fr) 44px 44px}
+.app-shell .profile-editor-point-row button,.app-shell .profile-editor-point-actions button,.app-shell .profile-editor-actions button,.app-shell .profile-editor-settings input[type=number],.app-shell .profile-editor-point-row input{
+  min-height:44px}
+}
+
+.app-shell .sketch-constraint-editor{
+  margin:10px 0;
+  background:var(--surface-raised);
+  border-color:var(--line);
+  padding:12px;
+  color:var(--text)}
+.app-shell .sketch-constraint-editor h3{
+  font-size:13px;
+  color:var(--text)}
+.app-shell .sketch-constraint-heading p,.app-shell .sketch-constraint-count,.app-shell .sketch-constraint-field,.app-shell .sketch-constraint-editor small,.app-shell .sketch-constraint-status span{
+  font-size:11px;
+  color:var(--muted);
+  line-height:1.5}
+.app-shell .sketch-constraint-status{
+  grid-template-columns:auto 1fr;
+  background:var(--surface);
+  border-color:var(--line)}
+.app-shell .sketch-constraint-status small{
+  grid-column:2}
+.app-shell .sketch-constraint-status strong{
+  font-size:12px;
+  color:var(--text)}
+.app-shell .sketch-constraint-field select,.app-shell .sketch-constraint-field input{
+  min-height:38px;
+  font-size:12px;
+  background:var(--surface);
+  border-color:var(--line);
+  color:var(--text)}
+.app-shell .sketch-constraint-distance-field>div{
+  background:var(--surface);
+  border-color:var(--line)}
+.app-shell .sketch-constraint-add,.app-shell .sketch-constraint-solve{
+  font-size:12px;
+  min-height:40px;
+  background:var(--accent-wash);
+  border-color:var(--accent-bright);
+  color:var(--text)}
+.app-shell .sketch-constraint-preview-note,.app-shell .sketch-constraint-message{
+  font-size:12px;
+  color:var(--text)}
+.app-shell .sketch-constraint-item{
+  background:var(--surface);
+  border-color:var(--line)}
+.app-shell .sketch-constraint-item strong{
+  font-size:12px;
+  color:var(--text)}
+.app-shell .sketch-constraint-item p,.app-shell .sketch-constraint-empty,.app-shell .sketch-constraint-expert{
+  font-size:11px;
+  color:var(--muted)}
+.app-shell .sketch-constraint-item button{
+  min-height:36px;
+  min-width:36px}
+.app-shell .sketch-constraint-count{
+  background:var(--surface)}
+.app-shell .sketch-constraint-status-conflict{
+  border-color:var(--danger)}
+.app-shell .sketch-constraint-item-conflict{
+  border-color:var(--danger)}
+
+.public-section-heading h1{
+  font-size:clamp(28px,3.2vw,42px);
+  line-height:1.15;
+  letter-spacing:-1.3px;
+  margin:16px 0}
+.app-shell .sketch-constraint-list h4,.app-shell .sketch-constraint-empty span,.app-shell .sketch-constraint-expert summary,.app-shell .sketch-constraint-expert dt{
+  color:var(--muted);
+  font-size:11px}
+.app-shell .sketch-constraint-expert dd,.app-shell .sketch-constraint-empty strong{
+  color:var(--text);
+  font-size:12px}
+.app-shell .sketch-constraint-expert dl>div{
+  background:var(--surface)}
+.app-shell .sketch-constraint-error{
+  color:var(--danger);
+  font-size:12px}
+.app-shell .sketch-constraint-empty{
+  border-color:var(--line)}

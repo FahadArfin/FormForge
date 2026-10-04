@@ -6,6 +6,7 @@ import { createDocument } from '@formforge/model'
 import { useEditor } from '@/store/editor'
 import { CadToolsPanel } from './CadToolsPanel'
 import { nodeWorldBounds } from '@/lib/modelGeometry'
+import { useInspection } from '@/store/inspection'
 
 vi.mock('@/geometry/client', () => ({ geometryClient: { evaluate: vi.fn() } }))
 vi.mock('@/lib/db', () => ({ saveProject: vi.fn(async () => undefined), loadMostRecentProject: vi.fn(), deleteProject: vi.fn() }))
@@ -44,6 +45,17 @@ async function submitCoupon() {
 }
 
 describe('hole builder workflow', () => {
+  it('loads a matching measured clearance as a draft without automatically cutting the model',async()=>{
+    const before=useEditor.getState().document
+    useEditor.setState({document:{...before,printMaterial:{name:'PLA',density:1.24,pricePerKg:0,currency:'USD'}}})
+    useInspection.setState({pendingFit:{id:'test',name:'Unit test fixture',printerName:before.printer.name,materialName:'PLA',nozzleDiameter:before.printer.nozzleDiameter,layerHeight:.2,nominalDiameter:4,orientation:'vertical-hole',fit:'sliding',diametralClearance:.3,recordedAt:'2026-10-03T00:00:00Z',notes:'Synthetic test only'}})
+    const snapshot=useEditor.getState().document
+    await render()
+    expect(host.querySelector<HTMLInputElement>('[aria-label="Hole diameter (mm)"]')!.value).toBe('4')
+    expect(host.querySelector<HTMLInputElement>('[aria-label="Diametral clearance (mm)"]')!.value).toBe('0.3')
+    expect(useEditor.getState().document).toBe(snapshot)
+    expect(useInspection.getState().pendingFit).toBeNull()
+  })
   it('keeps drafts out of the document and inserts both counterbore cutters as one undoable change', async () => {
     await render()
     const before = useEditor.getState().document
