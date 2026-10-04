@@ -12,6 +12,7 @@ export function TopBar({ theme, onToggleTheme, onNewProject, onOpenProjects, onO
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [format, setFormat] = useState('3mf')
+  const [arrange, setArrange] = useState(false)
   const [checkpointName, setCheckpointName] = useState('')
   const [checkpointBusy, setCheckpointBusy] = useState(false)
   const [checkpointFeedback, setCheckpointFeedback] = useState('')
@@ -19,7 +20,11 @@ export function TopBar({ theme, onToggleTheme, onNewProject, onOpenProjects, onO
   const [projectName, setProjectName] = useState(document.name)
   useEffect(() => setProjectName(document.name), [document.name, document.id])
   useEffect(() => {
-    const requestedFormat = (event: Event) => { if ((event as CustomEvent<{ format?: string }>).detail?.format === 'project') setFormat('project') }
+    const requestedFormat = (event: Event) => {
+      const detail = (event as CustomEvent<{ format?: string; arrange?: boolean }>).detail
+      setFormat(detail?.format === 'project' ? 'project' : '3mf')
+      setArrange(detail?.arrange === true)
+    }
     window.addEventListener('formforge:open-export', requestedFormat)
     return () => window.removeEventListener('formforge:open-export', requestedFormat)
   }, [])
@@ -50,13 +55,13 @@ export function TopBar({ theme, onToggleTheme, onNewProject, onOpenProjects, onO
       <div className="studio-secondary-controls"><div className="studio-mode" role="group" aria-label="Workspace mode"><button aria-pressed={document.workspaceMode === 'simple'} className={document.workspaceMode === 'simple' ? 'active' : ''} onClick={() => dispatch({ type: 'set-workspace-mode', mode: 'simple' })}>Simple</button><button aria-pressed={document.workspaceMode === 'pro'} className={document.workspaceMode === 'pro' ? 'active' : ''} onClick={() => dispatch({ type: 'set-workspace-mode', mode: 'pro' })}>Pro</button></div>
       <button className="studio-generate" aria-label="Generate a model" onClick={onOpenGenerate}><Sparkles size={17} /><span>Generate</span></button>
       <div className="studio-utilities"><ThemeToggle theme={theme} onToggle={onToggleTheme} /><button className="studio-icon" title="Getting started and shortcuts (?)" aria-label="Getting started and shortcuts" onClick={onHelp}><CircleHelp size={19} /></button></div>
-      <button className="studio-primary" onClick={() => onExportChange(true)}><Download size={17} /> Export</button></div>
+      <button className="studio-primary" onClick={() => { setFormat('3mf'); setArrange(false); onExportChange(true) }}><Download size={17} /> Export</button></div>
     </header>
     {menuOpen && <WorkspaceDialog title="Your project" description="Manage this model and keep a copy of your work." onClose={() => setMenuOpen(false)} className="project-dialog">
       <div className="project-action-list"><button onClick={()=>action(()=>window.dispatchEvent(new Event('formforge:open-cloud')))}><Users size={19}/><span><strong>Cloud & review</strong><small>Private snapshots and shared feedback</small></span></button><button onClick={() => action(onOpenProjects)}><FolderOpen size={19} /><span><strong>My projects</strong><small>Return to your workshop</small></span></button><button onClick={() => action(onNewProject)}><FilePlus2 size={19} /><span><strong>New project</strong><small>Save this project before starting another</small></span></button><button onClick={() => action(onImport)}><FolderOpen size={19} /><span><strong>Import project or mesh</strong><small>FORGE, 3MF, STL, OBJ, GLB, or self-contained GLTF</small></span></button><button onClick={() => action(() => { setFormat('project'); onExportChange(true) })}><Save size={19} /><span><strong>Download an editable backup</strong><small>Save a separate .forge.json file</small></span></button><button onClick={() => action(onOpenCommunity)}><Users size={19} /><span><strong>Explore community</strong><small>Discover models and inspiration</small></span></button></div>
       <div className="checkpoint-control"><label htmlFor="checkpoint-name"><History size={17} /> Save a checkpoint</label><p>Restore a previous version from the History tab.</p><div><input id="checkpoint-name" placeholder="Optional name, e.g. before carving" value={checkpointName} onChange={(event) => setCheckpointName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !checkpointBusy) void createCheckpoint() }} /><button className="studio-secondary" disabled={checkpointBusy} onClick={() => void createCheckpoint()}>{checkpointBusy ? 'Saving…' : 'Save'}</button></div>{checkpointFeedback && <p role="status">{checkpointFeedback}</p>}</div>
       <p className="local-storage-note"><HardDrive size={16} /> Projects and checkpoints are saved in this browser on this device.</p>
     </WorkspaceDialog>}
-    {exportOpen && <ExportDialog initialFormat={format} onClose={()=>onExportChange(false)}/>}
+    {exportOpen && <ExportDialog initialFormat={format} initialArrange={arrange} onClose={()=>{onExportChange(false);setFormat('3mf');setArrange(false)}}/>}
   </>
 }

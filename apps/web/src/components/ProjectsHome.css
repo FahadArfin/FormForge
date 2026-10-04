@@ -34,13 +34,17 @@
 @media(max-width:590px){.workshop-returning .workshop-content{padding-top:22px}.workshop-returning .workshop-welcome h1{font-size:27px}.workshop-returning .workshop-welcome{gap:18px}.workshop-returning .workshop-continue{min-height:94px;padding:13px}.workshop-returning .workshop-example-link{padding-top:10px}.collection-remove-actions .workshop-button{flex:1}}
 @media(max-width:590px){
   .workshop-sidebar .workshop-collections{display:none}
-  .workshop-sidebar>.workshop-navigation{gap:3px}
-  .workshop-sidebar>.workshop-navigation>button{flex:1;padding:9px 5px;justify-content:center;font-size:11px}
-  .workshop-sidebar>.workshop-navigation>button>svg,.workshop-sidebar>.workshop-navigation small{display:none}
-  .workshop-sidebar>.workshop-navigation button>span{flex:0 1 auto;overflow:visible;text-overflow:clip}
+  .workshop-sidebar>.workshop-navigation{display:none}
   .workshop-content{padding-top:22px}
   .workshop-welcome{gap:18px;padding-bottom:24px}
   .workshop-welcome h1{font-size:34px;margin-top:13px}
   .workshop-welcome-copy>p{margin-top:13px}
   .workshop-create-actions{margin-top:20px}
 }
+.workshop-mobile-navigation{display:none}
+.workshop-shell .workshop-menu-dialog{width:min(440px,calc(100vw - 32px));background:var(--ws-surface);color:var(--ws-ink)}
+.workshop-shell .workshop-menu-dialog .dialog-heading p{color:var(--ws-muted)}
+.workshop-menu-links{display:grid;gap:6px}
+.workshop-menu-links>button{display:flex;align-items:center;gap:12px;min-height:48px;width:100%;padding:12px;border:1px solid var(--ws-line);border-radius:8px;background:var(--ws-surface);text-align:left}
+.workshop-menu-links>button>span{flex:1}.workshop-menu-links>button:hover{background:var(--ws-wash)}
+@media(max-width:590px){.workshop-mobile-navigation{display:grid;grid-template-columns:1.15fr 1fr .8fr;gap:6px;margin-top:16px}.workshop-mobile-navigation>button{display:flex;justify-content:center;align-items:center;gap:6px;min-width:0;min-height:44px;padding:8px 4px;border:1px solid var(--ws-line);border-radius:8px;background:var(--ws-surface);font-size:12px}.workshop-mobile-navigation>button[aria-current]{color:var(--ws-violet);background:var(--ws-wash);border-color:transparent}}

@@ -34,6 +34,7 @@ function projectDate(value: string) {
 export function ProjectsHome({ theme, onToggleTheme, currentDocument, onCreate, onOpen, onPublish, onOpenCommunity, onImport, onContinue, onOpenGuide, onStartExample }: ProjectsHomeProps) {
   const deleteProject = useEditor((state) => state.deleteProject)
   const [trashOpen,setTrashOpen]=useState(false),[trashed,setTrashed]=useState<SavedProject[]>([])
+  const [navigationOpen,setNavigationOpen]=useState(false)
   const [projects, setProjects] = useState<SavedProject[]>([])
   const [collections, setCollections] = useState<ProjectCollection[]>([])
   const [activeCollection, setActiveCollection] = useState('all')
@@ -103,6 +104,16 @@ export function ProjectsHome({ theme, onToggleTheme, currentDocument, onCreate, 
   }
   const setCollection = (value: string) => { setActiveCollection(value); setQuery('') }
   const canContinue = currentDocument.nodes.length > 0 && projects.some((project) => project.id === currentDocument.id) && onContinue
+  const navigation = [
+    {name:'My projects',icon:FolderOpen,run:()=>setCollection('all'),count:projects.length},
+    {name:'Template library',icon:Box,run:()=>{window.location.hash='templates'}},
+    {name:'Cloud & review',icon:Users,run:()=>window.dispatchEvent(new Event('formforge:open-cloud'))},
+    {name:'Recovery copies',icon:Clock3,run:()=>window.dispatchEvent(new Event('formforge:recovery'))},
+    {name:'Trash',icon:Trash2,run:()=>setTrashOpen(true),count:trashed.length},
+    {name:'Community',icon:Globe2,run:onOpenCommunity},
+    ...(onOpenGuide?[{name:'Getting started',icon:BookOpen,run:onOpenGuide}]:[]),
+    {name:'FormForge home',icon:Globe2,run:()=>{window.location.hash='home'}},
+  ]
 
   return <div className={`workshop-shell ${projects.length ? 'workshop-returning' : ''}`} data-appearance={theme} onKeyDown={(event) => {
     if (event.key === 'Escape' && event.target instanceof Element) {
@@ -113,15 +124,8 @@ export function ProjectsHome({ theme, onToggleTheme, currentDocument, onCreate, 
     <aside className="workshop-sidebar" aria-label="Workshop navigation">
       <button className="workshop-brand" onClick={() => setCollection('all')} aria-label="FormForge, my projects"><span className="brand-mark"><span /></span><strong>FormForge<span>Your ideas, in shape.</span></strong></button>
       <span className="workshop-nav-label">WORKSPACE</span>
-      <nav className="workshop-navigation"><button onClick={()=>window.dispatchEvent(new Event('formforge:open-cloud'))}><Users size={18}/><span>Cloud & review</span></button>
-        <button onClick={()=>{window.location.hash='home'}}><Globe2 size={18}/><span>FormForge home</span></button>
-        <button onClick={()=>{window.location.hash='templates'}}><Box size={18}/><span>Template library</span></button>
-        <button onClick={()=>window.dispatchEvent(new Event('formforge:recovery'))}><Clock3 size={18}/><span>Recovery copies</span></button>
-        <button onClick={()=>setTrashOpen(true)}><Trash2 size={18}/><span>Trash</span><small>{trashed.length}</small></button>
-        <button className={activeCollection === 'all' ? 'selected' : ''} onClick={() => setCollection('all')} aria-current={activeCollection === 'all' ? 'page' : undefined}><FolderOpen size={18} /><span>My projects</span><small>{projects.length}</small></button>
-        <button onClick={onOpenCommunity}><Globe2 size={18} /><span>Community</span><ArrowRight size={15} /></button>
-        {onOpenGuide && <button onClick={onOpenGuide}><BookOpen size={18} /><span>Getting started</span></button>}
-      </nav>
+      <nav className="workshop-navigation" aria-label="Workshop pages">{navigation.map(item=><button key={item.name} className={item.name==='My projects'&&activeCollection==='all'?'selected':''} aria-current={item.name==='My projects'&&activeCollection==='all'?'page':undefined} onClick={item.run}><item.icon size={18}/><span>{item.name}</span>{'count' in item&&<small>{item.count}</small>}</button>)}</nav>
+      <nav className="workshop-mobile-navigation" aria-label="Quick workshop navigation"><button aria-current={activeCollection==='all'?'page':undefined} onClick={()=>setCollection('all')}><FolderOpen size={16}/>My projects</button><button aria-label="Template library" onClick={()=>{window.location.hash='templates'}}><Box size={16}/>Templates</button><button aria-haspopup="dialog" aria-label="More workshop pages" onClick={()=>setNavigationOpen(true)}><Ellipsis size={18}/>More</button></nav>
       <div className="workshop-collection-heading"><span className="workshop-nav-label">COLLECTIONS</span><button aria-label="Create collection" title="Create collection" onClick={() => setCreatingCollection((value) => !value)}><Plus size={17} /></button></div>
       {creatingCollection && <form className="workshop-collection-form" onSubmit={(event) => { event.preventDefault(); void addCollection() }}><label className="workshop-sr-only" htmlFor="collection-name">Collection name</label><input id="collection-name" autoFocus maxLength={80} placeholder="Collection name" value={newCollectionName} onChange={(event) => setNewCollectionName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Escape') setCreatingCollection(false) }} /><button type="submit" disabled={!newCollectionName.trim() || !!busyId} aria-label="Save collection"><Check size={17} /></button><button type="button" onClick={() => setCreatingCollection(false)} aria-label="Cancel collection"><X size={16} /></button></form>}
       <nav className="workshop-navigation workshop-collections" aria-label="Collections">
@@ -131,6 +135,7 @@ export function ProjectsHome({ theme, onToggleTheme, currentDocument, onCreate, 
       </nav>
       <div className="workshop-sidebar-bottom"><div className="workshop-storage"><HardDrive size={19} /><div><strong>Saved on this device</strong><p>Your private projects live in this browser. Export a backup to keep a copy.</p></div></div><div className="workshop-sidebar-footer"><span>Make something yours.</span><ThemeToggle theme={theme} onToggle={onToggleTheme} /></div></div>
     </aside>
+    {navigationOpen&&<WorkspaceDialog title="Workshop menu" description="Open a workspace page or manage your saved projects." onClose={()=>setNavigationOpen(false)} className="workshop-menu-dialog"><nav className="workshop-menu-links" aria-label="All workshop pages">{navigation.map(item=><button key={item.name} onClick={()=>{setNavigationOpen(false);item.run()}}><item.icon size={19}/><span>{item.name}</span>{'count' in item&&<small>{item.count}</small>}<ArrowRight size={16}/></button>)}</nav></WorkspaceDialog>}
     <main className="workshop-main">
       <header className="workshop-topline"><span><span className="workshop-breadcrumb">Workspace</span><span>/</span>{collectionName}</span><span className="workshop-private"><LockKeyhole size={14} /> Your private workspace</span></header>
       <div className="workshop-content">

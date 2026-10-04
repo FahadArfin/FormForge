@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, useState } from 'react'
+import { act, useEffect, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createDocument, createNode, type MeshPayload, type ModelDocument } from '@formforge/model'
@@ -21,6 +21,7 @@ vi.mock('@/lib/exporters', () => ({ export3mf: vi.fn(), exportStl: vi.fn(), expo
 
 function ExportHarness() {
   const [open, setOpen] = useState(true)
+  useEffect(() => { const show = () => setOpen(true); window.addEventListener('formforge:open-export', show); return () => window.removeEventListener('formforge:open-export', show) }, [])
   const noop = () => undefined
   return <TopBar theme="dark" onToggleTheme={noop} onNewProject={noop} onOpenProjects={noop}
     onOpenCommunity={noop} onOpenGenerate={noop} onImport={noop} onCommands={noop} onHelp={noop}
@@ -114,6 +115,30 @@ describe('selected-part export dialog', () => {
     const value=title==='Editable backup'?'project':title.toLowerCase()
     await act(async()=>{select.value=value;select.dispatchEvent(new Event('change',{bubbles:true}))})
   }
+
+  it('opens a print-ready 3MF after a separate backup request is closed', async () => {
+    await act(async () => host.querySelector<HTMLButtonElement>('.export-dialog [aria-label="Close dialog"]')!.click())
+    await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Project actions"]')!.click())
+    const backup = [...host.querySelectorAll<HTMLButtonElement>('.project-action-list button')].find(button => button.textContent?.includes('Download an editable backup'))!
+    await act(async () => backup.click())
+    expect(host.querySelector<HTMLSelectElement>('[aria-label="File format"]')!.value).toBe('project')
+    expect(downloadButton().textContent).toBe('Download editable backup')
+    await act(async () => host.querySelector<HTMLButtonElement>('.export-dialog [aria-label="Close dialog"]')!.click())
+    await act(async () => host.querySelector<HTMLButtonElement>('.studio-header .studio-primary')!.click())
+    expect(host.querySelector<HTMLSelectElement>('[aria-label="File format"]')!.value).toBe('3mf')
+    expect(downloadButton().textContent).toBe('Download 3MF')
+    await act(async () => downloadButton().click())
+    expect(export3mf).toHaveBeenCalledExactlyOnceWith(selectedMesh, model.name)
+  })
+
+  it('keeps explicit backup and normal workflow export requests separate', async () => {
+    await act(async () => host.querySelector<HTMLButtonElement>('.export-dialog [aria-label="Close dialog"]')!.click())
+    await act(async () => window.dispatchEvent(new CustomEvent('formforge:open-export', { detail: { format: 'project' } })))
+    expect(host.querySelector<HTMLSelectElement>('[aria-label="File format"]')!.value).toBe('project')
+    await act(async () => host.querySelector<HTMLButtonElement>('.export-dialog [aria-label="Close dialog"]')!.click())
+    await act(async () => window.dispatchEvent(new Event('formforge:open-export')))
+    expect(host.querySelector<HTMLSelectElement>('[aria-label="File format"]')!.value).toBe('3mf')
+  })
 
   it('evaluates the complete selected group in isolation and downloads its returned mesh', async () => {
     await chooseSelection()

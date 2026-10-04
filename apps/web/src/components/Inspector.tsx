@@ -303,7 +303,7 @@ export function Inspector({ onClose }: { onClose?: () => void }) {
           <IconButton compact icon={<Trash2 size={17} />} label="Delete" className="danger" onClick={removeSelected} />
         </div>
       </> : (
-        <div className="empty-inspector"><BoxSelect size={28} aria-hidden="true" /><strong>{document.nodes.length ? 'Select a shape' : 'Your model starts here'}</strong><p>{document.nodes.length ? 'Choose a shape here or in the canvas to edit its size, position, and color. Hold Shift to select several.' : 'Add a shape from Build, then select it to set dimensions and make it your own.'}</p></div>
+        <div className="empty-inspector"><BoxSelect size={28} aria-hidden="true" /><strong>{document.nodes.length ? 'Select a shape' : 'Your model starts here'}</strong><p>{document.nodes.length ? 'Choose a shape here or in the canvas to edit its size, position, and color. Use Multi-select to work with several shapes.' : 'Add a shape from Build, then select it to set dimensions and make it your own.'}</p></div>
       )}
       </>}
     </aside>
