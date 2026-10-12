@@ -9,7 +9,7 @@ beforeEach(()=>{localStorage.clear();Object.assign(globalThis,{IS_REACT_ACT_ENVI
 it('opens Engineering AI and names every repeated template action',async()=>{
  const host=document.createElement('div');document.body.append(host);const root=createRoot(host)
  await act(async()=>root.render(<PublicWebsite/>))
- expect(host.querySelector('a[href="#studio?workspace=engineering"]')?.textContent).toContain('Design with AI')
+ expect(host.querySelector('a[href="#studio?workspace=assistant"]')?.textContent).toContain('Design with AI')
  const actions=host.querySelectorAll('.template-open');expect(actions.length).toBeGreaterThan(1)
  expect(new Set([...actions].map(a=>a.getAttribute('aria-label'))).size).toBe(actions.length)
  await act(async()=>root.unmount());host.remove()

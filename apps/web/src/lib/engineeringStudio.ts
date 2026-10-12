@@ -5,6 +5,7 @@ import {EngineeringSession} from './engineeringSession'
 import {evaluateSnapshot} from '../geometry/evaluateSnapshot'
 import {db,saveVersion} from './db'
 export const useEngineeringMode=create<{enabled:boolean;setEnabled:(enabled:boolean)=>void}>(set=>({enabled:false,setEnabled:enabled=>set({enabled})}))
+export const useAssistantDock=create<{open:boolean;setOpen:(open:boolean)=>void}>(set=>({open:false,setOpen:open=>set({open})}))
 export const engineeringSession=new EngineeringSession(()=>useEditor.getState().document,doc=>{
  const state=useEditor.getState()
  if(state.placingNodeId||state.tool==='draw-profile')throw new Error('Finish or cancel the current placement before applying a proposal.')
@@ -14,7 +15,7 @@ export const engineeringSession=new EngineeringSession(()=>useEditor.getState().
  useEditor.getState().setShowResult(true);useEditor.getState().setNotice('Engineering proposal applied. Undo restores the previous design.')
 },evaluateSnapshot,doc=>saveVersion(doc,'Before engineering mesh split'))
 export async function submitEngineeringPlan(input:unknown){
- const plan=engineeringSession.submit(input);useEngineeringMode.getState().setEnabled(true)
+ const plan=engineeringSession.submit(input);useAssistantDock.getState().setOpen(true)
  try{await db.engineeringPlans.put({projectId:useEditor.getState().document.id,plan,updatedAt:new Date().toISOString()})}catch{useEditor.getState().setNotice('Plan is available this session; local plan storage failed.')}
  return plan
 }

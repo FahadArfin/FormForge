@@ -6,7 +6,7 @@ import {useEditor} from '../store/editor'
 import {MeshPreview} from './MeshPreview'
 const labels:Record<keyof RackDimensions,string>={width:'Measured shelf width',depth:'Shelf depth',deviceWidth:'Device width',deviceDepth:'Device depth',deviceHeight:'Device height',thickness:'Plate thickness',earHeight:'Mounting ear height',holeDiameter:'Hole diameter',holeSpacing:'Hole center spacing',holeHeight:'Hole center height',cableClearance:'Cable clearance',slotCount:'Ventilation slot count',slotWidth:'Slot width',cornerRadius:'Plate corner radius'}
 const example:RackDimensions={width:240,depth:150,deviceWidth:180,deviceDepth:120,deviceHeight:40,thickness:3,earHeight:30,holeDiameter:5,holeSpacing:220,holeHeight:15,cableClearance:15,slotCount:4,slotWidth:5,cornerRadius:1}
-export function EngineeringAssistant({onClose}:{onClose:()=>void}){
+export function EngineeringAssistant({onClose,open,onMoreTools}:{onClose:()=>void;open:boolean;onMoreTools:()=>void}){
  const state=useSyncExternalStore(engineeringSession.subscribe,engineeringSession.snapshot),doc=useEditor(s=>s.document)
  const [fields,setFields]=useState<Partial<Record<keyof RackDimensions,string>>>({}),[error,setError]=useState('')
  const [planText,setPlanText]=useState('')
@@ -20,8 +20,9 @@ export function EngineeringAssistant({onClose}:{onClose:()=>void}){
   const dimensions=rackDimensionsSchema.parse(Object.fromEntries(entries.map(([key])=>[key,Number(fields[key as keyof RackDimensions])])))
   await submitEngineeringPlan({...simplePlan('Ventilated rack shelf',[{type:'rack-shelf',dimensions}]),requirements:['Use the entered measurements; all lengths are millimeters.'],assumptions:['Flat shelf and two front mounting ears; verify mounting layout and load suitability.']})
  })
- return <aside className="toolbox panel-surface engineering-assistant" aria-label="AI engineering assistant"><div className="engineering-heading"><span className="engineering-kicker">PRINTLAB ENGINEERING</span><button aria-label="Close assistant panel" onClick={onClose}>×</button></div>
+ return <aside id="assistant-dock" hidden={!open} className="panel-surface engineering-assistant" aria-label="AI engineering assistant"><div className="engineering-heading"><span className="engineering-kicker">ASK AI & GENERATE</span><button aria-label="Close assistant panel" onClick={onClose}>×</button></div>
  <AssistantChat/>
+ <button className="assistant-more-tools" onClick={onMoreTools}>More creation tools</button>
  {state.plan&&<section className="engineering-plan" aria-label="Design proposal"><span className="engineering-kicker">{stale?'Model changed · refresh proposal':state.status}</span><h3>{state.plan.title}</h3>
  {(['requirements','questions','assumptions','expectedChecks'] as const).map(key=>!!state.plan![key].length&&<div key={key}><h4>{key==='expectedChecks'?'Checks to perform':key}</h4><ul>{state.plan![key].map((value,i)=><li key={i}>{value}</li>)}</ul></div>)}
  <details><summary>Edit structured plan</summary><p>Adjust parameters, requirements, or resolved questions, then validate the updated plan before previewing.</p><textarea aria-label="Editable design plan JSON" value={planText} onChange={e=>setPlanText(e.target.value)} maxLength={200000}/><button onClick={()=>act(()=>submitEngineeringPlan(JSON.parse(planText)))}>Validate edited plan</button></details>

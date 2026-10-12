@@ -2,9 +2,8 @@ import {test,expect} from '@playwright/test'
 test('engineering shelf clarifies, previews, applies, undoes and recovers locally',async({page})=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message))
  await page.goto('/#studio')
- await page.getByRole('button',{name:'Engineering',exact:true}).click()
+ await page.getByRole('button',{name:'Ask AI',exact:true}).click()
  const phone=(page.viewportSize()?.width??1440)<981
- if(phone)await page.getByRole('button',{name:'Assistant',exact:true}).click()
  await page.getByText('Measured rack-shelf designer',{exact:true}).click()
  await page.getByRole('button',{name:'Create shelf plan',exact:true}).click()
  await expect(page.getByRole('button',{name:'Preview proposal',exact:true})).toBeDisabled()

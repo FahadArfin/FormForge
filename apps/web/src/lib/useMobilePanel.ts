@@ -1,14 +1,21 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 /** Give the responsive drawer modal keyboard behavior without changing the desktop panels. */
-export function useMobilePanel(panel: 'tools' | 'inspector' | null, close: () => void, contentKey?: string) {
+export function useMobilePanel(panel: 'tools' | 'inspector' | 'assistant' | null, close: () => void, contentKey?: string) {
   const closeRef = useRef(close); closeRef.current = close
+  const [compact,setCompact]=useState(()=>window.matchMedia('(max-width: 980px)').matches)
+  useEffect(()=>{
+    const media=window.matchMedia('(max-width: 980px)')
+    const update=()=>setCompact(media.matches)
+    media.addEventListener('change',update);update()
+    return()=>media.removeEventListener('change',update)
+  },[])
   useEffect(() => {
-    if (!panel || !window.matchMedia('(max-width: 980px)').matches) return
-    const drawer = document.querySelector<HTMLElement>(panel === 'tools' ? '.toolbox' : '.inspector')
+    if (!panel || !compact) return
+    const drawer = document.querySelector<HTMLElement>(panel === 'tools' ? '.toolbox' : panel === 'assistant' ? '.engineering-assistant' : '.inspector')
     if (!drawer) return
     const previous = document.activeElement as HTMLElement | null
-    const background = [...document.querySelectorAll<HTMLElement>(`.app-navigation, .studio-header, .engineering-modebar, .workflow-guide, .skip-link, .statusbar, .viewport-wrap, ${panel === 'tools' ? '.inspector' : '.toolbox'}`)]
+    const background = [...document.querySelectorAll<HTMLElement>(`.app-navigation, .studio-header, .engineering-modebar, .workflow-guide, .skip-link, .statusbar, .viewport-wrap, ${panel === 'tools' ? '.inspector, .engineering-assistant' : panel === 'assistant' ? '.toolbox, .inspector' : '.toolbox, .engineering-assistant'}`)]
     const inert = background.map(element => element.inert)
     background.forEach(element => { element.inert = true })
     drawer.setAttribute('role', 'dialog'); drawer.setAttribute('aria-modal', 'true')
@@ -25,13 +32,12 @@ export function useMobilePanel(panel: 'tools' | 'inspector' | null, close: () =>
         else if (!event.shiftKey && (document.activeElement === last || !drawer.contains(document.activeElement))) { event.preventDefault(); first.focus() }
       }
     }
-    const onResize = () => { if (window.innerWidth > 980) closeRef.current() }
-    document.addEventListener('keydown', onKey, true); window.addEventListener('resize', onResize)
+    document.addEventListener('keydown', onKey, true)
     return () => {
-      document.removeEventListener('keydown', onKey, true); window.removeEventListener('resize', onResize)
+      document.removeEventListener('keydown', onKey, true)
       background.forEach((element, index) => { element.inert = inert[index]! })
       drawer.removeAttribute('role'); drawer.removeAttribute('aria-modal')
       if (previous?.isConnected && !previous.closest('[inert], [hidden]')) previous.focus()
     }
-  }, [panel, contentKey])
+  }, [panel, contentKey, compact])
 }

@@ -21,9 +21,8 @@ test('AI entry, phone composer, inspector shortcuts and appearance remain usable
  await page.goto('/')
  await page.getByRole('button',{name:'Switch to dark mode'}).click()
  await page.getByRole('link',{name:'Design with AI',exact:true}).first().click()
- await expect(page.getByRole('button',{name:'Engineering',exact:true,includeHidden:true})).toHaveAttribute('aria-pressed','true')
+ await expect(page.getByRole('button',{name:'Engineering',exact:true,includeHidden:true})).toHaveAttribute('aria-pressed','false')
  const phone=(page.viewportSize()?.width??1440)<981
- if(!phone)await page.getByRole('button',{name:'Ask AI',exact:true}).click()
  const composer=page.getByRole('textbox',{name:'Describe your design'})
  await expect(composer).toBeVisible()
  await composer.fill('Design a measured shelf')
@@ -31,7 +30,8 @@ test('AI entry, phone composer, inspector shortcuts and appearance remain usable
  await expect(submit).toBeEnabled()
  const box=await submit.boundingBox();expect(box!.y+box!.height).toBeLessThanOrEqual(page.viewportSize()!.height)
  await expect(page.getByLabel('ChatGPT handoff')).toContainText('adjacent ChatGPT')
- if(phone){await page.keyboard.press('Escape');await page.getByRole('button',{name:'Inspector',exact:true}).click()}
+ await page.getByRole('button',{name:'Close assistant panel'}).click()
+ await page.getByRole('button',{name:'Engineering',exact:true}).click()
  await page.getByRole('button',{name:'Printer setup',exact:true}).click()
  await expect(page.getByText(/Print review.*printer setup, evidence and slicer handoff/)).toBeVisible()
  expect(await page.evaluate(()=>document.documentElement.dataset.theme)).toBe('dark')
@@ -45,7 +45,8 @@ test('workshop help opens the assistant and export warnings lead back to print s
  await page.getByRole('button',{name:'Help',exact:true}).click()
  await page.getByRole('button',{name:'Open AI assistant',exact:true}).click()
  await expect(page.getByRole('textbox',{name:'Describe your design'})).toBeVisible()
- if(phone){await page.getByRole('button',{name:'Close assistant panel'}).click();await page.getByRole('button',{name:'Inspector',exact:true}).click()}
+ await page.getByRole('button',{name:'Close assistant panel'}).click()
+ await page.getByRole('button',{name:'Engineering',exact:true}).click()
  await page.getByRole('button',{name:'Printer setup',exact:true}).click()
  await page.getByRole('button',{name:'Edit printer setup',exact:true}).click()
  await page.getByLabel('Width X mm',{exact:true}).fill('10')

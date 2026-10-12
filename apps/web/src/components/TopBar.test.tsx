@@ -23,7 +23,7 @@ function ExportHarness() {
   const [open, setOpen] = useState(true)
   useEffect(() => { const show = () => setOpen(true); window.addEventListener('formforge:open-export', show); return () => window.removeEventListener('formforge:open-export', show) }, [])
   const noop = () => undefined
-  return <TopBar theme="dark" onToggleTheme={noop} onNewProject={noop} onOpenProjects={noop}
+  return <TopBar assistantOpen={false} theme="dark" onToggleTheme={noop} onNewProject={noop} onOpenProjects={noop}
     onOpenCommunity={noop} onOpenGenerate={noop} onImport={noop} onCommands={noop} onHelp={noop}
     exportOpen={open} onExportChange={setOpen} />
 }

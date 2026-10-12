@@ -7,8 +7,8 @@ import { saveVersion } from '@/lib/db'
 import { ThemeToggle, type AppearanceTheme } from './ThemeToggle'
 import { WorkspaceDialog } from './WorkspaceDialog'
 
-export function TopBar({ theme, onToggleTheme, onNewProject, onOpenGenerate, onImport, onCommands, onHelp, exportOpen, onExportChange, active = true }: {
-  active?: boolean; theme: AppearanceTheme; onToggleTheme: () => void; onOpenProjects: () => void; onOpenCommunity: () => void; onOpenGenerate: () => void;
+export function TopBar({ theme, onToggleTheme, onNewProject, onOpenGenerate, assistantOpen, onImport, onCommands, onHelp, exportOpen, onExportChange, active = true }: {
+  assistantOpen: boolean; active?: boolean; theme: AppearanceTheme; onToggleTheme: () => void; onOpenProjects: () => void; onOpenCommunity: () => void; onOpenGenerate: () => void;
   onNewProject: () => void; onImport: () => void; onCommands: () => void; onHelp: () => void; exportOpen: boolean; onExportChange: (open: boolean) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -54,7 +54,7 @@ export function TopBar({ theme, onToggleTheme, onNewProject, onOpenGenerate, onI
       <div className="studio-history"><button className="studio-icon" title={undoStack.length ? `Undo: ${describeChange(undoStack.at(-1)!, document)} (Ctrl Z)` : 'Undo (Ctrl Z)'} aria-label="Undo" disabled={!undoStack.length} onClick={undo}><Undo2 size={18} /></button><button className="studio-icon" title={redoStack.length ? `Redo: ${describeChange(document, redoStack[0]!)} (Ctrl Shift Z)` : 'Redo (Ctrl Shift Z)'} aria-label="Redo" disabled={!redoStack.length} onClick={redo}><Redo2 size={18} /></button></div>
       <button className="studio-command" aria-label="Find a command" onClick={onCommands}><Search size={16} /><span>Find a command</span><kbd>Ctrl K</kbd></button>
       <div className="studio-secondary-controls"><div className="studio-mode" role="group" aria-label="Workspace mode"><button aria-pressed={document.workspaceMode === 'simple'} className={document.workspaceMode === 'simple' ? 'active' : ''} onClick={() => dispatch({ type: 'set-workspace-mode', mode: 'simple' })}>Simple</button><button aria-pressed={document.workspaceMode === 'pro'} className={document.workspaceMode === 'pro' ? 'active' : ''} onClick={() => dispatch({ type: 'set-workspace-mode', mode: 'pro' })}>Pro</button></div>
-      <button className="studio-generate" aria-label="Generate a model" onClick={onOpenGenerate}><Sparkles size={17} /><span>Generate</span></button>
+      <button className="studio-generate" aria-label="Ask AI" aria-expanded={assistantOpen} aria-controls="assistant-dock" onClick={onOpenGenerate}><Sparkles size={17} /><span>Ask AI</span></button>
       <div className="studio-utilities"><ThemeToggle theme={theme} onToggle={onToggleTheme} /><button className="studio-icon" title="Getting started and shortcuts (?)" aria-label="Getting started and shortcuts" onClick={onHelp}><CircleHelp size={19} /></button></div>
       <button className="studio-primary" onClick={() => { setFormat('3mf'); setArrange(false); onExportChange(true) }}><Download size={17} /> Export</button></div>
     </header>
