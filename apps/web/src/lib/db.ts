@@ -1,3 +1,4 @@
+import type { AssistantConversationRow } from './assistantConversation'
 import { readLastOpenedProject,forgetOpenedProject } from './projectResume'
 import Dexie, { type EntityTable } from 'dexie'
 import type { ModelDocument, DesignPlan } from '@formforge/model'
@@ -29,6 +30,7 @@ export interface ProjectVersion {
 }
 
 class FormForgeDatabase extends Dexie {
+  assistantConversations!: EntityTable<AssistantConversationRow, 'projectId'>
   engineeringPlans!: EntityTable<{projectId:string;plan:DesignPlan;updatedAt:string}, 'projectId'>
   projects!: EntityTable<SavedProject, 'id'>
   versions!: EntityTable<ProjectVersion, 'id'>
@@ -49,6 +51,7 @@ class FormForgeDatabase extends Dexie {
     })
     this.version(4).stores({projects:'id, name, collectionId, updatedAt, deletedAt',versions:'id, projectId, createdAt',collections:'id, name, createdAt',recovery:'id, projectId, createdAt'})
     this.version(5).stores({engineeringPlans:'projectId, updatedAt'})
+    this.version(6).stores({assistantConversations:'projectId, updatedAt'})
   }
 }
 

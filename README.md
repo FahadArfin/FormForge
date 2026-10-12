@@ -71,3 +71,7 @@ TRELLIS.2 is a 4B-parameter single-image-to-3D model; it does not consume the ch
 
 ## Engineering Studio
 Open PrintLab beside ChatGPT in its supported desktop browser. Site tools submit structured editable plans; preview validates each operation and Apply creates one undo step. Manual CAD remains available in other browsers. AI suggestions are not certified engineering analysis. Internal formforge storage/package identifiers are retained for compatibility.
+
+### Conversational design
+
+Choose **Ask AI** in the studio to queue requests for adjacent ChatGPT through Site tools. Locally running PrintLab also supports **Continue with ChatGPT**, account-specific model selection and direct CAD conversations. See the [chat setup and verification guide](docs/PRINTLAB_CHAT_IMPLEMENTATION.md) for eligibility, exact local setup, and preview/Apply safeguards.

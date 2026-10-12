@@ -1,3 +1,4 @@
+import {loadAssistantConfig,registerAssistantRoutes} from './assistant.js'
 import {loadEngineeringConfig,registerEngineeringRoutes} from './engineering.js'
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
@@ -107,6 +108,7 @@ app.get('/api/health', async () => ({ ok: true, storage: sql ? 'postgres' : 'loc
 let engineeringConfig=loadEngineeringConfig({})
 try { engineeringConfig=loadEngineeringConfig(process.env) } catch { app.log.warn('Optional local engineering model configuration is invalid; adapter disabled.') }
 registerEngineeringRoutes(app,{config:engineeringConfig})
+try { registerAssistantRoutes(app,{config:loadAssistantConfig(process.env),local:engineeringConfig}) } catch { app.log.warn('Local assistant configuration is invalid; assistant routes disabled.') }
 
 app.get('/api/ai/capabilities', async () => ({
   trellis: trellisEnabled,
