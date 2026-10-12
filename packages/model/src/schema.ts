@@ -1,3 +1,4 @@
+import {engineeringMetadataSchema,slicerResultSchema} from './engineering.js'
 import { z } from 'zod'
 
 const vec3Schema = z.object({ x: z.number().finite(), y: z.number().finite(), z: z.number().finite() })
@@ -164,6 +165,8 @@ export const savedCameraViewSchema=z.object({id:z.string().min(1).max(128),name:
  return Math.hypot(d.x,d.y,d.z)>.001&&Math.hypot(d.y*u.z-d.z*u.y,d.z*u.x-d.x*u.z,d.x*u.y-d.y*u.x)>.000001
 },'Camera position, target and up direction must define a valid view.')
 export const modelDocumentSchema = z.object({
+ engineering:engineeringMetadataSchema.optional(),
+ slicerResult:slicerResultSchema.optional(),
   selectionSets:z.array(z.object({id:z.string().min(1).max(128),name:z.string().trim().min(1).max(60),nodeIds:selectionIds.refine(ids=>ids.length>0,'Select at least one shape.')})).max(24).refine(sets=>new Set(sets.map(s=>s.id)).size===sets.length&&new Set(sets.map(s=>s.name.toLowerCase())).size===sets.length,'Selection set IDs and names must be unique.').optional(),
   printTests:z.array(z.object({id:z.string().min(1).max(128),protocol:z.string().min(1).max(80),date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),printer:z.string().trim().min(1).max(120),material:z.string().trim().min(1).max(80),nozzle:z.number().min(.1).max(5),layerHeight:z.number().min(.02).max(2),expected:z.number().positive().max(10000),measured:z.number().positive().max(10000),tolerance:z.number().min(0).max(10),geometryKey:z.string().max(40),notes:z.string().max(1000),photoDataUrl:z.string().max(800000).regex(/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/).optional()})).max(20).optional(),
   template: z.object({id:z.string().min(1).max(80),version:z.literal(1),nodeIds:z.array(z.string().min(1)).max(100)}).optional(),
@@ -197,6 +200,7 @@ export const modelDocumentSchema = z.object({
     createdAt: z.string(),
   })),
   printer: z.object({
+ usableBedExclusions:z.array(z.object({x:z.number().finite().min(0).max(2000),y:z.number().finite().min(0).max(2000),width:z.number().positive().max(2000),depth:z.number().positive().max(2000),reason:z.string().max(200)})).max(16).optional(),
     name: z.string(),
     buildVolume: vec3Schema,
     nozzleDiameter: z.number().positive(),

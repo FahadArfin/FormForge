@@ -1,0 +1,26 @@
+.engineering-inspector .engineering-eyebrow { color: var(--accent-bright); font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.engineering-inspector .engineering-intro { border-top: 2px solid var(--accent); }
+.engineering-targets { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.engineering-targets select { width: 100%; min-width: 0; padding: 9px 7px; color: var(--text); background: var(--surface-raised); border: 1px solid var(--line); border-radius: 7px; }
+.engineering-findings, .engineering-orientations { list-style: none; display: grid; gap: 12px; margin: 0; padding: 0; }
+.engineering-finding { display: grid; gap: 7px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.engineering-finding:last-child { border-bottom: 0; padding-bottom: 0; }
+.engineering-finding-heading { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.engineering-finding-heading strong { min-width: 0; font-size: 12px; }
+.engineering-status { flex-shrink: 0; color: var(--subtle); font-size: 10px; }
+.engineering-finding.warning .engineering-status, .engineering-status.warning { color: var(--workflow-caution); }
+.engineering-finding.pass .engineering-status, .engineering-status.pass { color: var(--workflow-positive); }
+.engineering-evidence { justify-self: start; padding: 3px 6px; color: var(--subtle); background: var(--surface-raised); border: 1px solid var(--line); border-radius: 4px; font-size: 10px; }
+.engineering-evidence.heuristic { border-style: dashed; }
+.engineering-evidence.unverified-ai { color: var(--workflow-caution); }
+.engineering-value { font-size: 17px; font-variant-numeric: tabular-nums; }
+.engineering-inspector .engineering-finding p { font-size: 11px; }
+.engineering-orientations > li { display: grid; gap: 9px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-raised); }
+.engineering-orientations dl { display: grid; gap: 4px; font-size: 11px; }
+.engineering-orientations dl > div { display: flex; justify-content: space-between; gap: 8px; }
+.engineering-orientations dt { color: var(--subtle); }
+.engineering-orientations dd { margin: 0; font-variant-numeric: tabular-nums; }
+.engineering-inspector .engineering-detail { display: block; }
+.engineering-detail > summary { cursor: pointer; font-size: 12px; font-weight: 600; line-height: 1.5; }
+.engineering-detail > .workflow-card, .engineering-detail > .inspector-workflow { margin-top: 12px; padding: 0; border: 0; }
+.engineering-detail .inspector-workflow { overflow: visible; }

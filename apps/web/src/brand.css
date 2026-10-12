@@ -1,0 +1,3 @@
+:root{--accent:#38b8a5;--accent-bright:#67d5c3;--accent-wash:#38b8a518;--bg:#151d21;--panel:#1b262c;--surface:#1b262c;--surface-raised:#243139;--line:#37464f}
+:root[data-theme='light']{--accent:#08796c;--accent-bright:#08695e;--accent-wash:#08796c12;--bg:#f1f5f5;--surface-raised:#f3f7f7;--line:#dbe4e4}
+.public-site{--primary:#08796c;background:#f5f8f7}.brand-mark{background:#08796c!important;border-radius:9px!important;transform:rotate(-6deg)}.brand-mark>span{border-radius:2px!important;transform:rotate(6deg)}.public-brand{letter-spacing:-.7px}.studio-primary,.public-primary{background:#08796c!important;color:#fff!important}

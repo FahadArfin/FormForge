@@ -1,3 +1,4 @@
+import {PrintLabPreparation} from './PrintLabPreparation'
 import {checksKey} from '@/lib/workflowProgress'
 import {PrintEvidencePanel} from './PrintEvidencePanel'
 import {MechanicalChecksPanel} from './MechanicalChecksPanel'
@@ -71,6 +72,7 @@ export function PrintPanel() {
         setNotice('Printer setup updated. Print checks will refresh.')
       }} />}
     </section>
+    <PrintLabPreparation key={`preparation-${document.id}`}/>
     <PlatePlacementPanel />
     <div className={`workflow-state ${readiness.status}`} role="status">
       {readiness.status === 'building' ? <LoaderCircle size={22} className="workflow-spinner" /> : readiness.status === 'ready' ? <CheckCircle2 size={22} /> : <AlertCircle size={22} />}

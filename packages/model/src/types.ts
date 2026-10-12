@@ -1,3 +1,4 @@
+import type {EngineeringMetadata,SlicerResult} from './engineering.js'
 import type { ParameterDefinition } from './parameters.js'
 
 export type Vec3Value = { x: number; y: number; z: number }
@@ -141,6 +142,7 @@ export interface SculptStroke {
 }
 
 export interface PrinterProfile {
+  usableBedExclusions?: {x:number;y:number;width:number;depth:number;reason:string}[]
   name: string
   buildVolume: Vec3Value
   nozzleDiameter: number
@@ -158,6 +160,8 @@ export interface InspectionBookmark { section:{enabled:boolean;axis:'x'|'y'|'z';
 export interface SavedCameraView { id:string;name:string;position:Vec3Value;target:Vec3Value;up:Vec3Value;zoom:number;projection?:'perspective'|'orthographic';span?:number;inspection?:InspectionBookmark }
 export interface SelectionSet {id:string;name:string;nodeIds:string[]}
 export interface ModelDocument {
+  engineering?: EngineeringMetadata
+  slicerResult?: SlicerResult
   selectionSets?: SelectionSet[]
   printTests?: {id:string;protocol:string;date:string;printer:string;material:string;nozzle:number;layerHeight:number;expected:number;measured:number;tolerance:number;geometryKey:string;notes:string;photoDataUrl?:string}[]
   template?: { id: string; version: 1; nodeIds: string[] }

@@ -5,6 +5,7 @@ import './styles.css'
 import './workspace.css'
 import './precision.css'
 import './public.css'
+import './brand.css'
 
 let initialTheme='light'
 try{initialTheme=localStorage.getItem('formforge-theme')==='dark'?'dark':'light'}catch{/* Public browsing works when device storage is blocked. */}

@@ -1,6 +1,6 @@
 import type { ComponentMesh } from './componentMesh'
 
-/** One-based print/material slot ID in FormForge's portable 1-16 range. */
+/** One-based print/material slot ID in PrintLab's portable 1-16 range. */
 export type FaceMaterialId = number
 export type FaceMaterialAssignments = readonly FaceMaterialId[]
 

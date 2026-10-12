@@ -1,3 +1,8 @@
+import {EngineeringAssistant,EngineeringPreview} from './components/EngineeringAssistant'
+import {EngineeringInspector} from './components/EngineeringInspector'
+import {useEngineeringMode,engineeringSession,restoreEngineeringPlan,submitEngineeringPlan,simplePlan} from './lib/engineeringStudio'
+import {registerEngineeringTools} from './lib/engineeringTools'
+import './engineering.css'
 import { ManualBuildNotice } from './components/BuildControls'
 import { CircleMeasurementReadout } from './components/AnnotationsPanel'
 import { useInspection } from './store/inspection'
@@ -50,6 +55,7 @@ const readArea = (): Area => window.location.hash.split('?')[0] === '#studio' ? 
 const readTheme = (): AppearanceTheme => { try { return localStorage.getItem('formforge-theme') === 'dark' ? 'dark' : 'light' } catch { return 'light' } }
 
 export function App({ active = true }: { active?: boolean }) {
+  const engineering=useEngineeringMode(s=>s.enabled)
   const [theme, setTheme] = useState<AppearanceTheme>(readTheme)
   const [area, updateArea] = useState<Area>(readArea)
   const setArea = (next: Area) => { updateArea(next); if (window.location.hash !== `#${next}`) window.location.hash = next }
@@ -125,7 +131,14 @@ export function App({ active = true }: { active?: boolean }) {
   useEffect(()=>{if(geometryStatus!=='ready'||meshDocument!==document||!document.nodes.length||framedProject.current===document.id)return;const timer=setTimeout(()=>{window.dispatchEvent(new Event('formforge:frame'));framedProject.current=document.id},120);return()=>clearTimeout(timer)},[geometryStatus,meshDocument,document])
   useEffect(()=>{const refresh=()=>setCloudLinkState(readCloudLink(useEditor.getState().document.id));refresh();window.addEventListener('formforge:cloud-links-changed',refresh);return()=>window.removeEventListener('formforge:cloud-links-changed',refresh)},[document.id])
   useEffect(() => { void hydrate() }, [hydrate])
-  useEffect(() => { if (active) window.document.title = area === 'studio' ? `${document.name || 'Untitled project'} · FormForge` : area === 'community' ? 'Community · FormForge' : 'Your workshop · FormForge' }, [active, area, document.name])
+  useEffect(()=>{
+    if(!active||area!=='studio'||window.top!==window.self)return
+    const registry=(window.document as Document & {modelContext?:Parameters<typeof registerEngineeringTools>[0]}).modelContext
+    if(registry?.registerTool)return registerEngineeringTools(registry,message=>useEditor.getState().setNotice(message))
+  },[active,area])
+  useEffect(()=>{engineeringSession.discard();void restoreEngineeringPlan(document.id).catch(()=>{});return()=>engineeringSession.discard()},[document.id])
+
+  useEffect(() => { if (active) window.document.title = area === 'studio' ? `${document.name || 'Untitled project'} · PrintLab` : area === 'community' ? 'Community · PrintLab' : 'Your workshop · PrintLab' }, [active, area, document.name])
   useEffect(() => { const onHash = () => {
     updateArea(readArea())
     const id=requestedStarter();setStarterId(id)
@@ -323,12 +336,12 @@ export function App({ active = true }: { active?: boolean }) {
   /></>
 
   return (
-    <div className={`app-shell ${phoneEditing ? 'phone-edit' : 'phone-review'} mode-${document.workspaceMode} mobile-panel-${mobilePanel ?? 'none'}`}>
+    <div className={`app-shell ${engineering?'engineering-workspace':''} ${phoneEditing ? 'phone-edit' : 'phone-review'} mode-${document.workspaceMode} mobile-panel-${mobilePanel ?? 'none'}`}>
       <a className="skip-link" href="#studio" onClick={event=>{event.preventDefault();window.document.querySelector<HTMLElement>('.viewport-canvas')?.focus()}}>Skip to 3D canvas</a>
       <TopBar theme={theme} onToggleTheme={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')} onNewProject={createProject} onOpenProjects={() => void openProjects()} onOpenCommunity={() => setArea('community')} onOpenGenerate={() => setGenerateOpen(true)} onImport={() => openImport()} onCommands={() => setCommandsOpen(true)} onHelp={() => setHelpOpen(true)} exportOpen={exportOpen} onExportChange={setExportOpen} />
-      <WorkflowGuide key={document.id}/><main className="workspace">
+      <nav className="engineering-modebar" aria-label="Studio workspace"><strong>PrintLab Studio</strong><button aria-pressed={!engineering} onClick={()=>useEngineeringMode.getState().setEnabled(false)}>Modeling</button><button aria-pressed={engineering} onClick={()=>useEngineeringMode.getState().setEnabled(true)}>Engineering</button></nav><WorkflowGuide key={document.id}/><main className="workspace">
         {mobilePanel && <button className="mobile-panel-scrim" aria-label="Close side panel backdrop" onClick={() => setMobilePanel(null)} />}
-        <Toolbox onClose={()=>setMobilePanel(null)} />
+        {engineering?<EngineeringAssistant onClose={()=>setMobilePanel(null)}/>:<Toolbox onClose={()=>setMobilePanel(null)} />}
         <section className="viewport-wrap">
           <Suspense fallback={<p role="status">Opening 3D canvas…</p>}><Viewport theme={theme} /></Suspense>
           <ViewportTools /><button className="mobile-review-toggle workflow-action secondary" onClick={()=>{setPhoneEditing(!phoneEditing);setTool('select');setMobilePanel(null)}}>{phoneEditing?'Back to review':'Edit model'}</button>
@@ -338,16 +351,16 @@ export function App({ active = true }: { active?: boolean }) {
           </div>
           {!showResult&&<p className="source-context">Editing source shapes. Solid result shows the finished part with cuts applied.</p>}
           {!document.nodes.length && tool !== 'place' && <div className="canvas-welcome"><span className="canvas-welcome-icon"><Box size={28} /></span><small>YOUR CANVAS, YOUR POSSIBILITIES</small><h2>What will you make?</h2><p>Start with a shape. Combine, carve, and make it your own.</p><button className="studio-primary" onClick={() => addPrimitive('box')}><Box size={16} /> Add your first shape</button><button className="canvas-help" onClick={() => setHelpOpen(true)}><CircleHelp size={15} /> A quick tour of the basics</button></div>}
-          <div className="mobile-panel-controls"><button aria-pressed={mobilePanel === 'tools'} onClick={() => setMobilePanel(mobilePanel === 'tools' ? null : 'tools')}><PanelLeft size={17} /> Build tools</button><button aria-pressed={mobilePanel === 'inspector'} onClick={() => setMobilePanel(mobilePanel === 'inspector' ? null : 'inspector')}><PanelRight size={17} /> Inspector</button>{mobilePanel && <button aria-label="Close side panel" onClick={() => setMobilePanel(null)}><X size={17} /></button>}</div>
+          <div className="mobile-panel-controls"><button aria-pressed={mobilePanel === 'tools'} onClick={() => setMobilePanel(mobilePanel === 'tools' ? null : 'tools')}><PanelLeft size={17} /> {engineering?'Assistant':'Build tools'}</button><button aria-pressed={mobilePanel === 'inspector'} onClick={() => setMobilePanel(mobilePanel === 'inspector' ? null : 'inspector')}><PanelRight size={17} /> Inspector</button>{mobilePanel && <button aria-label="Close side panel" onClick={() => setMobilePanel(null)}><X size={17} /></button>}</div>
           <div className="interaction-hint"><MousePointerClick size={16} /><span>{tool === 'place' ? 'Click-drag on the plane to draw · Esc to cancel' : tool === 'draw-profile' ? 'Click polygon points · click the green start or press Enter to extrude' : tool === 'move' ? 'Drag the model to move it · use the axis handles for precision' : tool === 'sculpt-add' || tool === 'sculpt-carve' ? 'Paint volume · Shift inverts · [ and ] change radius' : tool.startsWith('sculpt') ? 'Drag directly on the mesh · Shift inverts · one Undo step per stroke' : 'Drag to orbit · wheel to zoom · right-drag to pan'}</span></div>
           {['pick-workplane','place-face','measure-angle','measure-circle'].includes(tool)&&<div className="canvas-task-prompt" role="status">{tool==='measure-circle' ? <CircleMeasurementReadout /> : <span>{tool==='pick-workplane'?'Pick a flat face for the workplane':tool==='place-face'?'Pick an outer face to put on the plate':'Pick three points: arm, vertex, arm'}</span>}<button className="workflow-text-action" onClick={()=>{setTool('select');useInspection.getState().setCirclePoints([])}}>Cancel</button></div>}
-          <SelectionDimensions />
+          <SelectionDimensions />{engineering&&<EngineeringPreview/>}
           <div className="mobile-review-actions" role="group" aria-label="Phone review tools"><button onClick={()=>window.dispatchEvent(new CustomEvent('formforge:open-inspector',{detail:{tab:'print'}}))}>Check</button><button aria-pressed={tool==='measure'} onClick={()=>{useEditor.getState().setMeasurement(null);setTool(tool==='measure'?'select':'measure')}}>Measure</button><button onClick={()=>window.dispatchEvent(new CustomEvent('formforge:open-inspector',{detail:{tab:!document.template&&document.namedParameters.length?'parameters':'model'}}))}>{document.template?'Dimensions':document.namedParameters.length?'Parameters':'Model'}</button><button onClick={()=>setCloudOpen(true)}>Share</button></div>
           <ManualBuildNotice />{geometryBusyVisible && <BuildProgress />}
           {(tool === 'place' || tool === 'draw-profile') && <div className="placement-actions">{tool === 'draw-profile' && <button className="studio-primary" onClick={() => window.dispatchEvent(new Event('formforge:finish-sketch'))}>Finish outline</button>}<button className="studio-secondary" onClick={() => { cancelPlacement(); if (tool === 'draw-profile') window.dispatchEvent(new Event('formforge:cancel-sketch')) }}>Cancel {tool === 'place' ? 'placement' : 'outline'}</button></div>}
           {geometryError && <div className="geometry-error" role="alert"><strong>That operation did not work</strong><span>{geometryError}</span><button onClick={() => void useEditor.getState().rebuild()}>Retry model</button></div>}
         </section>
-        <Inspector onClose={()=>setMobilePanel(null)} />
+        {engineering?<aside className="inspector panel-surface" aria-label="Engineering inspector"><button className="workflow-text-action" onClick={()=>setMobilePanel(null)}>Close inspector panel</button><EngineeringInspector onProposeOrientation={rotation=>{void submitEngineeringPlan(simplePlan('Suggested print orientation',[{type:'orient',rotation}])).then(()=>engineeringSession.preview())}}/></aside>:<Inspector onClose={()=>setMobilePanel(null)} />}
       </main>
       <StatusBar backup={<SaveHealth link={cloudLink}/>}/>
       {shared}

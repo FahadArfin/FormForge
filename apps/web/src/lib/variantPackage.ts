@@ -36,6 +36,6 @@ export async function createVariantPackage(document:ModelDocument,ids:string[],f
   if(bytes>PACKAGE_LIMIT)throw new Error('The variants exceed the 64 MiB package limit. Select fewer variants.')
  }
  checkCancelled(signal);progress('Packing models and reports…')
- files['README.txt']=textFile('FormForge parameter variants\nUnits: millimeters. Each folder is a separately evaluated complete model.\nOpen each 3MF/STL in your slicer to review supports, walls, orientation and tolerances.\nNo slicer settings, G-code, filament estimates or physical print certification are included.')
+ files['README.txt']=textFile('PrintLab parameter variants\nUnits: millimeters. Each folder is a separately evaluated complete model.\nOpen each 3MF/STL in your slicer to review supports, walls, orientation and tolerances.\nNo slicer settings, G-code, filament estimates or physical print certification are included.')
  return zipPackage(files,signal)
 }
