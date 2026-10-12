@@ -24,3 +24,16 @@
 .engineering-detail > summary { cursor: pointer; font-size: 12px; font-weight: 600; line-height: 1.5; }
 .engineering-detail > .workflow-card, .engineering-detail > .inspector-workflow { margin-top: 12px; padding: 0; border: 0; }
 .engineering-detail .inspector-workflow { overflow: visible; }
+
+.engineering-inspector .engineering-hole-selectors{grid-template-columns:1fr}
+.engineering-inspector .engineering-summary{display:flex;gap:12px;flex-wrap:wrap;font-size:13px}
+.engineering-summary strong{color:var(--workflow-caution)}
+.engineering-jumps{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.engineering-jumps button{min-height:38px;border:1px solid var(--line);border-radius:7px;background:var(--surface-raised);color:var(--text);font:inherit;font-size:12px;cursor:pointer}
+.engineering-inspector [data-section]{scroll-margin-top:12px}
+.engineering-inspector details summary{cursor:pointer;font-size:12px;line-height:1.5;padding:5px 0}
+.engineering-inspector .engineering-finding p{font-size:12px;line-height:1.6}
+.engineering-finding-heading strong{font-size:13px}
+.engineering-status,.engineering-evidence{font-size:11px}
+.engineering-inspector .engineering-evidence{max-width:100%}
+.engineering-finding-heading{align-items:flex-start;flex-wrap:wrap}

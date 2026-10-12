@@ -23,7 +23,7 @@ import { Toolbox } from './components/Toolbox'
 import { Inspector } from './components/Inspector'
 import { TopBar } from './components/TopBar'
 import { ProjectsHome } from './components/ProjectsHome'
-import type { AppearanceTheme } from './components/ThemeToggle'
+import {useAppearance} from './lib/useAppearance'
 import { StatusBar } from './components/StatusBar'
 import { ViewportTools } from './components/ViewportTools'
 import type { CommunityModel } from './lib/community'
@@ -52,11 +52,10 @@ const requestedStarter = (): StarterId | undefined => {
 
 type Area = 'projects' | 'studio' | 'community'
 const readArea = (): Area => window.location.hash.split('?')[0] === '#studio' ? 'studio' : window.location.hash.split('?')[0] === '#community' ? 'community' : 'projects'
-const readTheme = (): AppearanceTheme => { try { return localStorage.getItem('formforge-theme') === 'dark' ? 'dark' : 'light' } catch { return 'light' } }
 
 export function App({ active = true }: { active?: boolean }) {
   const engineering=useEngineeringMode(s=>s.enabled)
-  const [theme, setTheme] = useState<AppearanceTheme>(readTheme)
+  const {theme,toggleTheme}=useAppearance()
   const [area, updateArea] = useState<Area>(readArea)
   const setArea = (next: Area) => { updateArea(next); if (window.location.hash !== `#${next}`) window.location.hash = next }
   const [cloudOpen,setCloudOpen]=useState(()=>window.location.hash.includes('review='))
@@ -71,10 +70,8 @@ export function App({ active = true }: { active?: boolean }) {
   const [commandsOpen, setCommandsOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const [phoneEditing,setPhoneEditing]=useState(false)
-  const framedProject=useRef('')
   const geometryStatus=useEditor(s=>s.geometryStatus),meshDocument=useEditor(s=>s.meshDocument)
   const [mobilePanel, setMobilePanel] = useState<'tools' | 'inspector' | null>(null)
-  useMobilePanel(active && area === 'studio' ? mobilePanel : null, () => setMobilePanel(null))
   const fileRef = useRef<HTMLInputElement>(null)
   const importAsNew = useRef(false)
   const importGeneration = useRef(0)
@@ -86,6 +83,7 @@ export function App({ active = true }: { active?: boolean }) {
   const pendingNavigation = useRef<{ action: () => void; isCurrent: () => boolean } | null>(null)
   const hydrate = useEditor((state) => state.hydrate)
   const hydrated = useEditor((state) => state.hydrated)
+  useMobilePanel(active && hydrated && area === 'studio' ? mobilePanel : null, () => setMobilePanel(null), engineering ? 'engineering' : 'modeling')
   const notice = useEditor((state) => state.notice)
   const setNotice = useEditor((state) => state.setNotice)
   const showResult = useEditor((state) => state.showResult)
@@ -128,7 +126,6 @@ export function App({ active = true }: { active?: boolean }) {
 
   const editableTiming=useRef({id:document.id,start:performance.now(),recorded:false})
   useEffect(()=>{if(editableTiming.current.id!==document.id)editableTiming.current={id:document.id,start:performance.now(),recorded:false};if(geometryStatus==='ready'&&meshDocument===document&&document.nodes.length&&!editableTiming.current.recorded){editableTiming.current.recorded=true;recordDiagnostic('first-editable','success',performance.now()-editableTiming.current.start)}},[document,meshDocument,geometryStatus])
-  useEffect(()=>{if(geometryStatus!=='ready'||meshDocument!==document||!document.nodes.length||framedProject.current===document.id)return;const timer=setTimeout(()=>{window.dispatchEvent(new Event('formforge:frame'));framedProject.current=document.id},120);return()=>clearTimeout(timer)},[geometryStatus,meshDocument,document])
   useEffect(()=>{const refresh=()=>setCloudLinkState(readCloudLink(useEditor.getState().document.id));refresh();window.addEventListener('formforge:cloud-links-changed',refresh);return()=>window.removeEventListener('formforge:cloud-links-changed',refresh)},[document.id])
   useEffect(() => { void hydrate() }, [hydrate])
   useEffect(()=>{
@@ -138,9 +135,10 @@ export function App({ active = true }: { active?: boolean }) {
   },[active,area])
   useEffect(()=>{engineeringSession.discard();void restoreEngineeringPlan(document.id).catch(()=>{});return()=>engineeringSession.discard()},[document.id])
 
-  useEffect(() => { if (active) window.document.title = area === 'studio' ? `${document.name || 'Untitled project'} · PrintLab` : area === 'community' ? 'Community · PrintLab' : 'Your workshop · PrintLab' }, [active, area, document.name])
+  useEffect(() => { if (active) window.document.title = area === 'studio' ? `${document.name || 'Untitled project'} · PrintLab` : area === 'community' ? 'Inspiration · PrintLab' : 'Your workshop · PrintLab' }, [active, area, document.name])
   useEffect(() => { const onHash = () => {
     updateArea(readArea())
+    if(new URLSearchParams(window.location.hash.split('?')[1]).get('workspace')==='engineering')useEngineeringMode.setState({enabled:true})
     const id=requestedStarter();setStarterId(id)
     starterGeneration.current++;setStartersOpen(!!id)
     if (['', '#home', '#templates'].includes(window.location.hash.split('?')[0]!)) {
@@ -149,18 +147,21 @@ export function App({ active = true }: { active?: boolean }) {
     }
   }; window.addEventListener('hashchange', onHash); return () => window.removeEventListener('hashchange', onHash) }, [])
   useEffect(() => { setCommandsOpen(false); setGenerateOpen(false); setExportOpen(false); setMobilePanel(null) }, [area])
+  useEffect(()=>{if(active&&area==='studio'&&new URLSearchParams(window.location.hash.split('?')[1]).get('workspace')==='engineering'){useEngineeringMode.setState({enabled:true});if(window.innerWidth<=980)setMobilePanel('tools')}},[active,area])
   useEffect(() => {
-    const openInspector = () => { if (window.innerWidth <= 980) setMobilePanel('inspector') }
+    const openInspector = (event:Event) => { const detail=(event as CustomEvent<{tab?:string}>).detail;if(detail?.tab&&useEngineeringMode.getState().enabled){useEngineeringMode.setState({enabled:false});setTimeout(()=>window.dispatchEvent(new CustomEvent('formforge:open-inspector',{detail})),0)}if (window.innerWidth <= 980) setMobilePanel('inspector') }
     const openStarters=()=>{starterGeneration.current++;setStartersOpen(true)}
     window.addEventListener('formforge:starters',openStarters)
     const openCloud = () => setCloudOpen(true)
     const openRecovery = () => {recoveryGeneration.current++;setRecoveryOpen(true)}
     window.addEventListener('formforge:recovery',openRecovery)
     window.addEventListener('formforge:open-cloud',openCloud)
+    const printSetup=()=>{useEngineeringMode.setState({enabled:false});if(window.innerWidth<=980)setMobilePanel('inspector');setTimeout(()=>window.dispatchEvent(new CustomEvent('formforge:open-inspector',{detail:{tab:'print'}})),0)}
+    window.addEventListener('printlab:print-setup',printSetup)
     const openExport = () => { setMobilePanel(null); setExportOpen(true) }
     window.addEventListener('formforge:open-inspector', openInspector)
     window.addEventListener('formforge:open-export', openExport)
-    return () => { window.removeEventListener('formforge:recovery',openRecovery);window.removeEventListener('formforge:starters',openStarters);window.removeEventListener('formforge:open-cloud',openCloud); window.removeEventListener('formforge:open-inspector', openInspector); window.removeEventListener('formforge:open-export', openExport) }
+    return () => { window.removeEventListener('printlab:print-setup',printSetup);window.removeEventListener('formforge:recovery',openRecovery);window.removeEventListener('formforge:starters',openStarters);window.removeEventListener('formforge:open-cloud',openCloud); window.removeEventListener('formforge:open-inspector', openInspector); window.removeEventListener('formforge:open-export', openExport) }
   }, [])
   useEffect(() => { if (['place','draw-profile','pick-workplane','place-face','measure-angle','measure-circle','measure'].includes(tool)) setMobilePanel(null) }, [tool])
   useEffect(() => {
@@ -173,12 +174,7 @@ export function App({ active = true }: { active?: boolean }) {
     return () => {window.removeEventListener('beforeunload', protectUnsavedWork);window.removeEventListener('pagehide',flush);window.document.removeEventListener('visibilitychange',onHidden)}
   }, [])
 
-  useEffect(() => {
-    window.document.documentElement.dataset.theme = theme
-    window.document.documentElement.style.colorScheme = theme
-    window.document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'light' ? '#f7f8fb' : '#12131a')
-    try { localStorage.setItem('formforge-theme', theme) } catch { /* Theme still applies for this visit. */ }
-  }, [theme])
+
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -252,7 +248,7 @@ export function App({ active = true }: { active?: boolean }) {
     return () => clearTimeout(timer)
   }, [notice, setNotice])
 
-  if (!hydrated) return <div className="app-loading"><span className="brand-mark large"><span /></span><strong>Heating up the forge…</strong><div className="loading-line"><i /></div></div>
+  if (!hydrated) return <div className="app-loading"><span className="brand-mark large"><span /></span><strong>Opening PrintLab Studio…</strong><div className="loading-line"><i /></div></div>
 
   const remix = (model: CommunityModel) => void safelyContinue(() => {
     if (!model.document) { starterGeneration.current++;setStartersOpen(true); return }
@@ -306,7 +302,7 @@ export function App({ active = true }: { active?: boolean }) {
     {recoveryOpen&&<Suspense fallback={<p role="status">Opening recovery copies…</p>}><RecoveryDialog onClose={()=>{recoveryGeneration.current++;setRecoveryOpen(false)}} onOpen={async doc=>{const generation=recoveryGeneration.current;await safelyContinue(()=>{importDocument(doc);setRecoveryOpen(false);setArea('studio')},()=>generation===recoveryGeneration.current)}}/></Suspense>}
     {importReview && <ImportReview name={importReview.name} mesh={importReview.mesh} onClose={()=>{importGeneration.current++;setImportReview(null)}} onConfirm={importReview.confirm}/>}
     {notice && <div className="toast" role="status"><span>{notice}</span><button aria-label="Dismiss notification" onClick={() => setNotice(null)}><X size={17} /></button></div>}
-    {helpOpen && <WorkspaceHelp onClose={() => setHelpOpen(false)} onExample={startExample} onLaunch={(tab,toolkit)=>{setHelpOpen(false);if(tab==='cloud')setCloudOpen(true);else{setArea('studio');setTimeout(()=>window.dispatchEvent(new CustomEvent('formforge:open-inspector',{detail:{tab,toolkit}})),100)}}}/> }
+    {helpOpen && <WorkspaceHelp onClose={() => setHelpOpen(false)} onExample={startExample} onLaunch={(tab,toolkit)=>{setHelpOpen(false);if(tab==='cloud')setCloudOpen(true);else if(tab==='engineering'){window.location.hash='studio?workspace=engineering';updateArea('studio');useEngineeringMode.setState({enabled:true});if(window.innerWidth<=980)setMobilePanel('tools')}else{setArea('studio');setTimeout(()=>window.dispatchEvent(new CustomEvent('formforge:open-inspector',{detail:{tab,toolkit}})),100)}}}/> }
     {cloudOpen&&<CloudWorkspace onClose={()=>setCloudOpen(false)} link={cloudLink} onLink={setCloudLink} onOpen={async(doc,project)=>{const now=new Date().toISOString(),copy={...doc,id:crypto.randomUUID(),createdAt:now,updatedAt:now};await safelyContinue(()=>{importDocument(copy);setCloudLink({projectId:project.id,localId:copy.id,revision:project.revision,documentKey:documentFingerprint(copy)});setCloudOpen(false);setArea('studio');setNotice('Editable local copy opened. Cloud snapshots update only when you save them explicitly.');})}}/>}
     {saveBlocked && <WorkspaceDialog title="Your latest edits aren’t saved" description="Keep this project open while you retry. You can also download an editable backup of your current work." onClose={() => { setSaveBlocked(false); pendingNavigation.current = null }}>
       <p className="export-warning" role="alert">{useEditor.getState().saveError || 'This browser could not save your project.'}</p>
@@ -317,13 +313,13 @@ export function App({ active = true }: { active?: boolean }) {
 
   if (!active) return null
 
-  if (area === 'community') return <>{shared}<Suspense fallback={<div className="route-loading"><span className="brand-mark large"><span /></span><strong>Opening the community…</strong></div>}>
-    <Community theme={theme} onToggleTheme={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')} document={document} openPublishRequest={publishRequest} onPublishRequestHandled={() => setPublishRequest(0)} onOpenStudio={() => setArea('studio')} onOpenProjects={() => setArea('projects')} onRemix={remix} onPublished={(model) => void markProjectPublic(document.id, model.id)} />
+  if (area === 'community') return <>{shared}<Suspense fallback={<div className="route-loading"><span className="brand-mark large"><span /></span><strong>Opening inspiration…</strong></div>}>
+    <Community theme={theme} onToggleTheme={toggleTheme} document={document} openPublishRequest={publishRequest} onPublishRequestHandled={() => setPublishRequest(0)} onOpenStudio={() => setArea('studio')} onOpenProjects={() => setArea('projects')} onRemix={remix} onPublished={(model) => void markProjectPublic(document.id, model.id)} />
   </Suspense></>
 
   if (area === 'projects') return <>{shared}<ProjectsHome
     theme={theme}
-    onToggleTheme={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')}
+    onToggleTheme={toggleTheme}
     currentDocument={document}
     onCreate={createProject}
     onOpen={(project) => { if (project.id === document.id) setArea('studio'); else void safelyContinue(() => { importDocument(project.document); setArea('studio') }) }}
@@ -338,7 +334,7 @@ export function App({ active = true }: { active?: boolean }) {
   return (
     <div className={`app-shell ${engineering?'engineering-workspace':''} ${phoneEditing ? 'phone-edit' : 'phone-review'} mode-${document.workspaceMode} mobile-panel-${mobilePanel ?? 'none'}`}>
       <a className="skip-link" href="#studio" onClick={event=>{event.preventDefault();window.document.querySelector<HTMLElement>('.viewport-canvas')?.focus()}}>Skip to 3D canvas</a>
-      <TopBar theme={theme} onToggleTheme={() => setTheme((value) => value === 'dark' ? 'light' : 'dark')} onNewProject={createProject} onOpenProjects={() => void openProjects()} onOpenCommunity={() => setArea('community')} onOpenGenerate={() => setGenerateOpen(true)} onImport={() => openImport()} onCommands={() => setCommandsOpen(true)} onHelp={() => setHelpOpen(true)} exportOpen={exportOpen} onExportChange={setExportOpen} />
+      <TopBar theme={theme} onToggleTheme={toggleTheme} onNewProject={createProject} onOpenProjects={() => void openProjects()} onOpenCommunity={() => setArea('community')} onOpenGenerate={() => setGenerateOpen(true)} onImport={() => openImport()} onCommands={() => setCommandsOpen(true)} onHelp={() => setHelpOpen(true)} exportOpen={exportOpen} onExportChange={setExportOpen} />
       <nav className="engineering-modebar" aria-label="Studio workspace"><strong>PrintLab Studio</strong><button className="assistant-chat-entry" aria-label="Ask AI" onClick={()=>{useEngineeringMode.getState().setEnabled(true);setMobilePanel('tools')}}>Ask AI</button><button aria-pressed={!engineering} onClick={()=>useEngineeringMode.getState().setEnabled(false)}>Modeling</button><button aria-pressed={engineering} onClick={()=>useEngineeringMode.getState().setEnabled(true)}>Engineering</button></nav><WorkflowGuide key={document.id}/><main className="workspace">
         {mobilePanel && <button className="mobile-panel-scrim" aria-label="Close side panel backdrop" onClick={() => setMobilePanel(null)} />}
         {engineering?<EngineeringAssistant onClose={()=>setMobilePanel(null)}/>:<Toolbox onClose={()=>setMobilePanel(null)} />}

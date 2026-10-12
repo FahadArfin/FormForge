@@ -151,6 +151,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
   const selectedNodeIds = useEditor((state) => state.selectedNodeIds)
   const tool = useEditor((state) => state.tool)
   const focus = useInspection(s=>s.focus)
+  const framedProject=useRef('')
   const overhangs=useInspection(s=>s.overhangs),meshDocument=useEditor(s=>s.meshDocument),geometryStatus=useEditor(s=>s.geometryStatus)
   useEffect(()=>{useInspection.setState({overhangs:false})},[document.id])
   const showResult = useEditor((state) => state.showResult)
@@ -1352,6 +1353,22 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       object.add(points)
     }
   }, [meshPayload, displayMode])
+
+  // Frame only after this mounted viewport owns the current evaluated geometry.
+  // App-level timers can fire while the lazy canvas is absent on the workshop page.
+  useEffect(()=>{
+    const rt=runtime.current
+    if(!rt||geometryStatus!=='ready'||meshDocument!==document||!meshPayload?.positions.length||framedProject.current===document.id)return
+    const frame=requestAnimationFrame(()=>{
+      const host=rt.renderer.domElement.parentElement
+      if(!host?.clientWidth||!host.clientHeight)return
+      const bounds=new THREE.Box3().setFromObject(rt.resultGroup)
+      if(bounds.isEmpty())return
+      frameCamera(rt.camera,rt.orbit.target,bounds.getCenter(new THREE.Vector3()),bounds.getSize(new THREE.Vector3()),host.clientWidth/host.clientHeight)
+      rt.orbit.update();framedProject.current=document.id
+    })
+    return()=>cancelAnimationFrame(frame)
+  },[document,meshDocument,geometryStatus,meshPayload])
 
   useEffect(()=>{
     const rt=runtime.current
