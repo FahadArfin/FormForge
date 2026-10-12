@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Search, ArrowUpRight, Box, CircleDot, Cylinder, MousePointer2, Hand, RotateCw, Scaling, Maximize2, Save, Download, FolderOpen, Undo2, Redo2, Copy, CircleHelp, Sparkles } from 'lucide-react'
 import { useEditor } from '@/store/editor'
+import { useAssistantDock } from '@/lib/engineeringStudio'
 import { useInspection } from '@/store/inspection'
 import { cadTools, searchCommands } from '@/lib/cadToolCatalog'
 import { WorkspaceDialog } from './WorkspaceDialog'
@@ -47,7 +48,8 @@ export function CommandMenu({ onClose, onImport, onExport, onProjects, onHelp, o
     { name: 'Undo', group: 'Edit', icon: Undo2, key: 'Ctrl Z', disabled: !editor.undoStack.length, reason: 'Make a change in this project first.', run: editor.undo },
     { name: 'Redo', group: 'Edit', icon: Redo2, key: 'Ctrl Shift Z', disabled: !editor.redoStack.length, reason: 'Undo a change first.', run: editor.redo },
     { name: 'Duplicate selection', group: 'Edit', icon: Copy, key: 'Ctrl D', disabled: !editor.selectedNodeId, reason: 'Select a shape first.', run: editor.duplicateSelected },
-    { name: 'Generate a model', group: 'Build', icon: Sparkles, run: onGenerate },
+    { name: 'Ask AI', keywords: 'generate chat assistant prompt', group: 'Build', icon: Sparkles, run: () => useAssistantDock.getState().setOpen(true) },
+    { name: 'More creation tools', keywords: 'generate model image relief recipe', group: 'Build', icon: Sparkles, run: onGenerate },
     { name: 'Getting started and shortcuts', group: 'Help', icon: CircleHelp, key: '?', run: onHelp },
   ]
   const common = ['Choose an editable starter part', 'Add a box', 'Parameters and design variants', 'Review print checks and printer size', 'Export or download backup', 'Import model or project', 'My projects', 'Getting started and shortcuts']
