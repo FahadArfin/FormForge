@@ -30,10 +30,18 @@ beforeEach(async()=>{
  await act(async()=>{await new Promise(r=>setTimeout(r,60))})
 })
 afterEach(async()=>{await act(async()=>root.unmount());host.remove();vi.restoreAllMocks()})
-async function follow(label:string){
+async function follow(label:string,blocked=false){
  const link=[...host.querySelectorAll<HTMLAnchorElement>('a')].find(a=>(a.textContent===label||a.getAttribute('aria-label')===label)&&!a.closest('[hidden]'))!
  expect(link,`visible link ${label}`).toBeTruthy()
- await act(async()=>{link.click();await new Promise(r=>setTimeout(r,50))})
+ await act(async()=>link.click())
+ // Navigation can wait for IndexedDB persistence; wait for the destination, not a fixed delay.
+ await vi.waitFor(async()=>{
+  await act(async()=>{await new Promise(r=>setTimeout(r,0))})
+  if(blocked){expect(host.querySelector('dialog[open]')?.textContent).toContain('Your latest edits');return}
+  expect(window.location.hash).toBe(link.hash)
+  const selector:Record<string,string>={'PrintLab home':'.public-hero',Templates:'.template-open',Community:'.community-workshop','My projects':'h1',Studio:'.app-shell'}
+  expect([...host.querySelectorAll(selector[label]!)].some(element=>!element.closest('[hidden]'))).toBe(true)
+ },{timeout:4000})
 }
 it('preserves the actual Studio tree, document and undo across all areas, public templates and browser history',async()=>{
  const current=useEditor.getState().document,undo=useEditor.getState().undoStack
@@ -47,14 +55,14 @@ it('preserves the actual Studio tree, document and undo across all areas, public
  expect(host.querySelector('input[aria-label="Project name"]')).toBe(name)
  expect(useEditor.getState().document).toBe(current);expect(useEditor.getState().undoStack).toBe(undo)
  await follow('PrintLab home');await follow('Templates')
- await act(async()=>{host.querySelector<HTMLAnchorElement>('.template-open')!.click();await new Promise(r=>setTimeout(r,30))})
- expect(host.querySelector('.template-detail')).not.toBeNull()
+ await act(async()=>host.querySelector<HTMLAnchorElement>('.template-open')!.click())
+ await vi.waitFor(async()=>{await act(async()=>{await new Promise(r=>setTimeout(r,0))});expect(host.querySelector('.template-detail')).not.toBeNull()},{timeout:4000})
  await follow('PrintLab home');expect(host.querySelector('.public-hero')).not.toBeNull()
  await follow('Studio');expect(host.querySelector('input[aria-label="Project name"]')).toBe(name)
- await act(async()=>{window.history.back();await new Promise(r=>setTimeout(r,50))})
- expect(host.querySelector('.public-hero')).not.toBeNull()
- await act(async()=>{window.history.forward();await new Promise(r=>setTimeout(r,50))})
- expect(host.querySelector('.app-shell')?.hasAttribute('hidden')).toBe(false)
+ await act(async()=>window.history.back())
+ await vi.waitFor(async()=>{await act(async()=>{await new Promise(r=>setTimeout(r,0))});expect(host.querySelector('.public-hero')).not.toBeNull()},{timeout:4000})
+ await act(async()=>window.history.forward())
+ await vi.waitFor(async()=>{await act(async()=>{await new Promise(r=>setTimeout(r,0))});expect(host.querySelector('.app-shell')?.closest('[hidden]')).toBeNull()},{timeout:4000})
  expect(useEditor.getState().document).toBe(current)
  await act(async()=>host.querySelector<HTMLButtonElement>('[aria-label="Undo"]')!.click())
  expect(useEditor.getState().document.name).toBe('Before edit')
@@ -64,7 +72,7 @@ it('preserves the actual Studio tree, document and undo across all areas, public
 it('keeps the active document and route when the Studio exit save fails, then retries safely',async()=>{
  const current=useEditor.getState().document
  const transaction=vi.spyOn(db,'transaction').mockRejectedValue(new Error('Storage unavailable'))
- await follow('My projects')
+ await follow('My projects',true)
  expect(window.location.hash).toBe('#studio')
  expect(host.querySelector('dialog[open]')?.textContent).toContain('Your latest edits aren’t saved')
  expect(useEditor.getState().document).toBe(current)
