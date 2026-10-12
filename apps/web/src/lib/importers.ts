@@ -1,3 +1,4 @@
+import { parseOff, parsePly } from './meshExchange'
 import {checkStlData,prepareGltfData} from './importPreflight'
 import { MAX_IMPORT_BYTES, parse3mf, validateImportMesh } from './importReview'
 import * as THREE from 'three'
@@ -48,6 +49,8 @@ function geometryToMeshData(geometries: { geometry: THREE.BufferGeometry; matrix
 export async function importMeshFile(file: File): Promise<MeshData> {
   if (file.size > MAX_IMPORT_BYTES) throw new Error('Choose a mesh smaller than 25 MB.')
   const extension = file.name.split('.').pop()?.toLowerCase()
+  if (extension === 'off') return parseOff(await file.text())
+  if (extension === 'ply') return parsePly(await file.text())
   if (extension === '3mf') return parse3mf(new Uint8Array(await file.arrayBuffer()))
   if (extension === 'stl') {
     const data=checkStlData(await file.arrayBuffer())
@@ -64,7 +67,7 @@ export async function importMeshFile(file: File): Promise<MeshData> {
     return geometryToMeshData(geometries)
   }
   if (extension === 'glb' || extension === 'gltf') return importGlbData(await file.arrayBuffer())
-  throw new Error('Choose a 3MF, STL, OBJ, GLB mesh, or an editable .forge.json project.')
+  throw new Error('Choose a 3MF, STL, OBJ, ASCII PLY, ASCII OFF, GLB/GLTF mesh, or an editable .forge.json project.')
 }
 
 export async function importGlbData(data: ArrayBuffer): Promise<MeshData> {

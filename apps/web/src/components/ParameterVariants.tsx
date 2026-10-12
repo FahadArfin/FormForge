@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState } from 'react'
 import { useEditor } from '@/store/editor'
 import { applyParameterVariant, captureParameterVariant, variantMatches } from '@/lib/parameterVariants'
+const ParameterPresetExchange = lazy(() => import('./ParameterPresetExchange').then(m => ({ default: m.ParameterPresetExchange })))
 const VariantManagerDialog=lazy(()=>import('./VariantManagerDialog').then(m=>({default:m.VariantManagerDialog})))
 
 export function ParameterVariants() {
@@ -10,9 +11,12 @@ export function ParameterVariants() {
   const [error, setError] = useState('')
   const [feedback, setFeedback] = useState('')
   const [manager,setManager]=useState(false)
+  const [exchange, setExchange] = useState(false)
   const variants = document.parameterVariants ?? []
   return <section className="parameter-variants workflow-card">
     <h3>Parameter variants</h3>
+    <button data-cad-tool="parameter-presets" className="workflow-action secondary" onClick={() => setExchange(true)}>Import or export presets</button>
+    {exchange && <Suspense fallback={<p role="status">Opening preset exchange…</p>}><ParameterPresetExchange onClose={() => setExchange(false)} /></Suspense>}
     <button className="workflow-action secondary" disabled={!document.namedParameters.length} onClick={()=>setManager(true)}>Compare and export variants</button>
     {manager&&<Suspense fallback={<p role="status">Opening comparison…</p>}><VariantManagerDialog onClose={()=>setManager(false)}/></Suspense>}
     <p className="workflow-caption">Save named dimensions as Small, Large, or a tested clearance. Applying a variant updates bound shapes in one undoable step.</p>
