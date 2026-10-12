@@ -110,7 +110,7 @@ export function ProjectsHome({ theme, onToggleTheme, currentDocument, onCreate, 
     {name:'Cloud & review',icon:Users,run:()=>window.dispatchEvent(new Event('formforge:open-cloud'))},
     {name:'Recovery copies',icon:Clock3,run:()=>window.dispatchEvent(new Event('formforge:recovery'))},
     {name:'Trash',icon:Trash2,run:()=>setTrashOpen(true),count:trashed.length},
-    {name:'Community',icon:Globe2,run:onOpenCommunity},
+    {name:'Inspiration',icon:Globe2,run:onOpenCommunity},
     ...(onOpenGuide?[{name:'Getting started',icon:BookOpen,run:onOpenGuide}]:[]),
     {name:'PrintLab home',icon:Globe2,run:()=>{window.location.hash='home'}},
   ]

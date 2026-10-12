@@ -14,3 +14,10 @@ it('switches projection without changing target or apparent center-plane scale, 
  const back=changeProjection(ortho,target,'perspective',1);expect(back).toBeInstanceOf(PerspectiveCamera)
  expect(back.position.distanceTo(target)).toBeGreaterThan(30)
 })
+it('framing a portrait viewport is stable when the resize observer reports the same aspect',()=>{
+ const camera=new PerspectiveCamera(38,1,.1,4000),target=new Vector3();camera.position.set(92,-108,82)
+ frameCamera(camera,target,new Vector3(),new Vector3(240,150,30),.6)
+ const distance=camera.position.distanceTo(target)
+ resizeCamera(camera,target,.6)
+ expect(camera.position.distanceTo(target)).toBeCloseTo(distance)
+})

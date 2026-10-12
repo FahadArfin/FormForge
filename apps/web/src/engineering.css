@@ -1,4 +1,4 @@
-.engineering-modebar{display:flex;align-items:center;gap:8px;padding:6px 18px;border-bottom:1px solid var(--line);background:var(--panel);font-size:12px}.engineering-modebar strong{margin-right:auto;color:var(--text)}.engineering-modebar button{border:1px solid var(--line);border-radius:7px;padding:7px 12px;background:var(--panel);color:inherit}.engineering-modebar button[aria-pressed=true]{background:#0e756b;color:white;border-color:#0e756b}.engineering-assistant{padding:20px!important;overflow:auto;display:block}.engineering-assistant h2{font-size:25px;line-height:1.15;letter-spacing:-.7px;margin:18px 0 12px}.engineering-assistant p,.engineering-assistant li{font-size:12px;line-height:1.6}.engineering-heading{display:flex;align-items:center;justify-content:space-between}.engineering-heading button{border:0;background:transparent;color:inherit;font-size:22px}.engineering-kicker{font-size:10px;font-weight:750;letter-spacing:1.3px;text-transform:uppercase;color:#138479}.engineering-connection{font-size:11px;padding:10px;border:1px solid #4db6a3;border-radius:8px;line-height:1.5}.engineering-prompt-example{margin:16px 0;padding:14px;background:rgba(42,170,148,.08);border-radius:8px;font-size:12px;line-height:1.6}.engineering-plan{border-top:1px solid var(--line);padding:16px 0}.engineering-plan h4{text-transform:capitalize;font-size:12px}.engineering-plan ul{padding-left:18px}.engineering-assistant details{border-top:1px solid var(--line);padding:14px 0}.engineering-assistant summary{cursor:pointer;font-size:12px;font-weight:650}.engineering-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.engineering-fields label{font-size:10px;display:grid;gap:4px}.engineering-fields input{min-width:0;width:100%;padding:8px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:inherit}.engineering-assistant textarea{width:100%;min-height:80px}.engineering-preview{position:absolute;inset:55px 18px 70px;z-index:20;border:1px solid #339e90;background:var(--panel,#fff);border-radius:14px;box-shadow:0 10px 50px #0002;display:flex;flex-direction:column;overflow:auto}.engineering-preview>div:nth-child(2){flex:1;min-height:160px}.engineering-preview .mesh-preview{height:100%;min-height:180px;max-height:450px}.engineering-preview-header{display:flex;justify-content:space-between;gap:10px;padding:14px;border-bottom:1px solid var(--line)}.engineering-preview-header span{display:block;font-size:11px;margin-top:4px}.engineering-preview-footer{padding:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.engineering-preview-footer p{font-size:11px;flex-basis:100%;margin:0}.engineering-preview.compare{inset:auto 18px 70px;max-height:180px}.engineering-preview.compare .engineering-preview-header{padding:8px}.engineering-workspace .workspace{grid-template-columns:310px minmax(0,1fr) 330px}.brand-mark{background:#0e8275!important;border-radius:9px!important;transform:rotate(-6deg)}.brand-mark>span{border-radius:2px!important;transform:rotate(6deg)}:root{--accent:#117e73}
+.engineering-modebar{display:flex;align-items:center;gap:8px;padding:6px 18px;border-bottom:1px solid var(--line);background:var(--panel);font-size:12px}.engineering-modebar strong{margin-right:auto;color:var(--text)}.engineering-modebar button{border:1px solid var(--line);border-radius:7px;padding:7px 12px;background:var(--panel);color:inherit}.engineering-modebar button[aria-pressed=true]{background:#0e756b;color:white;border-color:#0e756b}.engineering-assistant{padding:20px!important;overflow:auto;display:block}.engineering-assistant h2{font-size:25px;line-height:1.15;letter-spacing:-.7px;margin:18px 0 12px}.engineering-assistant p,.engineering-assistant li{font-size:12px;line-height:1.6}.engineering-heading{display:flex;align-items:center;justify-content:space-between}.engineering-heading button{border:0;background:transparent;color:inherit;font-size:22px}.engineering-kicker{font-size:10px;font-weight:750;letter-spacing:1.3px;text-transform:uppercase;color:#138479}.engineering-connection{font-size:11px;padding:10px;border:1px solid #4db6a3;border-radius:8px;line-height:1.5}.engineering-prompt-example{margin:16px 0;padding:14px;background:rgba(42,170,148,.08);border-radius:8px;font-size:12px;line-height:1.6}.engineering-plan{border-top:1px solid var(--line);padding:16px 0}.engineering-plan h4{text-transform:capitalize;font-size:12px}.engineering-plan ul{padding-left:18px}.engineering-assistant details{border-top:1px solid var(--line);padding:14px 0}.engineering-assistant summary{cursor:pointer;font-size:12px;font-weight:650}.engineering-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.engineering-fields label{font-size:10px;display:grid;gap:4px}.engineering-fields input{min-width:0;width:100%;padding:8px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:inherit}.engineering-assistant textarea{width:100%;min-height:80px}.engineering-preview{position:absolute;inset:55px 18px 70px;z-index:20;border:1px solid #339e90;background:var(--panel,#fff);border-radius:14px;box-shadow:0 10px 50px #0002;display:flex;flex-direction:column;overflow:auto}.engineering-preview>div:nth-child(2){flex:1;min-height:160px}.engineering-preview .mesh-preview{height:100%;min-height:180px;max-height:450px}.engineering-preview-header{display:flex;justify-content:space-between;gap:10px;padding:14px;border-bottom:1px solid var(--line)}.engineering-preview-header span{display:block;font-size:11px;margin-top:4px}.engineering-preview-footer{padding:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.engineering-preview-footer p{font-size:11px;flex-basis:100%;margin:0}.engineering-preview.compare{inset:auto 18px 70px;max-height:180px}.engineering-preview.compare .engineering-preview-header{padding:8px}.engineering-workspace .workspace{grid-template-columns:310px minmax(0,1fr) 330px}.brand-mark{background:#0e8275!important;border-radius:9px!important;transform:rotate(-6deg)}.brand-mark>span{border-radius:2px!important;transform:rotate(6deg)}
 @media(max-width:980px){.engineering-workspace .workspace{grid-template-columns:minmax(0,1fr)}.engineering-assistant{max-width:min(350px,90vw)}.engineering-preview{inset:85px 8px 100px}.engineering-modebar{padding:5px 10px}.engineering-modebar strong{font-size:11px}.engineering-preview .preview-controls{flex-wrap:wrap}.engineering-preview .mesh-preview{max-height:240px}}
 
 @media(max-width:980px){.engineering-workspace.phone-review .mobile-panel-controls{display:flex}.engineering-workspace .mobile-review-actions{display:none!important}}
@@ -13,3 +13,46 @@
 @media(min-width:981px){.engineering-workspace .workspace{grid-template-columns:330px minmax(0,1fr) 320px}}@media(max-width:980px){.assistant-messages{max-height:34vh}.assistant-chat-title h2{font-size:20px}.assistant-composer textarea{font-size:16px}.assistant-chat select{font-size:16px}.assistant-chat-entry{padding:7px!important}.engineering-modebar strong{font-size:10px}.engineering-assistant{padding-bottom:28px!important}}
 
 .engineering-workspace .inspector>.workflow-text-action{align-self:flex-end;margin:10px 14px 0;padding:7px 10px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--text);font:inherit;font-size:11px;cursor:pointer}@media(min-width:981px){.engineering-workspace .inspector>.workflow-text-action,.engineering-heading>button{display:none}}
+
+/* Audit repairs: explicit workspace specificity keeps these widths in Pro too. */
+@media(min-width:981px){
+ .app-shell.engineering-workspace .workspace,.app-shell.engineering-workspace.mode-pro .workspace{grid-template-columns:330px minmax(0,1fr) 340px}
+}
+.engineering-kicker,.assistant-icon{color:var(--accent-bright)}
+.assistant-chat-entry{color:var(--accent-bright)!important}
+.engineering-assistant .assistant-chat-title{margin:14px 0}
+.engineering-assistant p,.engineering-assistant li,.assistant-message p{font-size:13px;line-height:1.55}
+.assistant-provider>label,.assistant-model-label,.assistant-chat .assistant-connection-toggle,.assistant-message header,.assistant-plan-badge,.assistant-selection{font-size:12px}
+.assistant-message header span{font-size:11px}
+.assistant-chat .assistant-handoff{font-size:12px;line-height:1.55;padding:10px 0;margin:0;color:var(--subtle)}
+.assistant-messages{max-height:clamp(140px,24dvh,280px);margin:10px 0}
+.assistant-composer{position:sticky;bottom:0;z-index:2;box-shadow:0 -8px 16px var(--surface);margin-top:12px}
+.assistant-composer>div{flex-wrap:wrap}
+.assistant-composer>div>span{font-size:11px;max-width:none;flex:1 1 140px}
+.assistant-chat .assistant-send{min-height:40px;white-space:nowrap;margin-left:auto}
+.assistant-composer textarea{font-size:14px;min-height:70px}
+.assistant-refinements button,.assistant-pending button{font-size:12px;min-height:36px}
+.assistant-privacy{font-size:12px!important}
+.engineering-fields label{font-size:12px}
+.engineering-heading{position:sticky;top:-16px;background:var(--surface);z-index:3;padding:10px 0}
+@media(max-width:980px){
+ .app-shell.engineering-workspace .engineering-assistant{width:min(390px,calc(100vw - 16px));max-width:none;bottom:0}
+ .assistant-chat-title h2{font-size:20px}
+ .assistant-chat-title p{display:none}
+ .assistant-messages{max-height:22dvh}
+ .assistant-composer textarea{font-size:16px;min-height:64px}
+ .engineering-assistant button,.engineering-assistant select{min-height:44px}
+ .engineering-modebar strong{display:none}
+ .engineering-modebar{justify-content:space-between;gap:6px}
+ .engineering-modebar button{flex:1;min-height:40px}
+ .app-shell.engineering-workspace .engineering-preview{inset:60px 8px 105px}
+}
+/* The AI workflow supplies its own next step; avoid a duplicate guide band on phones. */
+@media(max-width:980px){
+ .app-shell.engineering-workspace{grid-template-rows:auto auto minmax(0,1fr) auto}
+ .engineering-workspace .workflow-guide{display:none}
+ .engineering-heading{padding:0 0 6px;top:-16px}
+ .engineering-assistant .assistant-chat-title{margin:8px 0 12px}
+ .assistant-provider>label{margin:0}
+ .assistant-messages{max-height:24dvh}
+}

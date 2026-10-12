@@ -39,3 +39,14 @@ it('does not analyze an in-flight placement or enable orientation previews witho
  expect(button(/Compare six orientations/).disabled).toBe(true)
  expect(button(/Preview orientation/)).toBeUndefined()
 })
+it('distinguishes equally named hole targets and shows a compact findings summary',async()=>{
+ const source=useEditor.getState().document
+ const a=createNode('cylinder'),b=createNode('cylinder');a.name=b.name='Mounting hole';a.boolean=b.boolean='cut';b.transform.position.x=40
+ const doc={...source,nodes:[...source.nodes,a,b]}
+ useEditor.setState({document:doc})
+ await act(async()=>root.render(<EngineeringInspector/>))
+ const options=[...host.querySelectorAll('select')][0]!.querySelectorAll('option')
+ expect(options[1]!.textContent).not.toBe(options[2]!.textContent)
+ expect(host.querySelector('[aria-label="Findings summary"]')).not.toBeNull()
+ expect(button(/^Printer setup$/)).toBeDefined()
+})

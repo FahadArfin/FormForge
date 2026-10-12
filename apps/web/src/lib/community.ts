@@ -38,30 +38,30 @@ export interface CommunityModel {
   comments: CommunityComment[]
 }
 
-const comment = (id: string, author: string, body: string, rating = 5): CommunityComment => ({ id, author, avatar: author.slice(0, 2).toUpperCase(), body, rating, likes: Math.floor(Number(id.replace(/\D/g, '')) % 17), createdAt: '2 days ago', replies: [] })
-
-export const communitySeed: CommunityModel[] = [
+const sampleConcepts: CommunityModel[] = [
   {
     id: 'desk-dock', title: 'Modular Desk Dock System', creator: 'Nora Makes', creatorHandle: '@noramakes', creatorAvatar: 'NM', image: '/community/modular-desk-dock.png', gallery: ['/community/modular-desk-dock.png', '/community/hex-tool-wall.png'],
-    description: 'A snap-fit desk organizer that grows with your setup. Includes phone, pen, cable and tray modules with print-in-place alignment keys.', category: 'Organization', tags: ['modular', 'desk', 'snap-fit', 'multicolor'], license: 'Standard Digital File License', likes: 2840, boosts: 412, downloads: 12700, makes: 684, rating: 4.9, reviewCount: 328, printTime: '5h 24m', filamentGrams: 138, colors: ['#7186b8', '#8d91ff', '#d8dbe8'], createdAt: '2026-08-02',
-    comments: [comment('c11', 'Jon Prints', 'The tolerances were perfect on my P1S. I printed the tray in PETG and the dock in PLA.', 5), { ...comment('c12', 'MinaLab', 'Could you add a wider watch charger insert?', 4), replies: [comment('c121', 'Nora Makes', 'Yes — I added it to the next remix pack. Thanks for the dimensions!')] }],
+    description: 'A concept illustration of a modular desk organizer with spaces for a phone, pens, cables and small items. No geometry or tested fit is attached.', category: 'Organization', tags: ['modular', 'desk', 'snap-fit', 'multicolor'], license: 'Standard Digital File License', likes: 0, boosts: 0, downloads: 0, makes: 0, rating: 0, reviewCount: 0, printTime: 'Not estimated', filamentGrams: 0, colors: ['#7186b8', '#8d91ff', '#d8dbe8'], createdAt: '2026-08-02',
+    comments: [],
   },
   {
     id: 'sea-turtle', title: 'Articulated Sea Turtle', creator: 'Loop Studio', creatorHandle: '@loopstudio', creatorAvatar: 'LS', image: '/community/articulated-sea-turtle.png', gallery: ['/community/articulated-sea-turtle.png', '/community/spiral-planter.png'],
-    description: 'Friendly print-in-place turtle with smooth articulated flippers and a two-color shell pattern. No supports required.', category: 'Toys & Games', tags: ['articulated', 'print-in-place', 'animal', 'ams'], license: 'Creative Commons Attribution', likes: 6120, boosts: 906, downloads: 29400, makes: 2200, rating: 4.8, reviewCount: 741, printTime: '3h 18m', filamentGrams: 72, colors: ['#45a89a', '#f07b61', '#f2e5c8'], createdAt: '2026-07-28',
-    comments: [comment('c21', 'PrintDad', 'My kids immediately asked for a whole family. Great articulation.', 5)],
+    description: 'A concept illustration of a colorful turtle with segmented flippers and a patterned shell. Articulation, supports and printability have not been tested.', category: 'Toys & Games', tags: ['articulated', 'print-in-place', 'animal', 'ams'], license: 'Creative Commons Attribution', likes: 0, boosts: 0, downloads: 0, makes: 0, rating: 0, reviewCount: 0, printTime: 'Not estimated', filamentGrams: 0, colors: ['#45a89a', '#f07b61', '#f2e5c8'], createdAt: '2026-07-28',
+    comments: [],
   },
   {
     id: 'hex-wall', title: 'Hex Workshop Wall', creator: 'BuildGrid', creatorHandle: '@buildgrid', creatorAvatar: 'BG', image: '/community/hex-tool-wall.png', gallery: ['/community/hex-tool-wall.png', '/community/modular-desk-dock.png'],
-    description: 'A parametric hex wall system for tools, parts and electronics. Every holder locks with a quarter turn and can be remixed.', category: 'Tools', tags: ['workshop', 'wall', 'parametric', 'storage'], license: 'Creative Commons Attribution-ShareAlike', likes: 3730, boosts: 518, downloads: 18600, makes: 1130, rating: 4.9, reviewCount: 456, printTime: '7h 42m', filamentGrams: 212, colors: ['#454955', '#f28b43', '#dfe2e5'], createdAt: '2026-07-19',
-    comments: [comment('c31', 'AdaFab', 'The quarter-turn connector is much stronger than the clips I was using.', 5)],
+    description: 'A concept illustration of a hexagonal wall organizer for tools and parts. No editable connectors or tested load capacity are included.', category: 'Tools', tags: ['workshop', 'wall', 'parametric', 'storage'], license: 'Creative Commons Attribution-ShareAlike', likes: 0, boosts: 0, downloads: 0, makes: 0, rating: 0, reviewCount: 0, printTime: 'Not estimated', filamentGrams: 0, colors: ['#454955', '#f28b43', '#dfe2e5'], createdAt: '2026-07-19',
+    comments: [],
   },
   {
     id: 'spiral-planter', title: 'Twisted Spiral Planter', creator: 'Soft Geometry', creatorHandle: '@softgeometry', creatorAvatar: 'SG', image: '/community/spiral-planter.png', gallery: ['/community/spiral-planter.png', '/community/articulated-sea-turtle.png'],
-    description: 'A lightweight spiral planter with hidden drainage and a matching saucer. Designed to show off silk and gradient filament.', category: 'Home & Garden', tags: ['planter', 'vase', 'spiral', 'decor'], license: 'Standard Digital File License', likes: 1980, boosts: 264, downloads: 8900, makes: 432, rating: 4.7, reviewCount: 198, printTime: '6h 05m', filamentGrams: 154, colors: ['#6e4cc6', '#a66de0', '#c392ee'], createdAt: '2026-07-11',
-    comments: [comment('c41', 'TerraPrint', 'Looks excellent in purple-green coextrusion filament.', 5)],
+    description: 'A concept illustration of a spiral planter with a matching saucer. Drainage, wall thickness and material suitability are unverified.', category: 'Home & Garden', tags: ['planter', 'vase', 'spiral', 'decor'], license: 'Standard Digital File License', likes: 0, boosts: 0, downloads: 0, makes: 0, rating: 0, reviewCount: 0, printTime: 'Not estimated', filamentGrams: 0, colors: ['#6e4cc6', '#a66de0', '#c392ee'], createdAt: '2026-07-11',
+    comments: [],
   },
 ]
+
+export const communitySeed: CommunityModel[] = sampleConcepts.map(model=>({...model,creator:'PrintLab concept',creatorHandle:'@printlab-concept',creatorAvatar:'PL',license:'Concept illustration only; no model file license',likes:0,boosts:0,downloads:0,makes:0,rating:0,reviewCount:0,printTime:'Not estimated',filamentGrams:0,comments:[]}))
 
 export const communityCategories = ['Trending', 'New & Notable', 'Organization', 'Toys & Games', 'Tools', 'Home & Garden', 'Art', 'Electronics', 'Replacement Parts']
 

@@ -73,3 +73,5 @@
   .generate-script-field textarea { font-size: 12px; }
 }
 @media (prefers-reduced-motion: reduce) { .generate-spinner { animation: none; } }
+
+.workspace-dialog.generate-studio{min-height:0;inset:0;margin:auto;height:fit-content}.generate-studio .dialog-inner{min-height:0}

@@ -27,6 +27,7 @@ export function frameCamera(camera:StudioCamera,target:Vector3,center:Vector3,si
  const direction=camera.position.clone().sub(target).normalize(),span=Math.max(.1,size.length()*1.15/Math.min(1,aspect))
  const distance=Math.max(12,span/(2*Math.tan(MathUtils.degToRad(38/2))))
  target.copy(center);camera.position.copy(center).addScaledVector(direction,distance);camera.zoom=1
+ if(camera instanceof PerspectiveCamera)camera.aspect=aspect
  if(camera instanceof OrthographicCamera){camera.top=span/2;camera.bottom=-span/2;camera.left=-span*aspect/2;camera.right=span*aspect/2}
  camera.near=Math.max(.001,distance/1000);camera.far=Math.max(1000,distance*20);camera.updateProjectionMatrix()
 }

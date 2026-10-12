@@ -25,7 +25,7 @@ test('typed requests persist, receive WebMCP replies, preview and apply editable
  await page.getByRole('button',{name:'Apply proposal'}).click();expect((await tool(page,'printlab_read_design')).nodes.length).toBe(before+1)
  await page.getByRole('button',{name:'Undo',exact:true}).click();expect((await tool(page,'printlab_read_design')).nodes.length).toBe(before)
  await page.getByRole('button',{name:'Redo',exact:true}).click();await openChat(page)
- await page.getByRole('heading',{name:'Let’s build something.',exact:true}).scrollIntoViewIfNeeded()
+ await page.getByRole('heading',{name:'Refine your design',exact:true}).scrollIntoViewIfNeeded()
  await page.screenshot({path:(page.viewportSize()?.width??1440)<981?'.audit/printlab-chat-phone.png':'.audit/printlab-chat-desktop.png'})
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);expect(errors).toEqual([])
 })
@@ -38,7 +38,7 @@ test('cancelled chat requests reject late replies without changing the model',as
  await page.getByRole('button',{name:'Cancel request',exact:true}).click()
  const reply=await tool(page,'printlab_reply_to_request',{requestId:context.pending.id,projectId:context.projectId,revision:context.revision,message:'Late',plan})
  expect(reply.error).toMatch(/cancelled/);expect((await tool(page,'printlab_read_design')).nodes).toEqual(before.nodes)
- await expect(page.getByRole('log',{name:'Design conversation'})).toContainText('cancelled')
+ await expect(page.getByRole('log',{name:'Design conversation'})).toContainText('Cancelled')
 })
 
 test('direct chat uses account model choices and retains explicit geometry Apply',async({page})=>{

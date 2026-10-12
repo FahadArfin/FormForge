@@ -36,6 +36,7 @@ describe('local showcase persistence', () => {
 
   it('restores local comments and nested replies on inspiration items after reloading', () => {
     const model = structuredClone(communitySeed[0]!)
+    model.comments = [{id:'existing-note',author:'You',avatar:'YO',body:'Saved note',likes:0,createdAt:'Today'}]
     model.comments[0]!.replies = [{ id: 'local-reply', author: 'You', avatar: 'YO', body: 'My measurements', likes: 0, createdAt: 'Today' }]
     model.comments.unshift({ id: 'local-note', author: 'You', avatar: 'YO', body: 'Try this next', likes: 0, createdAt: 'Today' })
     model.reviewCount += 1
@@ -82,4 +83,9 @@ describe('community detail routes', () => {
   it('normalizes unknown filters and preserves useful search text', () => {
     expect(readCommunityRoute('#community?page=unknown&category=unknown&sort=unknown&q=desk')).toEqual({ modelId: null, query: 'desk', category: 'Trending', page: 'discover', sort: 'Trending' })
   })
+})
+
+it('keeps concept previews free of invented print evidence and social metrics',()=>{
+ for(const model of communitySeed){expect(model.document).toBeUndefined();expect([model.likes,model.boosts,model.downloads,model.makes,model.rating,model.reviewCount]).toEqual([0,0,0,0,0,0]);expect(model.comments).toEqual([]);expect(model.printTime).toBe('Not estimated')}
+ expect(communitySeed.find(m=>m.id==='sea-turtle')?.description).toContain('have not been tested')
 })

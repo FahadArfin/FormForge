@@ -1,3 +1,23 @@
 :root{--accent:#38b8a5;--accent-bright:#67d5c3;--accent-wash:#38b8a518;--bg:#151d21;--panel:#1b262c;--surface:#1b262c;--surface-raised:#243139;--line:#37464f}
 :root[data-theme='light']{--accent:#08796c;--accent-bright:#08695e;--accent-wash:#08796c12;--bg:#f1f5f5;--surface-raised:#f3f7f7;--line:#dbe4e4}
 .public-site{--primary:#08796c;background:#f5f8f7}.brand-mark{background:#08796c!important;border-radius:9px!important;transform:rotate(-6deg)}.brand-mark>span{border-radius:2px!important;transform:rotate(6deg)}.public-brand{letter-spacing:-.7px}.studio-primary,.public-primary{background:#08796c!important;color:#fff!important}
+
+/* Theme-aware interactive colors: never use the filled-button color for dark text. */
+:root{--accent:#65d5c1;--accent-bright:#8de5d5;--accent-wash:#38b8a518;--muted:#b5c1c6;--subtle:#b5c1c6;--panel-2:#243139}
+:root[data-theme='light']{--accent:#08796c;--accent-bright:#08695e;--muted:#586970;--subtle:#586970;--panel-2:#edf4f3}
+.studio-generate{color:var(--accent-bright)}
+.app-shell .interaction-hint{background:var(--surface);color:var(--subtle);padding:7px 10px;border-radius:8px}
+.workspace-dialog .dialog-heading{position:sticky;top:-26px;z-index:4;background:var(--surface);padding-top:10px;padding-bottom:12px}
+.workspace-dialog .dialog-heading .studio-icon{flex-shrink:0;min-width:40px;min-height:40px}
+.guide-ai{border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:20px;background:var(--accent-wash)}
+.guide-ai p{font-size:13px;line-height:1.65}
+.guide-ai .workflow-action{margin-top:12px}
+@media(max-width:700px){
+ .workspace-dialog .dialog-heading{top:-20px}
+ .studio-mode button,.studio-utilities button,.studio-generate,.studio-history button{min-height:40px}
+ .studio-project .studio-icon{min-width:32px;min-height:32px}
+ .workspace-dialog button,.workspace-dialog summary,.mobile-panel-controls button,.mobile-review-actions button{min-height:44px}
+ .workspace-dialog input,.workspace-dialog select,.workspace-dialog textarea{font-size:16px}
+ .app-shell .statusbar{min-height:32px}
+}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}

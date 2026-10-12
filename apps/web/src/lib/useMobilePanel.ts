@@ -1,14 +1,14 @@
 import { useEffect, useRef } from 'react'
 
 /** Give the responsive drawer modal keyboard behavior without changing the desktop panels. */
-export function useMobilePanel(panel: 'tools' | 'inspector' | null, close: () => void) {
+export function useMobilePanel(panel: 'tools' | 'inspector' | null, close: () => void, contentKey?: string) {
   const closeRef = useRef(close); closeRef.current = close
   useEffect(() => {
     if (!panel || !window.matchMedia('(max-width: 980px)').matches) return
     const drawer = document.querySelector<HTMLElement>(panel === 'tools' ? '.toolbox' : '.inspector')
     if (!drawer) return
     const previous = document.activeElement as HTMLElement | null
-    const background = [...document.querySelectorAll<HTMLElement>(`.studio-header, .workflow-guide, .skip-link, .statusbar, .viewport-wrap, ${panel === 'tools' ? '.inspector' : '.toolbox'}`)]
+    const background = [...document.querySelectorAll<HTMLElement>(`.studio-header, .engineering-modebar, .workflow-guide, .skip-link, .statusbar, .viewport-wrap, ${panel === 'tools' ? '.inspector' : '.toolbox'}`)]
     const inert = background.map(element => element.inert)
     background.forEach(element => { element.inert = true })
     drawer.setAttribute('role', 'dialog'); drawer.setAttribute('aria-modal', 'true')
@@ -33,5 +33,5 @@ export function useMobilePanel(panel: 'tools' | 'inspector' | null, close: () =>
       drawer.removeAttribute('role'); drawer.removeAttribute('aria-modal')
       if (previous?.isConnected && !previous.closest('[inert], [hidden]')) previous.focus()
     }
-  }, [panel])
+  }, [panel, contentKey])
 }
