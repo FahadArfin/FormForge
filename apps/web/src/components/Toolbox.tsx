@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Box, CircleDot, Cone, Cylinder, Hand, MousePointer2, RotateCw, Scaling, Sparkles, Waves, WandSparkles, Radius, Gauge, Blend, FlipHorizontal2, PenTool, CircleDashed, Pill, Triangle, Star, CirclePlus, Minimize2, PanelTopClose, Search, ChevronDown, X } from 'lucide-react'
-import type { ModelNode, PrimitiveKind, ToolMode } from '@formforge/model'
+import type { PrimitiveKind, ToolMode } from '@formforge/model'
 import { useEditor } from '@/store/editor'
 import { IconButton } from './IconButton'
 import { ProfileRecipeCreator } from './ProfileRecipeCreator'
 import './Toolbox.css'
-import { NumberInput } from './NumberInput'
 
 type ShapeChoice = Exclude<PrimitiveKind, 'extrude' | 'revolve' | 'mesh'>
 
@@ -32,18 +31,15 @@ const tools: { value: ToolMode; label: string; shortcut: string; icon: typeof Ha
   { value: 'scale', label: 'Scale', shortcut: 'S', icon: Scaling },
 ]
 
-const defaultParameters: ModelNode['parameters'] = { width: 20, depth: 20, height: 20, radius: 10, radiusTop: 4, segments: 48, fillet: 2, count: 12, twist: 0, topWidth: 12, topDepth: 12, wall: 0 }
-
 export function Toolbox({ onClose }: { onClose?: () => void }) {
   const [task, setTask] = useState<'build' | 'sculpt'>('build')
   const [search, setSearch] = useState('')
   const [moreShapes, setMoreShapes] = useState(false)
-  const [shape, setShape] = useState<ShapeChoice | null>(null)
   const [recipeOpen, setRecipeOpen] = useState(false)
   const [boolean, setBoolean] = useState<'add' | 'cut'>('add')
-  const [parameters, setParameters] = useState(defaultParameters)
   const addPrimitive = useEditor((state) => state.addPrimitive)
   const addProfileRecipe = useEditor((state) => state.addProfileRecipe)
+  const placingNodeId = useEditor((state) => state.placingNodeId)
   const tool = useEditor((state) => state.tool)
   const profileOperation = useEditor((state) => state.profileOperation)
   const setTool = useEditor((state) => state.setTool)
@@ -76,12 +72,6 @@ export function Toolbox({ onClose }: { onClose?: () => void }) {
     else if (tool === 'draw-profile' || tool === 'place') setTask('build')
   }, [tool])
 
-  const setParameter = (key: keyof ModelNode['parameters'], value: number) => {
-    if (!Number.isFinite(value)) return
-    setParameters((current) => ({ ...current, [key]: key === 'twist' ? value : Math.max(key === 'radiusTop' ? 0 : 0.1, value) }))
-  }
-  const field = (label: string, key: keyof ModelNode['parameters'], suffix = 'mm') => <NumberInput label={label} accessibleLabel={`${label} dimension`} value={parameters[key]} suffix={suffix} onChange={value => setParameter(key, value)} />
-
   return (
     <aside className="toolbox panel-surface modeling-toolbox" aria-label="Modeling tools">
       <button className="drawer-close" onClick={onClose}>Close build tools <X size={18}/></button>
@@ -107,37 +97,21 @@ export function Toolbox({ onClose }: { onClose?: () => void }) {
       </div>
       {task === 'build' && <div id="build-tools-panel" role="tabpanel" aria-labelledby="build-tools-tab" className="toolbox-section build-section">
         <div className="section-title"><span className="section-kicker">Add a shape</span></div>
-        <p className="toolbox-intro">Choose a shape, then set its size.</p>
+        <p className="toolbox-intro">Pick a shape. Click the plate to place it, or drag to choose its size.</p>
         <label className="shape-search"><Search size={16} /><input type="search" aria-label="Search shapes" placeholder="Search shapes…" value={search} onChange={(event) => setSearch(event.target.value)} />{search && <button type="button" aria-label="Clear shape search" onClick={() => setSearch('')}><X size={14} /></button>}</label>
+        <div className="solid-kind-switch" role="group" aria-label="New shape operation"><button aria-pressed={boolean === 'add'} className={boolean === 'add' ? 'active' : ''} onClick={() => setBoolean('add')}>Solid</button><button aria-pressed={boolean === 'cut'} className={boolean === 'cut' ? 'active carve' : ''} onClick={() => setBoolean('cut')}>Cutout</button></div>
         <div className="shape-library">
           {visibleShapes.map(({ kind, label, icon: Icon }) => (
-            <button key={kind} className={shape === kind ? 'active' : ''} aria-pressed={shape === kind} onClick={() => { setShape(kind); setRecipeOpen(false) }} title={`Add ${label.toLowerCase()}`}><Icon size={24} strokeWidth={1.6} /><span>{label}</span></button>
+            <button key={kind} className={placingNodeId && selectedNode?.kind === kind ? 'active' : ''} aria-pressed={Boolean(placingNodeId && selectedNode?.kind === kind)} onClick={() => { addPrimitive(kind, boolean, ['torus', 'tube', 'star'].includes(kind) ? { radiusTop: 4 } : undefined); setRecipeOpen(false); onClose?.() }} title={`Add ${label.toLowerCase()}`}><Icon size={24} strokeWidth={1.6} /><span>{label}</span></button>
           ))}
         </div>
         {visibleShapes.length === 0 && <p className="shape-search-empty">No shapes found. Try “box” or “tube”.</p>}
         {!search && <button className="more-shapes-button" aria-expanded={moreShapes} onClick={() => setMoreShapes((current) => !current)}>{moreShapes ? 'Show basic shapes' : 'More shapes'}<ChevronDown size={15} className={moreShapes ? 'expanded' : ''} /></button>}
-        {shape && <div className="shape-setup">
-          <div className="shape-setup-head"><strong>{shapes.find((item) => item.kind === shape)?.label} dimensions</strong><button aria-label="Close shape dimensions" onClick={() => setShape(null)}><X size={16} /></button></div>
-          <div className="solid-kind-switch" role="group" aria-label="Shape operation"><button aria-pressed={boolean === 'add'} className={boolean === 'add' ? 'active' : ''} onClick={() => setBoolean('add')}>Solid</button><button aria-pressed={boolean === 'cut'} className={boolean === 'cut' ? 'active carve' : ''} onClick={() => setBoolean('cut')}>Cutout</button></div>
-          <div className="shape-dimensions">
-            {(shape === 'box' || shape === 'roundedBox' || shape === 'wedge') && <>{field('Width', 'width')}{field('Depth', 'depth')}{field('Height', 'height')}{shape === 'roundedBox' && field('Corner', 'fillet')}</>}
-            {(shape === 'cylinder' || shape === 'cone' || shape === 'capsule') && <>{field('Radius', 'radius')}{field('Height', 'height')}{shape === 'cone' && field('Top', 'radiusTop')}</>}
-            {shape === 'sphere' && field('Radius', 'radius')}
-            {shape === 'torus' && <>{field('Ring', 'radius')}{field('Tube', 'radiusTop')}</>}
-            {shape === 'tube' && <>{field('Outer', 'radius')}{field('Inner', 'radiusTop')}{field('Height', 'height')}</>}
-            {shape === 'star' && <>{field('Outer', 'radius')}{field('Inner', 'radiusTop')}{field('Height', 'height')}</>}
-            {shape === 'gear' && <>{field('Outer', 'radius')}{field('Root', 'radiusTop')}{field('Height', 'height')}{field('Teeth', 'count', '')}</>}
-            {shape === 'loft' && <>{field('Base W', 'width')}{field('Base D', 'depth')}{field('Top W', 'topWidth')}{field('Top D', 'topDepth')}{field('Height', 'height')}{field('Twist', 'twist', '°')}</>}
-            {shape === 'spring' && <>{field('Coil R', 'radius')}{field('Wire R', 'radiusTop')}{field('Height', 'height')}{field('Turns', 'count', '')}</>}
-          </div>
-          <button className={`place-shape ${boolean}`} onClick={() => { addPrimitive(shape, boolean, parameters); setShape(null) }}><MousePointer2 size={15} /> Place in workspace</button>
-          <small className="shape-setup-tip">Next, click the canvas to place. Drag to resize the footprint.</small>
-        </div>}
         <button
           className={`profile-recipe-launch ${recipeOpen ? 'active' : ''}`}
           type="button"
           aria-expanded={recipeOpen}
-          onClick={() => { setRecipeOpen((current) => !current); setShape(null) }}
+          onClick={() => { setRecipeOpen((current) => !current); useEditor.getState().cancelPlacement() }}
         >
           <WandSparkles size={17} />
           <span><strong>Outline recipes</strong><small>Make a custom profile</small></span>

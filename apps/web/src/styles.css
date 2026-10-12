@@ -1034,3 +1034,15 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .inspector-tabs { display: flex; gap: 3px !important; align-items: center !important; padding: 3px; border: 1px solid #30323e; background: #171820; border-radius: 8px; }
 .inspector-tabs button { border: 0; background: transparent; color: #777a8a; display: flex; align-items: center; gap: 6px; border-radius: 6px; padding: 6px 9px; font-size: 9px; font-weight: 600; cursor: pointer; }
 .inspector-tabs button.active { background: #30323e; color: #eeeef5; }
+
+.viewport-canvas.is-placing[data-placement-size]::after { content: attr(data-placement-size); position:absolute; top:110px; left:50%; transform:translateX(-50%); padding:8px 12px; border:1px solid var(--border); border-radius:12px; background:var(--panel); color:var(--text); font-size:12px; font-variant-numeric:tabular-nums; pointer-events:none; white-space:nowrap; }
+.selection-dimensions { display:flex; align-items:center; gap:10px; }
+.selection-dimensions:has(details[open]) { display:block; }
+.selection-dimensions details { min-width:0; }
+.selection-dimensions summary { display:flex; align-items:center; gap:5px; }
+.selection-dimensions summary::before { content:"▸"; }
+.selection-dimensions details[open] summary::before { content:"▾"; }
+.shape-direct-actions { display:flex; flex-shrink:0; gap:6px; }
+.shape-direct-actions button { min-height:34px; border:1px solid var(--border); border-radius:8px; padding:5px 9px; color:var(--text); background:var(--panel); cursor:pointer; }
+.shape-direct-actions button[aria-pressed=true] { color:var(--accent); border-color:var(--accent); }
+@media(pointer:coarse) { .shape-direct-actions button { min-height:44px; } }

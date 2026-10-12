@@ -527,7 +527,7 @@ export const useEditor = create<EditorState>((set, get) => {
     },
     setTool(tool) {
       if ((tool === 'sculpt-add' || tool === 'sculpt-carve') && get().document.nodes.some(node => node.locked && !node.suppressed)) { set({ notice: 'Unlock all shapes before volume sculpting. Volume brushes affect the combined model.' }); return }
-      if (tool !== 'place' && get().placingNodeId) set({ placingNodeId: null })
+      if (tool !== 'place' && get().placingNodeId) get().cancelPlacement()
       const polygonTools: ToolMode[] = ['sculpt-draw', 'sculpt-clay', 'sculpt-smooth', 'sculpt-inflate', 'sculpt-pinch', 'sculpt-flatten', 'sculpt-crease', 'sculpt-grab', 'sculpt-snake', 'sculpt-relax', 'sculpt-mask']
       const selected = get().document.nodes.find((node) => node.id === get().selectedNodeId)
       if (tool.startsWith('sculpt') && selected?.locked) { set({ notice: 'Unlock the selected shape before sculpting.' }); return }
@@ -554,7 +554,7 @@ export const useEditor = create<EditorState>((set, get) => {
       const placed = { ...node, transform, parameters }
       const grounded = { ...transform, position: { ...transform.position, z: transform.position.z - nodeWorldBounds(placed).min.z } }
       get().updateNode(nodeId, { transform: get().document.workplane ? transform : grounded, parameters }, false)
-      set({ placingNodeId: null, tool: 'move', notice: 'Shape placed. Drag the handles or enter exact values.' })
+      set({ placingNodeId: null, tool: 'select', notice: 'Shape placed. Drag it to move. Choose Resize for size handles or enter exact dimensions.' })
     },
 
     cancelPlacement() {
