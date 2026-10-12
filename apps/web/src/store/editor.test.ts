@@ -190,13 +190,13 @@ describe('CAD selection editing', () => {
     expect(useEditor.getState().document).toBe(before)
     expect(useEditor.getState().notice).toMatch(/selection changed/i)
   })
-  it('switching tools finishes the pending shape and Escape cannot delete it later', () => {
+  it('switching tools cancels an unplaced preview without adding a stray shape', () => {
     useEditor.getState().addPrimitive('sphere')
     const pending = useEditor.getState().placingNodeId
     useEditor.getState().setTool('rotate')
     useEditor.getState().cancelPlacement()
     expect(useEditor.getState().placingNodeId).toBeNull()
-    expect(useEditor.getState().document.nodes.some(node => node.id === pending)).toBe(true)
+    expect(useEditor.getState().document.nodes.some(node => node.id === pending)).toBe(false)
     expect(useEditor.getState().tool).toBe('rotate')
   })
   it('cancelling placement does not leave a ghost shape in undo history', () => {

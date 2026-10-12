@@ -1,3 +1,4 @@
+import { shapePlacement } from '@/lib/shapePlacement'
 import { isVolumeContinuation } from '@/lib/volumeContinuation'
 import {changeProjection,frameCamera,resizeCamera,zoomCamera,cameraDistanceLimits,updateCameraClipping,type StudioCamera} from '@/lib/cameraProjection'
 import { savedCameraViewSchema } from '@formforge/model'
@@ -11,7 +12,7 @@ import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { TransformControls } from 'three/addons/controls/TransformControls.js'
-import type { ModelNode, ToolMode, Vec3Value } from '@formforge/model'
+import type { ModelNode, ToolMode, Vec3Value, Workplane } from '@formforge/model'
 import { meshPayloadToGeometry } from '@/lib/exporters'
 import { makeSourceGeometry, nodeGeometrySignature, nodeWorldBounds } from '@/lib/modelGeometry'
 import {
@@ -311,10 +312,11 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     const raycaster = new THREE.Raycaster()
     raycaster.params.Line = { threshold: 1.25 }
     const pointer = new THREE.Vector2()
-    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0)
     let placementStart: THREE.Vector3 | null = null
     let placementPreview: PlacementPreview | null = null
-    let directDrag: { nodeId: string; startPoint: THREE.Vector3; startPosition: THREE.Vector3 } | null = null
+    let placementPress: { x: number; y: number } | null = null
+    let placementPointer: number | null = null
+    let directDrag: { nodeId: string; startPoint: THREE.Vector3; startPosition: THREE.Vector3; screen: { x: number; y: number }; moved: boolean; pointerId: number; plane: THREE.Plane; workplane?: Workplane } | null = null
     let gizmoDrag: { nodeId: string; axis: string; startPoint: THREE.Vector3; startPosition: THREE.Vector3; plane: THREE.Plane } | null = null
     let sculpting = false
     let sculptHasHistory = false
@@ -345,11 +347,6 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       const rect = renderer.domElement.getBoundingClientRect()
       pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1)
       raycaster.setFromCamera(pointer, camera)
-    }
-
-    const pointOnPlane = (event: PointerEvent) => {
-      updateRay(event)
-      return raycaster.ray.intersectPlane(plane, new THREE.Vector3())
     }
 
     const pointOnWorkplane = (event: PointerEvent) => {
@@ -592,39 +589,26 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       return true
     }
 
-    const updatePlacement = (point: THREE.Vector3) => {
+    const previewPlacement = (point: THREE.Vector3, resizing = false) => {
       const state = useEditor.getState()
-      const node = state.document.nodes.find((item) => item.id === state.placingNodeId)
+      const node = state.document.nodes.find(item => item.id === state.placingNodeId)
       const object = node ? sourceById.get(node.id) : undefined
-      if (!node || !object || !placementStart) return
-      const dx = point.x - placementStart.x
-      const dy = point.y - placementStart.y
-      const rawDistance = Math.hypot(dx, dy)
-      if (rawDistance < 0.75) return
-      const distance = Math.max(1, rawDistance)
-      const parameters = { ...node.parameters }
-      const transformValue = structuredClone(node.transform)
-
-      if (node.kind === 'extrude' || node.kind === 'revolve') {
-        // Recipe profiles are dimensioned before placement. Dragging positions
-        // the exact outline instead of silently changing its stored geometry.
-        transformValue.position = { x: point.x, y: point.y, z: parameters.height / 2 }
-        object.scale.set(1, 1, 1)
-      } else if (node.kind === 'box' || node.kind === 'roundedBox' || node.kind === 'wedge' || node.kind === 'loft') {
-        parameters.width = Math.max(1, Math.abs(dx))
-        parameters.depth = Math.max(1, Math.abs(dy))
-        transformValue.position = { x: placementStart.x + dx / 2, y: placementStart.y + dy / 2, z: parameters.height / 2 }
-        object.scale.set(parameters.width / node.parameters.width, parameters.depth / node.parameters.depth, 1)
-      } else {
-        parameters.radius = distance
-        if (node.kind === 'cone') parameters.radiusTop = Math.min(parameters.radiusTop, distance * 0.8)
-        transformValue.position = { x: placementStart.x, y: placementStart.y, z: node.kind === 'sphere' ? distance : node.kind === 'torus' ? parameters.radiusTop : parameters.height / 2 }
-        const radialScale = distance / node.parameters.radius
-        object.scale.set(radialScale, radialScale, node.kind === 'sphere' ? radialScale : 1)
+      if (!node || !object) return
+      const placed = shapePlacement(node, resizing && placementStart ? placementStart : point, resizing ? point : null, state.document.workplane, state.translationSnap)
+      const signature = nodeGeometrySignature(placed)
+      if (object.userData.geometrySignature !== signature) {
+        object.geometry.dispose()
+        object.geometry = makeSourceGeometry(placed)
+        object.userData.geometrySignature = signature
+        // The selection outline is recreated from the accepted geometry on commit.
+        const outline = object.getObjectByName('selection-outline')
+        if (outline) outline.visible = false
       }
-      Object.assign(transformValue, placeNodeOnWorkplane({ ...node, parameters }, state.document.workplane, transformValue.position).transform)
-      object.position.set(transformValue.position.x, transformValue.position.y, transformValue.position.z)
-      placementPreview = { transform: transformValue, parameters }
+      applyNodeTransform(object, placed)
+      object.visible = true
+      placementPreview = { transform: placed.transform, parameters: placed.parameters }
+      const bounds = nodeWorldBounds(placed), size = bounds.getSize(new THREE.Vector3())
+      host.dataset.placementSize = `${size.x.toFixed(1)} × ${size.y.toFixed(1)} × ${size.z.toFixed(1)} mm`
     }
 
     let emptyPress: { x: number; y: number } | null = null
@@ -705,16 +689,13 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
         const point = pointOnWorkplane(event)
         if (!point) return
         placementStart = point
+        // Drawing is a deliberate camera-relative action; do not auto-frame
+        // the first evaluated solid away from where it was just placed.
+        framedProject.current = state.document.id
         orbit.enabled = false
-        const node = state.document.nodes.find((item) => item.id === state.placingNodeId)
-        if (node) {
-          const transformValue = structuredClone(node.transform)
-          Object.assign(transformValue, placeNodeOnWorkplane(node, state.document.workplane, point).transform)
-          const object = sourceById.get(node.id)
-          object?.position.set(transformValue.position.x, transformValue.position.y, transformValue.position.z)
-          if (object) object.rotation.set(...[transformValue.rotation.x, transformValue.rotation.y, transformValue.rotation.z].map(THREE.MathUtils.degToRad) as [number,number,number])
-          placementPreview = { transform: transformValue, parameters: structuredClone(node.parameters) }
-        }
+        placementPress = { x: event.clientX, y: event.clientY }
+        placementPointer = event.pointerId
+        previewPlacement(point)
         renderer.domElement.setPointerCapture(event.pointerId)
         event.preventDefault()
         return
@@ -788,19 +769,25 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
         }
       }
       updateRay(event)
-      const hits = raycaster.intersectObjects(sourceGroup.children.filter(o=>{const focus=useInspection.getState().focus;return state.document.nodes.some(n=>n.id===o.userData.nodeId&&n.visible)&&(!focus||focus.documentId!==state.document.id||focus.ids.includes(o.userData.nodeId))}), false).filter(hit => sectionPointVisible(hit.point, useInspection.getState().section))
+      // Only visible evaluated surfaces are pickable in Solid view. A hole is
+      // empty canvas, even when an uncut source operand spans it.
+      const resultSurface = state.showResult && state.meshDocument === state.document && state.geometryStatus === 'ready'
+        ? raycaster.intersectObjects(resultGroup.children, false).find(hit => sectionPointVisible(hit.point, useInspection.getState().section)) : null
+      const hits = raycaster.intersectObjects(sourceGroup.children.filter(o=>{const focus=useInspection.getState().focus;return state.document.nodes.some(n=>n.id===o.userData.nodeId&&n.visible&&!n.suppressed)&&(!focus||focus.documentId!==state.document.id||focus.ids.includes(o.userData.nodeId))}), false).filter(hit => sectionPointVisible(hit.point, useInspection.getState().section) && (!state.showResult || Boolean(resultSurface && Math.abs(hit.distance - resultSurface.distance) < 0.1)))
       if(useInspection.getState().pickOverlaps){const ids=overlapChoices(state.document.nodes,hits.map(h=>h.object.userData.nodeId as string));window.dispatchEvent(new CustomEvent('formforge:overlaps',{detail:{documentId:state.document.id,ids}}));event.preventDefault();return}
       const hit = hits[0]
       if (hit) {
         const nodeId = hit.object.userData.nodeId as string
         const additive = event.ctrlKey || event.metaKey || event.shiftKey
         if (additive || !state.selectedNodeIds.includes(nodeId)) state.selectNode(nodeId, additive)
-        if (state.tool === 'move' && !state.document.sculptStrokes.length && !(transform as unknown as { axis?: string | null }).axis) {
+        if ((state.tool === 'move' || state.tool === 'select') && !state.document.sculptStrokes.length && !(transform as unknown as { axis?: string | null }).axis) {
           const node = state.document.nodes.find((item) => item.id === nodeId)
-          const point = raycaster.ray.intersectPlane(plane, new THREE.Vector3())
+          const dragPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(vector(state.document.workplane?.normal ?? { x: 0, y: 0, z: 1 }), hit.object.position)
+          const point = raycaster.ray.intersectPlane(dragPlane, new THREE.Vector3())
           if (node && !node.locked && point && !additive) {
+            if (state.showResult) state.setShowResult(false)
             snapshotSelection()
-            directDrag = { nodeId, startPoint: point, startPosition: hit.object.position.clone() }
+            directDrag = { nodeId, startPoint: point, startPosition: hit.object.position.clone(), screen: { x: event.clientX, y: event.clientY }, moved: false, pointerId: event.pointerId, plane: dragPlane, workplane: state.document.workplane }
             orbit.enabled = false
             renderer.domElement.setPointerCapture(event.pointerId)
             event.preventDefault()
@@ -846,22 +833,27 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
         return
       }
       if (directDrag) {
-        const point = pointOnPlane(event)
+        if (event.pointerId !== directDrag.pointerId) return
+        if (!directDrag.moved && Math.hypot(event.clientX - directDrag.screen.x, event.clientY - directDrag.screen.y) < 4) return
+        directDrag.moved = true
+        updateRay(event)
+        const point = raycaster.ray.intersectPlane(directDrag.plane, new THREE.Vector3())
         const object = sourceById.get(directDrag.nodeId)
         if (point && object) {
           const multiplier = event.shiftKey ? 10 : event.altKey ? 0.1 : 1
           const snap = state.translationSnap === null ? null : state.translationSnap * multiplier
-          const nextX = directDrag.startPosition.x + point.x - directDrag.startPoint.x
-          const nextY = directDrag.startPosition.y + point.y - directDrag.startPoint.y
-          object.position.x = snap ? Math.round(nextX / snap) * snap : nextX
-          object.position.y = snap ? Math.round(nextY / snap) * snap : nextY
+          const next = worldToPlane(directDrag.startPosition.clone().add(point.sub(directDrag.startPoint)), directDrag.workplane)
+          if (snap) { next.x = Math.round(next.x / snap) * snap; next.y = Math.round(next.y / snap) * snap }
+          object.position.copy(planeToWorld(next, directDrag.workplane))
           previewSelection(object)
         }
         return
       }
-      if (placementStart && state.tool === 'place') {
+      if (state.tool === 'place' && state.placingNodeId) {
+        if (placementPointer !== null && event.pointerId !== placementPointer) return
         const point = pointOnWorkplane(event)
-        if (point) updatePlacement(point)
+        const resizing = Boolean(placementPress && Math.hypot(event.clientX - placementPress.x, event.clientY - placementPress.y) >= 4)
+        if (point) previewPlacement(point, resizing)
         return
       }
       if (state.tool.startsWith('sculpt')) {
@@ -911,6 +903,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
 
     const onPointerUp = (event: PointerEvent) => {
       const state = useEditor.getState()
+      if (placementPointer !== null && event.pointerId !== placementPointer || directDrag && event.pointerId !== directDrag.pointerId) return
       const tapped = measurementTap.up(event)
       if (state.tool === 'measure' || state.tool === 'measure-angle' || state.tool === 'measure-circle') {
         if (!tapped) return
@@ -933,7 +926,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       if (emptyPress && Math.hypot(event.clientX - emptyPress.x, event.clientY - emptyPress.y) < 4) state.selectNode(null)
       emptyPress = null
       const drag = gizmoDrag ?? directDrag
-      if (drag) {
+      if (drag && (gizmoDrag || directDrag?.moved)) {
         const object = sourceById.get(drag.nodeId)
         if (object) state.updateSelectionTransforms(previewSelection(object))
       }
@@ -954,6 +947,9 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       }
       placementStart = null
       placementPreview = null
+      placementPress = null
+      placementPointer = null
+      delete host.dataset.placementSize
       if (polygonStroke) {
         if (polygonStroke.modified) state.commitPolygonSculpt(polygonStroke.nodeId, geometryToSculptMesh(polygonStroke.object.geometry, polygonStroke.mask))
         polygonStroke = null
@@ -965,6 +961,37 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       if (renderer.domElement.hasPointerCapture(event.pointerId)) renderer.domElement.releasePointerCapture(event.pointerId)
     }
 
+    const cancelCanvasGesture = () => {
+      if (directDrag) {
+        for (const node of transformSnapshot) {
+          const object = sourceById.get(node.id)
+          if (object) applyNodeTransform(object, node)
+        }
+        directDrag = null
+        transformSnapshot = []
+      }
+      placementStart = null
+      placementPreview = null
+      placementPress = null
+      placementPointer = null
+      delete host.dataset.placementSize
+      orbit.enabled = true
+    }
+    const unsubscribeGestures = useEditor.subscribe((state, previous) => {
+      if ((directDrag || placementStart || placementPreview) && (state.document !== previous.document || state.tool !== previous.tool || state.placingNodeId !== previous.placingNodeId)) cancelCanvasGesture()
+    })
+    const onPointerCancel = (event: PointerEvent) => {
+      if (placementPointer === event.pointerId || directDrag?.pointerId === event.pointerId) {
+        cancelCanvasGesture()
+        useEditor.getState().cancelPlacement()
+        measurementTap.cancel()
+        if (renderer.domElement.hasPointerCapture(event.pointerId)) renderer.domElement.releasePointerCapture(event.pointerId)
+      } else onPointerUp(event)
+    }
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && (directDrag || placementStart || placementPreview)) cancelCanvasGesture()
+    }
+    window.addEventListener('keydown', onEscape, true)
     const onPointerLeave = () => {
       measurementTap.cancel()
       renderer.domElement.classList.remove('sculpt-hit')
@@ -973,7 +1000,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     renderer.domElement.addEventListener('pointerdown', onPointerDown)
     renderer.domElement.addEventListener('pointermove', onPointerMove)
     renderer.domElement.addEventListener('pointerup', onPointerUp)
-    renderer.domElement.addEventListener('pointercancel', onPointerUp)
+    renderer.domElement.addEventListener('pointercancel', onPointerCancel)
     renderer.domElement.addEventListener('pointerleave', onPointerLeave)
 
     const frameObjects = (selectedOnly: boolean) => {
@@ -1073,7 +1100,9 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       renderer.domElement.removeEventListener('pointerdown', onPointerDown)
       renderer.domElement.removeEventListener('pointermove', onPointerMove)
       renderer.domElement.removeEventListener('pointerup', onPointerUp)
-      renderer.domElement.removeEventListener('pointercancel', onPointerUp)
+      renderer.domElement.removeEventListener('pointercancel', onPointerCancel)
+      window.removeEventListener('keydown', onEscape, true)
+      unsubscribeGestures()
       renderer.domElement.removeEventListener('pointerleave', onPointerLeave)
       window.removeEventListener('formforge:diagnostic-point',markDiagnostic);diagnosticMarker.geometry.dispose();diagnosticMarker.material.dispose();scene.remove(diagnosticMarker)
       window.removeEventListener('formforge:capture-camera',captureCamera)
@@ -1159,7 +1188,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       material.roughness = 0.38
       material.metalness = 0.05
       material.transparent = true
-      material.opacity = suppressed ? selected ? 0.28 : 0.1 : editing
+      material.opacity = node.id === useEditor.getState().placingNodeId ? 0.48 : suppressed ? selected ? 0.28 : 0.1 : editing
         ? node.boolean === 'add' ? 0.88 : 0.28
         : selected || xrayEnabled ? 0.14 : 0
       material.depthWrite = !suppressed && editing && node.boolean === 'add' && displayMode === 'solid'
@@ -1202,6 +1231,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
         outlineMaterial.opacity = selected ? 1 : node.boolean !== 'add' ? 0.72 : 0.52
         outlineMaterial.depthTest = editing && !xrayEnabled
         outlineMaterial.needsUpdate = true
+        outline!.visible = true
       }
     }
     const selectedObject = selectedNodeId ? rt.sourceById.get(selectedNodeId) : undefined
