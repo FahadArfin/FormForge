@@ -21,6 +21,7 @@ import { BoxSelect, Eye, EyeOff, MousePointerClick, X, Box, CircleHelp, PanelLef
 import { parseModelDocument } from '@formforge/model'
 import { Toolbox } from './components/Toolbox'
 import { Inspector } from './components/Inspector'
+import { AppNavigation } from './components/AppNavigation'
 import { TopBar } from './components/TopBar'
 import { ProjectsHome } from './components/ProjectsHome'
 import {useAppearance} from './lib/useAppearance'
@@ -58,6 +59,8 @@ export function App({ active = true }: { active?: boolean }) {
   const engineering=useEngineeringMode(s=>s.enabled)
   const {theme,toggleTheme}=useAppearance()
   const [area, updateArea] = useState<Area>(readArea)
+  const [studioOpened, setStudioOpened] = useState(() => readArea() === 'studio')
+  useEffect(() => { if (area === 'studio') setStudioOpened(true) }, [area])
   const setArea = (next: Area) => { updateArea(next); if (window.location.hash !== `#${next}`) window.location.hash = next }
   const [cloudOpen,setCloudOpen]=useState(()=>window.location.hash.includes('review='))
   const [cloudLink,setCloudLinkState]=useState<CloudLink|null>(()=>readCloudLink(useEditor.getState().document.id))
@@ -136,7 +139,7 @@ export function App({ active = true }: { active?: boolean }) {
   },[active,area])
   useEffect(()=>{engineeringSession.discard();void restoreEngineeringPlan(document.id).catch(()=>{});return()=>engineeringSession.discard()},[document.id])
 
-  useEffect(() => { if (active) window.document.title = area === 'studio' ? `${document.name || 'Untitled project'} · PrintLab` : area === 'community' ? 'Community workshop · PrintLab' : 'Your workshop · PrintLab' }, [active, area, document.name])
+  useEffect(() => { if (active) window.document.title = area === 'studio' ? `${document.name || 'Untitled project'} · PrintLab` : area === 'community' ? 'Community · PrintLab' : 'My projects · PrintLab' }, [active, area, document.name])
   useEffect(() => { const onHash = () => {
     updateArea(readArea())
     if(new URLSearchParams(window.location.hash.split('?')[1]).get('workspace')==='engineering')useEngineeringMode.setState({enabled:true})
@@ -146,7 +149,7 @@ export function App({ active = true }: { active?: boolean }) {
       setCloudOpen(false);setHelpOpen(false);setRecoveryOpen(false);setImportReview(null)
       recoveryGeneration.current++;importGeneration.current++
     }
-  }; window.addEventListener('hashchange', onHash); return () => window.removeEventListener('hashchange', onHash) }, [])
+  }; window.addEventListener('hashchange', onHash); window.addEventListener('popstate', onHash); return () => { window.removeEventListener('hashchange', onHash); window.removeEventListener('popstate', onHash) } }, [])
   useEffect(() => { setCommandsOpen(false); setGenerateOpen(false); setExportOpen(false); setMobilePanel(null) }, [area])
   useEffect(()=>{if(active&&area==='studio'&&new URLSearchParams(window.location.hash.split('?')[1]).get('workspace')==='engineering'){useEngineeringMode.setState({enabled:true});if(window.innerWidth<=980)setMobilePanel('tools')}},[active,area])
   useEffect(() => {
@@ -307,13 +310,13 @@ export function App({ active = true }: { active?: boolean }) {
     </WorkspaceDialog>}
   </Suspense>
 
-  if (!active) return null
-
-  if (area === 'community') return <>{shared}<Suspense fallback={<div className="route-loading"><span className="brand-mark large"><span /></span><strong>Opening inspiration…</strong></div>}>
+  return <>
+  {active && shared}
+  {active && area === 'community' && <Suspense fallback={<div className="route-loading"><span className="brand-mark large"><span /></span><strong>Opening Community…</strong></div>}>
     <Community onCreate={createProject} onChooseStarter={() => { starterGeneration.current++; setStartersOpen(true) }} theme={theme} onToggleTheme={toggleTheme} document={document} openPublishRequest={publishRequest} onPublishRequestHandled={() => setPublishRequest(0)} onOpenStudio={() => setArea('studio')} onOpenProjects={() => setArea('projects')} onRemix={remix} onPublished={(model) => void markProjectPublic(document.id, model.id)} />
-  </Suspense></>
+  </Suspense>}
 
-  if (area === 'projects') return <>{shared}<ProjectsHome
+  {active && area === 'projects' && <ProjectsHome
     theme={theme}
     onToggleTheme={toggleTheme}
     currentDocument={document}
@@ -325,13 +328,13 @@ export function App({ active = true }: { active?: boolean }) {
     onContinue={() => setArea('studio')}
     onOpenGuide={() => setHelpOpen(true)}
     onStartExample={startExample}
-  /></>
+  />}
 
-  return (
-    <div className={`app-shell ${engineering?'engineering-workspace':''} ${phoneEditing ? 'phone-edit' : 'phone-review'} mode-${document.workspaceMode} mobile-panel-${mobilePanel ?? 'none'}`}>
+  {(studioOpened || area === 'studio') && <div hidden={!active || area !== 'studio'} className={`app-shell ${engineering?'engineering-workspace':''} ${phoneEditing ? 'phone-edit' : 'phone-review'} mode-${document.workspaceMode} mobile-panel-${mobilePanel ?? 'none'}`}>
       <a className="skip-link" href="#studio" onClick={event=>{event.preventDefault();window.document.querySelector<HTMLElement>('.viewport-canvas')?.focus()}}>Skip to 3D canvas</a>
-      <TopBar theme={theme} onToggleTheme={toggleTheme} onNewProject={createProject} onOpenProjects={() => void openProjects()} onOpenCommunity={() => setArea('community')} onOpenGenerate={() => setGenerateOpen(true)} onImport={() => openImport()} onCommands={() => setCommandsOpen(true)} onHelp={() => setHelpOpen(true)} exportOpen={exportOpen} onExportChange={setExportOpen} />
-      <nav className="engineering-modebar" aria-label="Studio workspace"><strong>PrintLab Studio</strong><button className="assistant-chat-entry" aria-label="Ask AI" onClick={()=>{useEngineeringMode.getState().setEnabled(true);setMobilePanel('tools')}}>Ask AI</button><button aria-pressed={!engineering} onClick={()=>useEngineeringMode.getState().setEnabled(false)}>Modeling</button><button aria-pressed={engineering} onClick={()=>useEngineeringMode.getState().setEnabled(true)}>Engineering</button></nav><WorkflowGuide key={document.id}/><main className="workspace">
+      <div className="studio-chrome"><AppNavigation active="studio" compact onOpenProjects={() => void openProjects()} onOpenCommunity={() => setArea('community')}><span className="studio-context">Build & edit</span></AppNavigation>
+      <TopBar active={active && area === 'studio'} theme={theme} onToggleTheme={toggleTheme} onNewProject={createProject} onOpenProjects={() => void openProjects()} onOpenCommunity={() => setArea('community')} onOpenGenerate={() => setGenerateOpen(true)} onImport={() => openImport()} onCommands={() => setCommandsOpen(true)} onHelp={() => setHelpOpen(true)} exportOpen={exportOpen} onExportChange={setExportOpen} />
+      <nav className="engineering-modebar" aria-label="Studio workspace"><strong>PrintLab Studio</strong><button className="assistant-chat-entry" aria-label="Ask AI" onClick={()=>{useEngineeringMode.getState().setEnabled(true);setMobilePanel('tools')}}>Ask AI</button><button aria-pressed={!engineering} onClick={()=>useEngineeringMode.getState().setEnabled(false)}>Modeling</button><button aria-pressed={engineering} onClick={()=>useEngineeringMode.getState().setEnabled(true)}>Engineering</button></nav><WorkflowGuide key={document.id}/></div><main className="workspace">
         {mobilePanel && <button className="mobile-panel-scrim" aria-label="Close side panel backdrop" onClick={() => setMobilePanel(null)} />}
         {engineering?<EngineeringAssistant onClose={()=>setMobilePanel(null)}/>:<Toolbox onClose={()=>setMobilePanel(null)} />}
         <section className="viewport-wrap">
@@ -355,11 +358,10 @@ export function App({ active = true }: { active?: boolean }) {
         {engineering?<aside className="inspector panel-surface" aria-label="Engineering inspector"><button className="workflow-text-action" onClick={()=>setMobilePanel(null)}>Close inspector panel</button><EngineeringInspector onProposeOrientation={rotation=>{void submitEngineeringPlan(simplePlan('Suggested print orientation',[{type:'orient',rotation}])).then(()=>engineeringSession.preview())}}/></aside>:<Inspector onClose={()=>setMobilePanel(null)} />}
       </main>
       <StatusBar backup={<SaveHealth link={cloudLink}/>}/>
-      {shared}
       {commandsOpen && <CommandMenu onClose={() => setCommandsOpen(false)} onImport={() => openImport()} onExport={() => setExportOpen(true)} onProjects={() => void openProjects()} onHelp={() => setHelpOpen(true)} onGenerate={() => setGenerateOpen(true)} />}
       {generateOpen && <Suspense fallback={<div className="generate-backdrop"><div className="route-loading route-loading-card"><span className="brand-mark large"><span /></span><strong>Loading generation tools…</strong></div></div>}>
         <GenerateStudio onClose={() => setGenerateOpen(false)} />
       </Suspense>}
-    </div>
-  )
+    </div>}
+  </>
 }

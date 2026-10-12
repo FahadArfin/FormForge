@@ -3,7 +3,7 @@ test('opening a saved project frames the ready canvas before the first interacti
  await page.goto('/#studio?starter=washer')
  await page.getByRole('button',{name:'Use this template',exact:true}).first().click()
  await expect(page.locator('.statusbar')).toContainText('triangles')
- await page.getByRole('button',{name:'Open projects',exact:true}).click()
+ await page.getByRole('link',{name:'My projects',exact:true}).click()
  await expect(page).toHaveURL(/#projects$/)
  await page.reload()
  await expect(page.getByRole('heading',{level:1})).toBeVisible()
@@ -42,8 +42,7 @@ test('AI entry, phone composer, inspector shortcuts and appearance remain usable
 test('workshop help opens the assistant and export warnings lead back to print setup',async({page})=>{
  await page.goto('/#projects')
  const phone=(page.viewportSize()?.width??1440)<981
- if(phone)await page.getByRole('button',{name:'More workshop pages',exact:true}).click()
- await page.getByRole('button',{name:'Getting started',exact:true}).click()
+ await page.getByRole('button',{name:'Help',exact:true}).click()
  await page.getByRole('button',{name:'Open AI assistant',exact:true}).click()
  await expect(page.getByRole('textbox',{name:'Describe your design'})).toBeVisible()
  if(phone){await page.getByRole('button',{name:'Close assistant panel'}).click();await page.getByRole('button',{name:'Inspector',exact:true}).click()}
