@@ -12,6 +12,9 @@ export interface CommunityComment {
 }
 
 export interface CommunityModel {
+  public?: boolean
+  owned?: boolean
+  commentCount?: number
   id: string
   title: string
   creator: string
@@ -81,6 +84,7 @@ export function savePublishedModels(models: CommunityModel[]) {
 
 /** Persist before returning, so callers only show a successful update after storage accepts it. */
 export function saveShowcaseModel(incoming: CommunityModel) {
+  incoming = { ...incoming, remixOf: incoming.document?.communitySource?.modelId ?? incoming.remixOf }
   const models = loadCommunityModels()
   const existing = models.find((model) => model.creatorHandle === '@you' && (model.id === incoming.id || (incoming.document && model.document?.id === incoming.document.id)))
   const saved = existing ? { ...incoming, id: existing.id, createdAt: existing.createdAt, comments: existing.comments, reviewCount: existing.reviewCount, rating: existing.rating, likes: existing.likes, boosts: existing.boosts } : incoming
@@ -94,6 +98,11 @@ function readCommentStore(): CommentStore {
     const value = JSON.parse(localStorage.getItem('formforge-community-comments') ?? '{}') as CommentStore
     return value && !Array.isArray(value) && typeof value === 'object' ? value : {}
   } catch { return {} }
+}
+
+export function applyLocalCommunityNotes(model: CommunityModel): CommunityModel {
+  const stored = readCommentStore()[model.id]
+  return stored ? { ...model, ...stored } : model
 }
 
 export function saveCommunityComments(model: CommunityModel) {
@@ -118,8 +127,8 @@ export function applyCommunityReactions(models: CommunityModel[], liked: Set<str
 }
 
 export type CommunityPage = 'discover' | 'profile' | 'collections' | 'history'
-export type CommunitySort = 'Trending' | 'Newest' | 'Most downloaded'
-export interface CommunityRoute { modelId: string | null; query: string; category: string; page: CommunityPage; sort: CommunitySort }
+export type CommunitySort = 'Trending' | 'Newest' | 'Most downloaded' | 'Most discussed'
+export interface CommunityRoute { modelId: string | null; query: string; category: string; page: CommunityPage; sort: CommunitySort; tags: string[]; kind: 'all' | 'editable' | 'concept'; tab: 'details' | 'comments' | 'remixes' }
 
 export function readCommunityRoute(hash: string): CommunityRoute {
   const params = new URLSearchParams(hash.split('?')[1] ?? '')
@@ -131,7 +140,10 @@ export function readCommunityRoute(hash: string): CommunityRoute {
     query: params.get('q') ?? '',
     category: communityCategories.includes(category) ? category : 'Trending',
     page: page === 'profile' || page === 'collections' || page === 'history' ? page : 'discover',
-    sort: sort === 'Newest' || sort === 'Most downloaded' ? sort : 'Trending',
+    sort: sort === 'Newest' || sort === 'Most downloaded' || sort === 'Most discussed' ? sort : 'Trending',
+    tags: [...new Set(params.getAll('tag').map(tag => tag.trim().toLowerCase()).filter(tag => /^[\p{L}\p{N}-]{1,32}$/u.test(tag)))].slice(0, 10),
+    kind: params.get('kind') === 'editable' ? 'editable' : params.get('kind') === 'concept' ? 'concept' : 'all',
+    tab: params.get('tab') === 'comments' ? 'comments' : params.get('tab') === 'remixes' ? 'remixes' : 'details',
   }
 }
 
@@ -142,5 +154,8 @@ export function communityRouteHash(route: CommunityRoute) {
   if (route.category !== 'Trending') params.set('category', route.category)
   if (route.page !== 'discover') params.set('page', route.page)
   if (route.sort !== 'Trending') params.set('sort', route.sort)
+  route.tags?.forEach(tag => params.append('tag', tag))
+  if (route.kind && route.kind !== 'all') params.set('kind', route.kind)
+  if (route.tab && route.tab !== 'details') params.set('tab', route.tab)
   return `#community${params.size ? `?${params}` : ''}`
 }

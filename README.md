@@ -48,7 +48,15 @@ Open `http://localhost:8080`. Geometry processing remains on the client; Postgre
 - Find actions with `Ctrl/Cmd+K`. Use `V`, `G`, `R`, and `S` to select, move, rotate, and scale; `F` frames the model and `Shift+F` frames the selection. `?` opens help.
 - Use `Ctrl/Cmd+Z`, `Ctrl/Cmd+Y`, `Ctrl/Cmd+D`, and `Delete` for common editing operations.
 
-The Community page is a local showcase with labeled inspiration examples. Collections, reactions, and your showcase entries remain in this browser; this interface does not publish to a public service. Only entries with an attached project can provide an editable copy or download.
+The **Community workshop** combines eight real editable starter designs, clearly labeled concept illustrations, your local showcase, and explicitly published community projects. Search multiple words, combine tags (all selected tags must match), choose a category or model type, sort, save designs, and follow related designs. Filters and detail tabs are retained in the URL. Saved items, history, drafts, and private notes remain device-local.
+
+**Remix in Studio** makes a separate editable project, keeps source attribution in optional `communitySource` metadata, and preserves the original. Download editable project JSON or use the existing Studio exporters. Concept illustrations contain no mesh or editable source; their Create action opens the starter library.
+
+**Create → Share your current project** defaults to a private local showcase copy. Choose Public community, a maker alias, tags and CC0 / CC BY 4.0 / CC BY-SA 4.0, then explicitly confirm publishing. Sign-in with ChatGPT is required for public publishing/comments; anonymous visitors can browse and download. Public publication is an immutable snapshot, not an automatic link to private cloud projects. Uploaded reference images and feature names are included; print-test evidence and engineering conversation history are omitted. Public sources retain attribution, and share-alike remixes retain that license. Local-source attribution is user-supplied and does not invent a public source link.
+
+All built-in designs and public projects have a **Comments & questions** tab, with replies, refresh, pagination and author deletion (publishers may also remove comments on their designs). Deleting a comment keeps its replies. Legacy local comments remain under **My private notes** and are never automatically uploaded. Failed requests keep drafts; public and private drafts are separate. Model publishers can remove their public design and discussion; previously downloaded copies and independent remixes remain.
+
+Community storage uses the existing Sites D1 binding and dispatcher identity. Publication limits are 20 designs / 10 MB per account, 750 KB encoded editable source and 250 KB thumbnail per design. Comments are bounded at 2,000 characters, 20 replies per thread, 500 per design, and 1,000 per account; publication and comment creation share a 10/minute account limit. Geometry buffer validation is not a printability or engineering certificate. Local previews without Sites storage keep manual editing and local browsing; they show a connection state for shared features.
 
 Research, design decisions, and before/after evidence are in [`docs/UX_REDESIGN.md`](docs/UX_REDESIGN.md).
 The detailed October review, fixes, and acceptance evidence are in [`docs/UX_REVIEW_2026-10-03.md`](docs/UX_REVIEW_2026-10-03.md).
@@ -57,7 +65,7 @@ The detailed October review, fixes, and acceptance evidence are in [`docs/UX_REV
 
 Every push and pull request runs `.github/workflows/validate.yml`: type checks, regression tests, a production build, and an archived `dist/` output. Work is reviewed on a `codex/` feature branch before merging. The public Sites manifest uses the same root `dist/` build; publish the validated merged revision through the Sites workflow.
 
-The public site runs client-side CAD, local saving, recipes, relief generation, and file exchange. It does not include account sync, a shared community backend, or a hosted GPU generation service. Print checks cover basic geometry and configured dimensions; review wall thickness, bed contact, supports, and sliced layers in a slicer before printing.
+The public site runs client-side CAD, local saving, recipes, relief generation, and file exchange. It includes optional authenticated cloud snapshots and a shared community backend. It does not automatically synchronize local projects or provide a hosted GPU generation service. Print checks cover basic geometry and configured dimensions; review wall thickness, bed contact, supports, and sliced layers in a slicer before printing.
 
 ## Current scope
 

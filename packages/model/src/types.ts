@@ -160,6 +160,7 @@ export interface InspectionBookmark { section:{enabled:boolean;axis:'x'|'y'|'z';
 export interface SavedCameraView { id:string;name:string;position:Vec3Value;target:Vec3Value;up:Vec3Value;zoom:number;projection?:'perspective'|'orthographic';span?:number;inspection?:InspectionBookmark }
 export interface SelectionSet {id:string;name:string;nodeIds:string[]}
 export interface ModelDocument {
+  communitySource?: {modelId:string;title:string;creator:string;license:string}
   engineering?: EngineeringMetadata
   slicerResult?: SlicerResult
   selectionSets?: SelectionSet[]

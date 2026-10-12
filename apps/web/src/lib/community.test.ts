@@ -77,11 +77,11 @@ describe('local showcase persistence', () => {
 describe('community detail routes', () => {
   it('restores an encoded detail and its search context from a reloadable URL', () => {
     const route = readCommunityRoute('#community?model=my%2Fstand&q=bracket+%26+bolt&category=Tools&page=collections&sort=Newest')
-    expect(route).toEqual({ modelId: 'my/stand', query: 'bracket & bolt', category: 'Tools', page: 'collections', sort: 'Newest' })
+    expect(route).toEqual({ modelId: 'my/stand', query: 'bracket & bolt', category: 'Tools', page: 'collections', sort: 'Newest', tags: [], kind: 'all', tab: 'details' })
     expect(readCommunityRoute(communityRouteHash(route))).toEqual(route)
   })
   it('normalizes unknown filters and preserves useful search text', () => {
-    expect(readCommunityRoute('#community?page=unknown&category=unknown&sort=unknown&q=desk')).toEqual({ modelId: null, query: 'desk', category: 'Trending', page: 'discover', sort: 'Trending' })
+    expect(readCommunityRoute('#community?page=unknown&category=unknown&sort=unknown&q=desk')).toEqual({ modelId: null, query: 'desk', category: 'Trending', page: 'discover', sort: 'Trending', tags: [], kind: 'all', tab: 'details' })
   })
 })
 
