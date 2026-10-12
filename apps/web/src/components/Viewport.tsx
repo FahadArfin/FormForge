@@ -1,3 +1,4 @@
+import { isVolumeContinuation } from '@/lib/volumeContinuation'
 import {changeProjection,frameCamera,resizeCamera,zoomCamera,cameraDistanceLimits,updateCameraClipping,type StudioCamera} from '@/lib/cameraProjection'
 import { savedCameraViewSchema } from '@formforge/model'
 import { PointerTap } from '@/lib/pointerTap'
@@ -728,7 +729,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
           event.preventDefault()
           return
         }
-        if (state.meshDocument !== state.document || state.geometryStatus !== 'ready') {
+        if ((state.meshDocument !== state.document || state.geometryStatus !== 'ready') && !(state.buildMode === 'automatic' && state.geometryStatus !== 'error' && isVolumeContinuation(state.meshDocument, state.document))) {
           state.setNotice('Rebuild the current model before starting a volume sculpt stroke.')
           event.preventDefault()
           return
@@ -865,7 +866,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       }
       if (state.tool.startsWith('sculpt')) {
         const directHit = polygonToolMode(state.tool) ? polygonHit(event) : null
-        const hit = directHit ?? (sculpting || (state.meshDocument === state.document && state.geometryStatus === 'ready') ? resultHit(event) : null)
+        const hit = directHit ?? (sculpting || (state.meshDocument === state.document && state.geometryStatus === 'ready') || (state.buildMode === 'automatic' && state.geometryStatus !== 'error' && isVolumeContinuation(state.meshDocument, state.document)) ? resultHit(event) : null)
         updateBrushCursor(hit)
         if (polygonStroke) {
           const scale = polygonStroke.object.getWorldScale(new THREE.Vector3())

@@ -1,3 +1,4 @@
+import { isVolumeContinuation } from '@/lib/volumeContinuation'
 import {detachDirectBindings} from '../lib/modelParameters'
 import {jumpToHistory} from '@/lib/sessionHistory'
 import {recordDiagnostic} from '@/lib/diagnostics'
@@ -196,7 +197,7 @@ interface EditorState extends ProjectSaveState {
   hydrate: () => Promise<void>
   saveNow: () => Promise<boolean>
   deleteProject: (projectId: string) => Promise<void>
-  rebuild: () => Promise<void>
+  rebuild: (live?: boolean) => Promise<void>
 }
 
 let rebuildTimer: ReturnType<typeof setTimeout> | null = null
@@ -242,6 +243,8 @@ function separateDisconnectedMeshNodes(document: ModelDocument) {
 }
 
 export const useEditor = create<EditorState>((set, get) => {
+  let volumeGestureDocument: ModelDocument | null = null
+  let liveDocument: ModelDocument | null = null
   let hydrationPromise: Promise<void> | null = null
   const persistence = createProjectPersistence(saveProject, (document, state) => {
     if (get().document === document) set(state)
@@ -255,8 +258,16 @@ export const useEditor = create<EditorState>((set, get) => {
     geometryBusyVisible: false, geometryError: null, geometryStartedAt: null, geometryBuildMs: null, showResult: true,
   }
 
-  const scheduleSideEffects = (rebuildGeometry = true) => {
+  const scheduleSideEffects = (rebuildGeometry = true, volume = false) => {
     if (rebuildGeometry) {
+      if (volume && get().buildMode === 'automatic') {
+        if (!liveDocument && !rebuildTimer) rebuildTimer = setTimeout(() => { rebuildTimer = null; void get().rebuild(true) }, 32)
+        persistence.schedule(get().document)
+        return
+      }
+      liveDocument = null
+      volumeGestureDocument = null
+      ++rebuildGeneration
       if (rebuildTimer) clearTimeout(rebuildTimer)
       rebuildTimer = null
       if(get().buildMode==='manual') {
@@ -406,7 +417,7 @@ export const useEditor = create<EditorState>((set, get) => {
         redoStack: remember ? [] : state.redoStack,
       }))
       // A metadata edit during an unfinished build still needs a new snapshot evaluated.
-      scheduleSideEffects(rebuildGeometry || (geometryNeutral && !canReuseMesh))
+      scheduleSideEffects(rebuildGeometry || (geometryNeutral && !canReuseMesh), command.type === 'add-sculpt-stroke' && isVolumeContinuation(previous, next))
     },
 
     addPrimitive(kind, boolean = 'add', parameters) {
@@ -1134,12 +1145,15 @@ export const useEditor = create<EditorState>((set, get) => {
     setNotice(notice) { set({ notice }) },
 
     addSculptStroke(center, mode, radius, strength, falloff, normal, remember = true) {
+      if (!remember && volumeGestureDocument !== get().document) return
       if (remember && get().buildMode === 'manual' && (get().meshDocument !== get().document || get().geometryStatus !== 'ready')) {
         set({ notice: 'Rebuild the current model before starting a volume sculpt stroke.' }); return
       }
       const nodeId = get().selectedNodeId ?? get().document.nodes.find((node) => node.boolean === 'add')?.id
       if (!nodeId) return
+      const previous = get().document
       get().dispatch({ type: 'add-sculpt-stroke', stroke: { id: nanoid(), nodeId, mode, center, normal, radius, strength, falloff, createdAt: new Date().toISOString() } }, remember)
+      if (get().document !== previous) volumeGestureDocument = get().document
     },
 
     newDocument() {
@@ -1216,6 +1230,7 @@ export const useEditor = create<EditorState>((set, get) => {
       if(rebuildTimer)clearTimeout(rebuildTimer)
       rebuildTimer=null
       if(mode==='manual'){
+        liveDocument = null
         ++rebuildGeneration
         if(busyTimer)clearTimeout(busyTimer)
         geometryClient.cancel()
@@ -1224,6 +1239,8 @@ export const useEditor = create<EditorState>((set, get) => {
     },
 
     cancelBuild() {
+      liveDocument = null
+      volumeGestureDocument = null
       ++rebuildGeneration
       if (rebuildTimer) clearTimeout(rebuildTimer)
       rebuildTimer=null
@@ -1232,10 +1249,11 @@ export const useEditor = create<EditorState>((set, get) => {
       set({geometryStatus:'error', geometryBusyVisible:false, geometryStartedAt:null, geometryError:'Build stopped. Your editable design is preserved. Retry when you are ready.'})
     },
 
-    async rebuild() {
+    async rebuild(live = false) {
       if(rebuildTimer)clearTimeout(rebuildTimer)
       rebuildTimer=null
       const document = get().document
+      liveDocument = live ? document : null
       const generation = ++rebuildGeneration
       const startedAt = performance.now()
       set({ geometryStatus: 'building', geometryError: null, geometryStartedAt:Date.now() })
@@ -1244,8 +1262,8 @@ export const useEditor = create<EditorState>((set, get) => {
         if (rebuildGeneration === generation && get().geometryStatus === 'building') set({ geometryBusyVisible: true })
       }, 450)
       try {
-        const mesh = await geometryClient.evaluate(document, {replaceActive:true})
-        if (rebuildGeneration !== generation || get().document !== document) return
+        const mesh = await geometryClient.evaluate(document, {replaceActive:!live})
+        if (rebuildGeneration !== generation || (get().document !== document && !(live && isVolumeContinuation(document, get().document)))) return
         let dimensions = vec3()
         if (mesh.positions.length) {
           let minX = Infinity; let minY = Infinity; let minZ = Infinity
@@ -1259,13 +1277,20 @@ export const useEditor = create<EditorState>((set, get) => {
         }
         if (busyTimer) clearTimeout(busyTimer)
         recordDiagnostic('build','success',performance.now()-startedAt)
-        set({ mesh, meshDocument: document, geometryStatus: 'ready', geometryBusyVisible: false, geometryStartedAt:null, geometryBuildMs:performance.now()-startedAt, analysis: analyzeForPrint(document, mesh, dimensions) })
+        set({ mesh, meshDocument: document, geometryStatus: get().document === document ? 'ready' : 'building', geometryBusyVisible: false, geometryStartedAt:null, geometryBuildMs:performance.now()-startedAt, analysis: get().document === document ? analyzeForPrint(document, mesh, dimensions) : null })
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return
-        if (rebuildGeneration !== generation || get().document !== document) return
+        if (rebuildGeneration !== generation || (get().document !== document && !(live && isVolumeContinuation(document, get().document)))) return
         if (busyTimer) clearTimeout(busyTimer)
         recordDiagnostic('build','failure',performance.now()-startedAt)
         set({ geometryStatus: 'error', geometryBusyVisible: false, geometryStartedAt:null, geometryError: error instanceof Error ? error.message : 'Could not rebuild model' })
+      } finally {
+        if (rebuildGeneration === generation) {
+          liveDocument = null
+          if (live && get().buildMode === 'automatic' && get().geometryStatus !== 'error' && get().document !== document && isVolumeContinuation(document, get().document)) {
+            rebuildTimer = setTimeout(() => { rebuildTimer = null; void get().rebuild(true) }, 32)
+          }
+        }
       }
     },
   }

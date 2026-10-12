@@ -209,7 +209,31 @@ function shapeForNode(api: ManifoldToplevel, node: ModelNode) {
   return transformed
 }
 
-export async function evaluate(document: ModelDocument) {
+export class VolumeEvaluator {
+  solid: ManifoldType | null = null
+  base = ''
+  strokes: string[] = []
+  lastEvaluation = { reused: false, appliedStamps: 0 }
+  private generation = 0
+  private evaluating = false
+  async evaluate(document: ModelDocument) {
+    if (this.evaluating) throw new Error('VolumeEvaluator accepts one evaluation at a time.')
+    this.evaluating = true
+    const generation = this.generation
+    try {
+      const mesh = await evaluateSolid(document, this)
+      if (generation !== this.generation) throw new DOMException('Geometry evaluation cancelled.', 'AbortError')
+      return mesh
+    } catch (error) { this.dispose(); throw error }
+    finally { this.evaluating = false }
+  }
+  dispose() { ++this.generation; this.clear() }
+  clear() { this.solid?.delete(); this.solid = null; this.base = ''; this.strokes = [] }
+}
+
+export async function evaluate(document: ModelDocument) { return evaluateSolid(document) }
+
+async function evaluateSolid(document: ModelDocument, cache?: VolumeEvaluator) {
   const resolved=resolveAttachedHoles(document);if(Object.keys(resolved.errors).length)throw new Error(Object.values(resolved.errors).join(' '));document=resolved.document
   document.nodes.filter(n=>!n.suppressed).forEach(validateEdgeTreatment)
   const api = await getModule()
@@ -258,18 +282,27 @@ export async function evaluate(document: ModelDocument) {
       return result
     }catch(error){result?.delete();throw error}finally{operations.forEach(op=>op.shape.delete())}
   }
-  const result=evaluateScope(document.nodes.filter(n=>!n.suppressed&&!n.faceAttachment))
+  const base = JSON.stringify([document.id, document.nodes])
+  const strokes = document.sculptStrokes.map(stroke => JSON.stringify(stroke))
+  const reused = Boolean(cache?.solid && cache.base === base && cache.strokes.length <= strokes.length && cache.strokes.every((stroke, index) => stroke === strokes[index]))
+  const start = reused ? cache!.strokes.length : 0
+  const result = reused ? cache!.solid : evaluateScope(document.nodes.filter(n=>!n.suppressed&&!n.faceAttachment))
+  if (cache) { if (!reused) cache.clear(); cache.solid = null; cache.lastEvaluation = { reused, appliedStamps: 0 } }
 
   if (!result) return { positions: new Float32Array(), indices: new Uint32Array(), volume: 0, triangleCount: 0 }
   let finalResult: ManifoldType = result
 
-  for (const stroke of document.sculptStrokes) {
+  try {
+  for (const stroke of document.sculptStrokes.slice(start)) {
     if (stroke.mode === 'smooth' || stroke.mode === 'pinch' || stroke.mode === 'flatten') continue
     const radius = stroke.mode === 'inflate' ? stroke.radius * (0.72 + stroke.strength * 0.28) : stroke.radius
-    const brush = api.Manifold.sphere(radius, 28).translate([stroke.center.x, stroke.center.y, stroke.center.z])
-    const next: ManifoldType = stroke.mode === 'carve' ? finalResult.subtract(brush) : finalResult.add(brush)
+    const sphere = api.Manifold.sphere(radius, 28)
+    let brush: ManifoldType
+    try { brush = sphere.translate([stroke.center.x, stroke.center.y, stroke.center.z]) } finally { sphere.delete() }
+    if (cache) cache.lastEvaluation.appliedStamps++
+    let next: ManifoldType
+    try { next = stroke.mode === 'carve' ? finalResult.subtract(brush) : finalResult.add(brush) } finally { brush.delete() }
     finalResult.delete()
-    brush.delete()
     finalResult = next
   }
 
@@ -286,8 +319,10 @@ export async function evaluate(document: ModelDocument) {
   if (vertexStrokes.length) applyLocalizedDeforms(positions, indices, vertexStrokes)
   const volume = vertexStrokes.length ? meshVolume(positions, indices) : finalResult.volume()
   const triangleCount = finalResult.numTri()
-  finalResult.delete()
+  if (cache) { cache.solid = finalResult; cache.base = base; cache.strokes = strokes }
+  else finalResult.delete()
   return { positions, indices, volume, triangleCount }
+  } catch (error) { finalResult.delete(); throw error }
 }
 
 function falloffWeight(kind: 'smooth' | 'sharp' | 'flat' | undefined, normalizedDistance: number) {
@@ -359,10 +394,11 @@ function meshVolume(positions: Float32Array, indices: Uint32Array) {
   return Math.abs(volume / 6)
 }
 
+const workerEvaluator = new VolumeEvaluator()
 if (typeof self !== 'undefined') self.onmessage = async (event: MessageEvent<Request>) => {
   const { id, document } = event.data
   try {
-    const mesh = await evaluate(document)
+    const mesh = await workerEvaluator.evaluate(document)
     const response: Response = { id, ok: true, ...mesh }
     self.postMessage(response, { transfer: [mesh.positions.buffer, mesh.indices.buffer] })
   } catch (error) {
