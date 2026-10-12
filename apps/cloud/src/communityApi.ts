@@ -75,7 +75,13 @@ export async function communityApi(request:Request,env:Env):Promise<Response>{
    const tags=[...new Set(b.tags.map(tag=>text(tag,'tag',1,40).toLowerCase()))],image=thumbnail(b.image),{document}=documentPayload(b.document)
    const provenance=(document as typeof document & {communitySource?:{modelId:string;title:string;creator:string;license:string}}).communitySource
    if(provenance&&b.remixOf!==undefined&&b.remixOf!==provenance.modelId)fail(400,'The remix source must match document attribution.')
-   const remixOf=b.remixOf??provenance?.modelId??null
+   const localSource=provenance&&/^user-[a-zA-Z0-9-]{1,100}$/.test(provenance.modelId)
+   if(localSource){
+    if(!licenses.includes(provenance.license))fail(400,'This local source license is unsupported. Obtain permission under CC0, CC BY 4.0 or CC BY-SA 4.0 before publishing.')
+    if(provenance.license==='CC BY-SA 4.0'&&license!==provenance.license)fail(400,'This remix must retain the CC BY-SA 4.0 source license.')
+   }
+   // Local attribution is supplied by the publisher; it is not a verified public parent.
+   const remixOf=localSource?null:b.remixOf??provenance?.modelId??null
    if(remixOf!==null){
     if(typeof remixOf!=='string'||!bundled.has(remixOf)&&!sharedPattern.test(remixOf))fail(400,'Invalid remix source.')
     if(bundled.has(remixOf)&&!starterTitles[remixOf])fail(400,'Concept illustrations have no editable model license.')

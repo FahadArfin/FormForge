@@ -100,3 +100,10 @@ it('retains server-authored source attribution in downloadable remix documents',
 it('allows editable CC0 starters as remix sources but rejects unlicensed concept illustrations',async()=>{
  const remix=await publish({remixOf:'starter-bracket'});const detail=await (await call(`/community/${remix.id}`)).json();expect(detail.document.communitySource).toEqual({modelId:'starter-bracket',title:'Mounting bracket',creator:'PrintLab',license:'CC0'});expect((await call('/community','POST',payload({remixOf:'desk-dock'}))).status).toBe(400)
 })
+it('allows explicitly attributed local remixes without inventing a verified public parent',async()=>{
+ const document=payload().document;document.communitySource={modelId:'user-local-copy',title:'My local bracket',creator:'You',license:'CC BY-SA 4.0'}
+ expect((await call('/community','POST',payload({document}))).status).toBe(400)
+ const p=await publish({document,remixOf:'user-local-copy',license:'CC BY-SA 4.0'});expect(p.remixOf).toBeUndefined();const detail=await (await call(`/community/${p.id}`)).json();expect(detail.document.communitySource).toEqual(document.communitySource)
+ expect((await call('/community','POST',payload({remixOf:'user-bare-copy'}))).status).toBe(400)
+ document.communitySource.license='Standard Digital File License';const unsupported=await call('/community','POST',payload({document}));expect(unsupported.status).toBe(400);expect((await unsupported.json()).error).toContain('source license')
+})
