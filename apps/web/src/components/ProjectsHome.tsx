@@ -81,7 +81,7 @@ export function ProjectsHome({ theme, onToggleTheme, currentDocument, onCreate, 
   }, [collectionProjects, query, sort])
   const pageProjects = useMemo(() => visibleProjects.slice(0, limit), [visibleProjects, limit])
   const documentsToPreview = useMemo(() => pageProjects.map((project) => project.document), [pageProjects])
-  const collectionName = activeCollection === 'all' ? 'My projects' : activeCollection === 'unfiled' ? 'Unfiled projects' : collections.find((item) => item.id === activeCollection)?.name || 'My projects'
+  const collectionName = activeCollection === 'all' ? 'All projects' : activeCollection === 'unfiled' ? 'Unfiled projects' : collections.find((item) => item.id === activeCollection)?.name || 'All projects'
 
   useEffect(() => {
     const abort = new AbortController()
@@ -139,7 +139,7 @@ export function ProjectsHome({ theme, onToggleTheme, currentDocument, onCreate, 
         <section className="workshop-welcome">
           <div className="workshop-welcome-copy"><span className="workshop-eyebrow"><span /> YOUR PRIVATE PROJECT LIBRARY</span><h1>My projects</h1><p>Editable projects save in this browser on this device. Download a backup for a separate copy. Cloud backups are snapshots you save explicitly; they do not sync automatically.</p><div className="workshop-create-actions"><button className="workshop-button workshop-button-primary" onClick={onCreate}><Plus size={19} /> New project</button>{onImport && <button className="workshop-button workshop-button-secondary" onClick={onImport}><Upload size={17} /> Import model</button>}</div></div>
           <div className="workshop-welcome-aside">
-            {canContinue ? <button className="workshop-continue" onClick={onContinue}><div className="workshop-continue-icon"><Layers3 size={24} /></div><span><small>CURRENT PROJECT</small><strong>{currentDocument.name || 'Untitled project'}</strong><span>Resume in Studio · {currentDocument.nodes.length} shapes</span></span><ArrowRight size={20} /></button> : <div className="workshop-welcome-note"><span className="workshop-continue-icon"><Box size={25} /></span><strong>Big ideas start small.</strong><span>No installation. No sign-up.<br />Just you and a blank build plate.</span></div>}
+            {canContinue ? <button className="workshop-continue" onClick={onContinue}><div className="workshop-continue-icon"><Layers3 size={24} /></div><span><small>CURRENT PROJECT</small><strong>{currentDocument.name || 'Untitled project'}</strong><span>Resume in Studio · {currentDocument.nodes.length} {currentDocument.nodes.length === 1 ? 'shape' : 'shapes'}</span></span><ArrowRight size={20} /></button> : <div className="workshop-welcome-note"><span className="workshop-continue-icon"><Box size={25} /></span><strong>Big ideas start small.</strong><span>No installation. No sign-up.<br />Just you and a blank build plate.</span></div>}
             {onStartExample && <button className="workshop-example-link" onClick={onStartExample}><Sparkles size={16} /><span>New here? Try an editable starter project</span><ArrowRight size={15} /></button>}
           </div>
         </section>
