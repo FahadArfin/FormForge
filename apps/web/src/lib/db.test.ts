@@ -1,4 +1,5 @@
 import 'fake-indexeddb/auto'
+import Dexie from 'dexie'
 import {beforeEach,afterEach,expect,it,vi} from 'vitest'
 import {createDocument,createNode} from '@formforge/model'
 import {db,saveProject,saveVersion,deleteProject,listProjects,listTrashedProjects,restoreProject,listVersions,loadMostRecentProject,listAutomaticRecovery} from './db'
@@ -32,3 +33,17 @@ it('keeps three prior durable revisions and retains them in Trash',async()=>{
  await restoreProject(doc.id);expect((await listProjects())[0]!.document.revision).toBe(5)
 })
 it('resumes an older opened project and falls back when it is trashed or missing',async()=>{const old={...createDocument(),updatedAt:'2020-01-01'},recent={...createDocument(),updatedAt:'2026-01-01'};await saveProject(old);await saveProject(recent);vi.stubGlobal('localStorage',{getItem:()=>old.id});expect((await loadMostRecentProject())?.id).toBe(old.id);await deleteProject(old.id);expect((await loadMostRecentProject())?.id).toBe(recent.id);vi.stubGlobal('localStorage',{getItem:()=>'missing'});expect((await loadMostRecentProject())?.id).toBe(recent.id)})
+
+it('upgrades the version-five database without changing saved projects or pending plans',async()=>{
+ db.close();await Dexie.delete('formforge')
+ const legacy=new Dexie('formforge')
+ legacy.version(5).stores({projects:'id, name, collectionId, updatedAt, deletedAt',versions:'id, projectId, createdAt',collections:'id, name, createdAt',recovery:'id, projectId, createdAt',engineeringPlans:'projectId, updatedAt'})
+ const document=createDocument(),pending={projectId:document.id,plan:{version:1,title:'Keep this proposal'},updatedAt:document.updatedAt}
+ await legacy.table('projects').put({id:document.id,name:document.name,document,updatedAt:document.updatedAt})
+ await legacy.table('engineeringPlans').put(pending)
+ legacy.close();await db.open()
+ expect((await db.projects.get(document.id))?.document).toEqual(document)
+ expect(await db.engineeringPlans.get(document.id)).toEqual(pending)
+ expect(await db.assistantConversations.count()).toBe(0)
+ expect(db.verno).toBe(6)
+})

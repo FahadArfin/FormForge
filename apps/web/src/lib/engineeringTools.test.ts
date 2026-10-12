@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import {beforeEach,expect,it,vi} from 'vitest'
-import {createDocument,type DesignPlan} from '@formforge/model'
+import {createDocument,createNode,type DesignPlan} from '@formforge/model'
 import {useEditor} from '../store/editor'
 import {engineeringTools,previewStatus} from './engineeringTools'
+const conversation=vi.hoisted(()=>({load:vi.fn(async()=>undefined),read:vi.fn(()=>({pending:{id:'queued'}})),reply:vi.fn(async()=>({id:'answer',requestId:'queued',plan:undefined}))}))
+vi.mock('./assistantConversation',()=>({assistantReplyJsonSchema:{properties:{}},loadConversation:conversation.load,readAssistantConversation:conversation.read,receiveAssistantReply:conversation.reply}))
 const bridge=vi.hoisted(()=>({discard:vi.fn(async()=>undefined),submit:vi.fn(),session:{state:{} as Record<string,unknown>,preview:vi.fn()}}))
 vi.mock('./engineeringStudio',()=>({engineeringSession:bridge.session,submitEngineeringPlan:bridge.submit,discardEngineeringPlan:bridge.discard}))
 vi.mock('@/geometry/client',()=>({geometryClient:{evaluate:vi.fn(()=>new Promise(()=>undefined))}}))
@@ -30,4 +32,38 @@ it('summarizes saved operation history rather than repeating entire prior plans'
  useEditor.setState({document:{...doc,engineering:{version:1,history:[{title:'Placement',appliedAt:'now',operations,assumptions:['long private design note']}]}}})
  const result=tool('printlab_read_design').execute({}) as {engineering:{history:unknown[]}}
  expect(result.engineering.history).toEqual([{title:'Placement',appliedAt:'now',operationCount:1}])
+})
+
+it('routes queued request reads and responses through the conversation service',async()=>{
+ const document=useEditor.getState().document
+ const result=await tool('printlab_read_conversation').execute({}) as {pending:{id:string};design:{projectId:string}}
+ expect(conversation.load).toHaveBeenCalledWith(document.id)
+ expect(result).toMatchObject({pending:{id:'queued'},design:{projectId:document.id}})
+ const reply={requestId:'queued',projectId:document.id,revision:document.revision,message:'Please measure spacing.'}
+ expect(await tool('printlab_reply_to_request').execute(reply)).toMatchObject({status:'answered',requestId:'queued'})
+ expect(conversation.reply).toHaveBeenCalledWith(reply,'webmcp')
+ expect(engineeringTools().some(tool=>/apply|export|delete/i.test(tool.name))).toBe(false)
+})
+it('selects verified feature IDs and rejects stale or invalid selections without model writes',()=>{
+ const doc={...createDocument(),nodes:[createNode('box'),createNode('sphere')]}
+ useEditor.setState({document:doc,selectedNodeIds:[],selectedNodeId:null,tool:'select'})
+ const ids=doc.nodes.map(node=>node.id)
+ expect(tool('printlab_select_features').execute({projectId:doc.id,revision:doc.revision,featureIds:ids})).toMatchObject({selectedIds:ids,modelUnchanged:true})
+ expect(useEditor.getState().document).toBe(doc)
+ expect(()=>tool('printlab_select_features').execute({projectId:doc.id,revision:doc.revision+1,featureIds:[ids[0]]})).toThrow(/current project/)
+ expect(()=>tool('printlab_select_features').execute({projectId:doc.id,revision:doc.revision,featureIds:['missing']})).toThrow(/existing feature/)
+ expect(useEditor.getState().selectedNodeIds).toEqual(ids)
+})
+it('does not read a newly switched project into an earlier conversation request',async()=>{
+ conversation.load.mockImplementationOnce(async()=>{useEditor.setState({document:createDocument()})})
+ await expect(tool('printlab_read_conversation').execute({})).rejects.toThrow(/changed/)
+})
+
+it('reports resolved named parameter dimensions instead of stale underlying parameter values',()=>{
+ const node=createNode('box');node.parameters.width=10;node.parameterBindings={width:'Width'}
+ const document={...createDocument(),nodes:[node],namedParameters:[{id:'width',name:'Width',expression:'',value:42,unit:'mm' as const}]}
+ useEditor.setState({document})
+ const result=tool('printlab_read_design').execute({}) as {nodes:{parameters:{width:number}}[]}
+ expect(result.nodes[0]?.parameters.width).toBe(42)
+ expect(useEditor.getState().document.nodes[0]?.parameters.width).toBe(10)
 })

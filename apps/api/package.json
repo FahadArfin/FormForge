@@ -7,13 +7,14 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build -w @formforge/model && tsx --test src/engineering.test.ts"
+    "test": "npm run build -w @formforge/model && tsx --test src/engineering.test.ts src/assistant.test.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.1.0",
     "@formforge/model": "*",
     "@gradio/client": "^2.4.0",
     "fastify": "^5.6.2",
+    "jose": "^6.2.12",
     "postgres": "^3.4.7",
     "zod": "^4.1.12"
   },
