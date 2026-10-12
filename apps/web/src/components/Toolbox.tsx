@@ -89,7 +89,7 @@ export function Toolbox({ onClose }: { onClose?: () => void }) {
         <span className="section-kicker">Tools</span>
         <div className="transform-tools" role="group" aria-label="Transform tools">
           {tools.map(({ value, label, shortcut, icon: Icon }) => (
-            <button key={value} type="button" className={tool === value ? 'active' : ''} aria-pressed={tool === value} title={`${label} (${shortcut})`} onClick={() => setTool(value)}><Icon size={17} /><span>{label}</span><kbd>{shortcut}</kbd></button>
+            <button key={value} type="button" className={tool === value ? 'active' : ''} aria-label={label} aria-keyshortcuts={shortcut} aria-pressed={tool === value} title={`${label} (${shortcut})`} onClick={() => setTool(value)}><Icon size={18} aria-hidden="true" /></button>
           ))}
         </div>
       </div>
