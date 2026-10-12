@@ -29,7 +29,7 @@ async function call(path:string,method='GET',body?:unknown,user:string|null='own
  return cloudApi(new Request(`https://formforge.test/api/cloud${path}`,{method,headers,body:body===undefined?undefined:JSON.stringify(body)}),env)
 }
 
-function payload(extra:Record<string,unknown>={}){const document=createDocument();document.nodes=[createNode('box')];return {title:'Useful bracket',description:'Editable bracket',category:'Workshop',tags:['bracket'],license:'CC0',creator:'Maker',document,confirmPublic:true,...extra}}
+function payload(extra:Record<string,unknown>={}){const document=createDocument();document.nodes=[createNode('box')];return {title:'Useful bracket',description:'Editable bracket',category:'Tools',tags:['bracket'],license:'CC0',creator:'Maker',document,confirmPublic:true,...extra}}
 async function publish(extra:Record<string,unknown>={},user='owner'){const r=await call('/community','POST',payload(extra),user);expect(r.status).toBe(201);return (await r.json()).model}
 async function comment(id:string,extra:Record<string,unknown>={},user='reviewer'){const r=await call(`/community/${id}/comments`,'POST',{body:'Useful design',author:'Printer',...extra},user);expect(r.status).toBe(201);return (await r.json()).comment}
 it('publishes only explicit copies and never exposes private identity or documents in listings',async()=>{
@@ -106,4 +106,29 @@ it('allows explicitly attributed local remixes without inventing a verified publ
  const p=await publish({document,remixOf:'user-local-copy',license:'CC BY-SA 4.0'});expect(p.remixOf).toBeUndefined();const detail=await (await call(`/community/${p.id}`)).json();expect(detail.document.communitySource).toEqual(document.communitySource)
  expect((await call('/community','POST',payload({remixOf:'user-bare-copy'}))).status).toBe(400)
  document.communitySource.license='Standard Digital File License';const unsupported=await call('/community','POST',payload({document}));expect(unsupported.status).toBe(400);expect((await unsupported.json()).error).toContain('source license')
+})
+
+it('rejects incomplete mesh triples, missing mesh payloads and out-of-range indices before storing a publication',async()=>{
+ const positions=[0,0,0,1,0,0,0,1,0]
+ for(const mesh of [undefined,{positions,indices:[0,1,99]},{positions:[0,0],indices:[0,1,2]},{positions,indices:[0,1]},{positions:[],indices:[]},{positions,indices:[0,1,2.5]},{positions:[0,0,NaN,1,0,0,0,1,0],indices:[0,1,2]},{positions,indices:[0,1,2],mask:[0,1]}]){
+  const document=payload().document;document.nodes=[{...createNode('mesh'),mesh}];expect((await call('/community','POST',payload({document}))).status).toBe(400)
+ }
+ expect((await (await call('/community')).json()).models).toHaveLength(0)
+ const document=payload().document;document.nodes=[{...createNode('mesh'),mesh:{positions,indices:[0,1,2],mask:[0,0,1]}}];await publish({document})
+})
+it('accepts only selectable categories and client-compatible Unicode tags',async()=>{
+ for(const extra of [{category:'Workshop'},{category:'Trending'},{category:'New & Notable'},{tags:Array.from({length:11},(_,i)=>`tag-${i}`)},{tags:['too long']},{tags:['x'.repeat(33)]},{tags:['emoji-😀']},{tags:['bad/slash']}])expect((await call('/community','POST',payload(extra))).status).toBe(400)
+ const p=await publish({category:'Replacement Parts',tags:['工具','MÜNCHEN','part-2','工具']});expect(p.tags).toEqual(['工具','münchen','part-2'])
+})
+it('returns all of the authenticated owners publications independently of the public first page',async()=>{
+ expect((await call('/community?mine=1','GET',undefined,null)).status).toBe(401)
+ const own=[];for(let i=0;i<20;i++){own.push(await publish());sqlite.exec('DELETE FROM community_writes')}
+ for(let i=0;i<41;i++)await publish({},`other-owner-${i}`)
+ const response=await call('/community?mine=1'),data=await response.json();expect(response.headers.get('Cache-Control')).toContain('no-store');expect(data.models).toHaveLength(20);expect(data.models.every((m:{owned:boolean})=>m.owned)).toBe(true);expect(new Set(data.models.map((m:{id:string})=>m.id))).toEqual(new Set(own.map(m=>m.id)));expect(data.nextCursor).toBeNull()
+ const other=await (await call('/community?mine=1','GET',undefined,'other-owner-0')).json();expect(other.models).toHaveLength(1);expect((await call(`/community?mine=1&cursor=${other.models[0].id}`)).status).toBe(400)
+})
+it('returns live bundled comment counts including zeroes without leaking private or arbitrary model records',async()=>{
+ await comment('desk-dock');const deleted=await comment('desk-dock');await call(`/community/desk-dock/comments/${deleted.id}`,'DELETE',undefined,'reviewer');await comment('starter-bracket');const shared=await publish();await comment(shared.id)
+ sqlite.prepare('INSERT INTO community_comments(id,model,owner,author,body,parent,created,deleted) VALUES (?,?,?,?,?,NULL,0,0)').run('private-orphan','unknown-project','hidden-account','Secret','Hidden')
+ const data=await (await call('/community','GET',undefined,null)).json();expect(data.bundledCounts['desk-dock']).toBe(1);expect(data.bundledCounts['starter-bracket']).toBe(1);expect(data.bundledCounts['sea-turtle']).toBe(0);expect(Object.keys(data.bundledCounts)).toHaveLength(12);expect(data.bundledCounts[shared.id]).toBeUndefined();expect(data.bundledCounts['unknown-project']).toBeUndefined();expect(data.models[0].commentCount).toBe(1);expect(JSON.stringify(data)).not.toContain('hidden-account')
 })

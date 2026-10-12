@@ -9,6 +9,7 @@ const starterTitles:Record<string,string>={'starter-enclosure':'Electronics encl
 const uuid='[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 const sharedPattern=new RegExp(`^shared-${uuid}$`),commentPattern=new RegExp(`^comment-${uuid}$`)
 const licenses=['CC0','CC BY 4.0','CC BY-SA 4.0']
+const categories=new Set(['Organization','Toys & Games','Tools','Home & Garden','Art','Electronics','Replacement Parts'])
 class HttpError extends Error{constructor(public status:number,message:string){super(message)}}
 function fail(status:number,message:string):never{throw new HttpError(status,message)}
 const reply=(value:unknown,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'private, no-store','Vary':'Cookie','X-Content-Type-Options':'nosniff'}})
@@ -27,6 +28,14 @@ function documentPayload(value:unknown){
  try{
   const document=parseModelDocument(value)
   if(!document.nodes.length||document.nodes.length>2000||document.namedParameters.length>500||document.name.length>120)fail(400,'Publish a supported, nonempty editable model.')
+  for(const node of document.nodes){
+   const mesh=node.mesh
+   if(node.kind==='mesh'&&!mesh)fail(400,'Imported mesh geometry is missing.')
+   if(mesh){
+    const vertices=mesh.positions.length/3
+    if(!Number.isInteger(vertices)||vertices<3||mesh.indices.length<3||mesh.indices.length%3!==0||mesh.positions.some(n=>!Number.isFinite(n))||mesh.indices.some(index=>!Number.isInteger(index)||index<0||index>=vertices)||mesh.mask&&mesh.mask.length!==vertices)fail(400,'Mesh positions and triangle indices must be complete and in bounds.')
+   }
+  }
   // Test evidence and engineering history may contain personal notes and photos.
   delete document.printTests
   if(document.engineering)document.engineering={...document.engineering,history:[]}
@@ -63,16 +72,26 @@ export async function communityApi(request:Request,env:Env):Promise<Response>{
   const rate='(SELECT COUNT(*) FROM community_writes WHERE owner=? AND created>?)<10'
   const recordWrite=(writeId:string,table:string,now:number)=>[q(`INSERT INTO community_writes(id,owner,created) SELECT id,owner,? FROM ${table} WHERE id=?`,now,writeId),q('DELETE FROM community_writes WHERE created<?',now-86400000)]
   if(!id&&method==='GET'){
-   const anchor=cursor?await q('SELECT created,id FROM community_models WHERE id=?',cursor).first<{created:number;id:string}>():null
+   const mine=url.searchParams.get('mine')==='1'
+   if(mine&&!user)fail(401,'Sign in with ChatGPT to view your publications.')
+   const anchor=cursor?await q(`SELECT created,id FROM community_models WHERE id=? ${mine?'AND owner=?':''}`,cursor,...(mine?[user]:[])).first<{created:number;id:string}>():null
    if(cursor&&!anchor)fail(400,'Page cursor has expired. Refresh the gallery.')
-   const rows=(await q(`SELECT ${modelFields} FROM community_models m ${anchor?'WHERE (m.created,m.id)<(?,?)':''} ORDER BY m.created DESC,m.id DESC LIMIT 41`,...(anchor?[anchor.created,anchor.id]:[])).all<ModelRow>()).results
-   const page=rows.slice(0,40);return reply({models:page.map(row=>publicModel(row,user)),nextCursor:rows.length>40?page.at(-1)!.id:null})
+   const filters=[...(mine?['m.owner=?']:[]),...(anchor?['(m.created,m.id)<(?,?)']:[])],limit=mine?20:40
+   const rows=(await q(`SELECT ${modelFields} FROM community_models m ${filters.length?'WHERE '+filters.join(' AND '):''} ORDER BY m.created DESC,m.id DESC LIMIT ?`,...(mine?[user]:[]),...(anchor?[anchor.created,anchor.id]:[]),limit+1).all<ModelRow>()).results
+   const bundledIds=[...bundled],counts=(await q(`SELECT model,COUNT(*) AS count FROM community_comments WHERE model IN (${bundledIds.map(()=>'?').join(',')}) AND deleted=0 GROUP BY model`,...bundledIds).all<{model:string;count:number}>()).results
+   const bundledCounts:Record<string,number>=Object.fromEntries(bundledIds.map(id=>[id,0]));for(const row of counts)bundledCounts[row.model]=row.count
+   const page=rows.slice(0,limit);return reply({models:page.map(row=>publicModel(row,user)),nextCursor:rows.length>limit?page.at(-1)!.id:null,bundledCounts})
   }
   if(!id&&method==='POST'){
    const b=await body(request,1_050_000);if(b.confirmPublic!==true)fail(400,'Explicit public publishing permission is required.')
    const title=text(b.title,'title',1,120),description=text(b.description,'description',0,2000),category=text(b.category,'category',1,60),creator=text(b.creator,'creator alias',2,40),license=text(b.license,'license',1,40)
-   if(!licenses.includes(license)||!Array.isArray(b.tags)||b.tags.length>12)fail(400,'Invalid license or tags.')
-   const tags=[...new Set(b.tags.map(tag=>text(tag,'tag',1,40).toLowerCase()))],image=thumbnail(b.image),{document}=documentPayload(b.document)
+   if(!categories.has(category))fail(400,'Choose a supported community category.')
+   if(!licenses.includes(license)||!Array.isArray(b.tags)||b.tags.length>10)fail(400,'Invalid license or tags (maximum 10).')
+   const tags=[...new Set(b.tags.map(tag=>{
+    if(typeof tag!=='string')fail(400,'Invalid tag.')
+    const normalized=tag.trim().toLowerCase();if(!/^[\p{L}\p{N}-]{1,32}$/u.test(normalized))fail(400,'Tags must contain 1–32 letters, numbers or hyphens.')
+    return normalized
+   }))],image=thumbnail(b.image),{document}=documentPayload(b.document)
    const provenance=(document as typeof document & {communitySource?:{modelId:string;title:string;creator:string;license:string}}).communitySource
    if(provenance&&b.remixOf!==undefined&&b.remixOf!==provenance.modelId)fail(400,'The remix source must match document attribution.')
    const localSource=provenance&&/^user-[a-zA-Z0-9-]{1,100}$/.test(provenance.modelId)
