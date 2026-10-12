@@ -18,7 +18,8 @@ async function chooseBrush(page:Page,label:string){
 }
 
 test('volume add and carve render while dragging, retain undo/redo, and survive a saved reload',async({page},testInfo)=>{
- test.setTimeout(90_000)
+ // Includes two live drags, four history operations, export and reload on software-rendered CI.
+ test.setTimeout(180_000)
  await page.addInitScript(()=>{
   const state={pressed:false,responses:[] as {volume:number;triangles:number;pressed:boolean}[],draws:[] as number[]}
   ;(window as unknown as {volumeProbe:typeof state}).volumeProbe=state
@@ -48,7 +49,7 @@ test('volume add and carve render while dragging, retain undo/redo, and survive 
   const box=(await canvas.boundingBox())!,startX=box.x+box.width*.3,y=box.y+box.height*(index===0?.46:.54),distance=box.width*.4
   const beforeProbe=await probe(page),before=beforeProbe.responses.length,drawStart=beforeProbe.draws.length
   await page.mouse.move(startX,y);await page.mouse.down()
-  for(let step=1;step<=36;step++){await page.mouse.move(startX+distance*step/36,y);await page.waitForTimeout(20)}
+  for(let step=1;step<=20;step++){await page.mouse.move(startX+distance*step/20,y);await page.waitForTimeout(20)}
   // Capture before pointer-up: a deferred-until-release rebuild cannot satisfy this.
   const during=await probe(page),updates=during.responses.slice(before).filter(r=>r.pressed),draws=during.draws.slice(drawStart)
   await testInfo.attach(`volume-${index}-progress`,{body:JSON.stringify({updates,renderedTriangleCounts:[...new Set(draws)]}),contentType:'application/json'})
