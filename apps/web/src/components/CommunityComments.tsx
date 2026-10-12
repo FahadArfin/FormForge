@@ -6,6 +6,9 @@ import {saveCommunityComments,type CommunityComment,type CommunityModel} from '@
 
 const message=(error:unknown)=>error instanceof Error?error.message:'Please try again.'
 const date=(value:string)=>Number.isNaN(Date.parse(value))?'':new Date(value).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'})
+function PrivateNote({comment,depth=0}:{comment:CommunityComment;depth?:number}){
+ return <><article className="cw-comment" style={{marginLeft:Math.min(depth,3)*12}}><header><strong>{comment.author}</strong><time>{date(comment.createdAt)}</time></header><p>{comment.body}</p></article>{comment.replies?.map(reply=><PrivateNote key={reply.id} comment={reply} depth={depth+1}/>)}</>
+}
 export function CommunityComments({model,signedIn,onCount,onLocalChange}:{model:CommunityModel;signedIn:boolean;onCount:()=>void;onLocalChange:(model:CommunityModel)=>void}){
  const isLocal=model.creatorHandle==='@you'&&!model.public
  const [mode,setMode]=useState<'public'|'local'>(isLocal?'local':'public')
@@ -66,7 +69,7 @@ export function CommunityComments({model,signedIn,onCount,onLocalChange}:{model:
    <label>{mode==='public'?'Your comment':'Private note'}<textarea disabled={busy} ref={textarea} value={body} onChange={e=>setBody(e.target.value)} rows={3} maxLength={2000} required placeholder="What would you like to make or change?"/></label>
    <div className="cw-compose-footer"><small>{body.length}/2,000 · {mode==='public'?'Visible to everyone. Avoid sharing personal details.':'Only on this device.'}</small>{mode==='public'&&!signedIn?<a href={signInPath()} target="_top">Sign in with ChatGPT to post</a>:<button className="cw-primary" disabled={busy||!body.trim()||(mode==='public'&&(loading||author.trim().length<2))}><Send size={15}/>{busy?'Saving…':mode==='public'?'Post comment':'Save private note'}</button>}</div>
   </form>
-  {mode==='local'?model.comments.length?model.comments.map(comment=><article className="cw-comment" key={comment.id}><header><strong>{comment.author}</strong><time>{date(comment.createdAt)}</time></header><p>{comment.body}</p>{comment.replies?.map(reply=><blockquote key={reply.id}><strong>{reply.author}</strong><p>{reply.body}</p></blockquote>)}</article>):<p className="cw-empty-small">Keep your measurements and ideas here.</p>:<>
+  {mode==='local'?model.comments.length?model.comments.map(comment=><PrivateNote key={comment.id} comment={comment}/>):<p className="cw-empty-small">Keep your measurements and ideas here.</p>:<>
    {loading&&<p role="status">Loading discussion…</p>}
    {!loading&&!error&&!comments.length&&<p className="cw-empty-small">No comments yet. Be the first to start a conversation.</p>}
    {comments.filter(c=>!c.parent).sort((a,b)=>a.createdAt.localeCompare(b.createdAt)||a.id.localeCompare(b.id)).map(c=>render(c))}
