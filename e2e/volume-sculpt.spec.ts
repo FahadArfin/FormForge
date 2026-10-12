@@ -75,6 +75,3 @@ test('volume add and carve render while dragging, retain undo/redo, and survive 
  await expect.poll(async()=>Number((await probe(page)).responses.at(-1)!.volume.toFixed(3))).toBe(Number(volumes[2]!.toFixed(3)))
  expect(errors).toEqual([])
 })
-
-
-
