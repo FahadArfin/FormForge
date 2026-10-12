@@ -1,3 +1,4 @@
+import {communityApi} from './communityApi'
 import {encodeSnapshot,decodeSnapshot} from './snapshotCodec'
 import { parseModelDocument } from '../../../packages/model/src/index'
 
@@ -37,6 +38,7 @@ const requireRevision=(value:unknown)=>{if(!Number.isSafeInteger(value)||Number(
 export async function cloudApi(request:Request,env:Env):Promise<Response>{
   try{
     const url=new URL(request.url),path=url.pathname.replace(/\/$/,''),method=request.method
+    if(path==='/api/cloud/community'||path.startsWith('/api/cloud/community/'))return communityApi(request,env)
     if(!env.DB||!env.BUCKET)return reply({error:'Cloud storage is unavailable. Your local project is safe.'},503)
     // Identity comes only from the Sites dispatcher, never request JSON or a query parameter.
     const user=request.headers.get('oai-authenticated-user-id'),email=request.headers.get('oai-authenticated-user-email')

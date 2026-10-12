@@ -165,6 +165,7 @@ export const savedCameraViewSchema=z.object({id:z.string().min(1).max(128),name:
  return Math.hypot(d.x,d.y,d.z)>.001&&Math.hypot(d.y*u.z-d.z*u.y,d.z*u.x-d.x*u.z,d.x*u.y-d.y*u.x)>.000001
 },'Camera position, target and up direction must define a valid view.')
 export const modelDocumentSchema = z.object({
+  communitySource: z.object({modelId:z.string().min(1).max(100),title:z.string().min(1).max(120),creator:z.string().min(1).max(80),license:z.string().min(1).max(160)}).optional(),
  engineering:engineeringMetadataSchema.optional(),
  slicerResult:slicerResultSchema.optional(),
   selectionSets:z.array(z.object({id:z.string().min(1).max(128),name:z.string().trim().min(1).max(60),nodeIds:selectionIds.refine(ids=>ids.length>0,'Select at least one shape.')})).max(24).refine(sets=>new Set(sets.map(s=>s.id)).size===sets.length&&new Set(sets.map(s=>s.name.toLowerCase())).size===sets.length,'Selection set IDs and names must be unique.').optional(),

@@ -27,6 +27,7 @@ import {useAppearance} from './lib/useAppearance'
 import { StatusBar } from './components/StatusBar'
 import { ViewportTools } from './components/ViewportTools'
 import type { CommunityModel } from './lib/community'
+import { createCommunityRemix } from './lib/communityRemix'
 import { markProjectPublic } from './lib/db'
 import { useEditor } from './store/editor'
 import { importMeshFile } from './lib/importers'
@@ -135,7 +136,7 @@ export function App({ active = true }: { active?: boolean }) {
   },[active,area])
   useEffect(()=>{engineeringSession.discard();void restoreEngineeringPlan(document.id).catch(()=>{});return()=>engineeringSession.discard()},[document.id])
 
-  useEffect(() => { if (active) window.document.title = area === 'studio' ? `${document.name || 'Untitled project'} · PrintLab` : area === 'community' ? 'Inspiration · PrintLab' : 'Your workshop · PrintLab' }, [active, area, document.name])
+  useEffect(() => { if (active) window.document.title = area === 'studio' ? `${document.name || 'Untitled project'} · PrintLab` : area === 'community' ? 'Community workshop · PrintLab' : 'Your workshop · PrintLab' }, [active, area, document.name])
   useEffect(() => { const onHash = () => {
     updateArea(readArea())
     if(new URLSearchParams(window.location.hash.split('?')[1]).get('workspace')==='engineering')useEngineeringMode.setState({enabled:true})
@@ -252,12 +253,7 @@ export function App({ active = true }: { active?: boolean }) {
 
   const remix = (model: CommunityModel) => void safelyContinue(() => {
     if (!model.document) { starterGeneration.current++;setStartersOpen(true); return }
-    const source = structuredClone(model.document)
-    source.id = crypto.randomUUID()
-    source.name = `${model.title} — Remix`
-    source.revision = 0
-    source.createdAt = new Date().toISOString()
-    source.updatedAt = source.createdAt
+    const source = createCommunityRemix(model)
     importDocument(source)
     setNotice(`Editable copy started from ${model.creator}'s model. Your changes save on this device.`)
     setArea('studio')
@@ -314,7 +310,7 @@ export function App({ active = true }: { active?: boolean }) {
   if (!active) return null
 
   if (area === 'community') return <>{shared}<Suspense fallback={<div className="route-loading"><span className="brand-mark large"><span /></span><strong>Opening inspiration…</strong></div>}>
-    <Community theme={theme} onToggleTheme={toggleTheme} document={document} openPublishRequest={publishRequest} onPublishRequestHandled={() => setPublishRequest(0)} onOpenStudio={() => setArea('studio')} onOpenProjects={() => setArea('projects')} onRemix={remix} onPublished={(model) => void markProjectPublic(document.id, model.id)} />
+    <Community onCreate={createProject} onChooseStarter={() => { starterGeneration.current++; setStartersOpen(true) }} theme={theme} onToggleTheme={toggleTheme} document={document} openPublishRequest={publishRequest} onPublishRequestHandled={() => setPublishRequest(0)} onOpenStudio={() => setArea('studio')} onOpenProjects={() => setArea('projects')} onRemix={remix} onPublished={(model) => void markProjectPublic(document.id, model.id)} />
   </Suspense></>
 
   if (area === 'projects') return <>{shared}<ProjectsHome
