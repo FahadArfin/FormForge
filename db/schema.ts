@@ -18,3 +18,13 @@ export const preferences=sqliteTable('cloud_preferences',{
 })
 
 export const deletions=sqliteTable('cloud_deletions',{project:text().primaryKey(),owner:text().notNull(),name:text().notNull(),blobs:text().notNull(),bytes:integer().notNull().default(0),ready:integer().notNull().default(1)},t=>[index('idx_cloud_deletions_owner').on(t.owner)])
+
+export const communityModels=sqliteTable('community_models',{
+  id:text().primaryKey(),owner:text().notNull(),title:text().notNull(),description:text().notNull(),category:text().notNull(),tags:text().notNull(),license:text().notNull(),creator:text().notNull(),created:integer().notNull(),remixOf:text('remix_of'),image:text(),document:text().notNull(),bytes:integer().notNull(),
+},t=>[index('idx_community_models_owner').on(t.owner),index('idx_community_models_created').on(t.created,t.id)])
+export const communityComments=sqliteTable('community_comments',{
+  id:text().primaryKey(),model:text().notNull(),owner:text().notNull(),author:text().notNull(),body:text().notNull(),parent:text(),created:integer().notNull(),deleted:integer().notNull().default(0),
+},t=>[index('idx_community_comments_model').on(t.model,t.created,t.id),index('idx_community_comments_owner').on(t.owner),index('idx_community_comments_parent').on(t.parent)])
+export const communityWrites=sqliteTable('community_writes',{
+  id:text().primaryKey(),owner:text().notNull(),created:integer().notNull(),
+},t=>[index('idx_community_writes_owner_created').on(t.owner,t.created)])
