@@ -150,6 +150,6 @@ test('new posts remain visible beyond page one and pending requests protect draf
   await page.getByRole('textbox',{name:'Your comment',exact:true}).fill('Reply on the second page stays visible.')
   await page.getByRole('button',{name:'Post comment',exact:true}).click()
   await expect(page.locator('.cw-reply').getByText('Reply on the second page stays visible.',{exact:true})).toBeVisible()
-  await expect(page.getByRole('button',{name:'Studio',exact:true})).toBeVisible()
+  await expect(page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('link',{name:'Studio',exact:true})).toBeVisible()
  }finally{server.close()}
 })
