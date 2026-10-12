@@ -53,3 +53,5 @@ Final commands:
 ## Commit
 
 Code/tests commit recorded below by the implementer after verification; report included with that commit.
+
+Verified code/tests commit: 336185b (feat: incrementally evaluate live volume sculpt prefixes). This report-only follow-up records its immutable identifier.
