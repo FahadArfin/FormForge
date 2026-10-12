@@ -49,7 +49,7 @@
 }
 /* The AI workflow supplies its own next step; avoid a duplicate guide band on phones. */
 @media(max-width:980px){
- .app-shell.engineering-workspace{grid-template-rows:auto auto minmax(0,1fr) auto}
+ .app-shell.engineering-workspace{grid-template-rows:auto minmax(0,1fr) auto}
  .engineering-workspace .workflow-guide{display:none}
  .engineering-heading{padding:0 0 6px;top:-16px}
  .engineering-assistant .assistant-chat-title{margin:8px 0 12px}

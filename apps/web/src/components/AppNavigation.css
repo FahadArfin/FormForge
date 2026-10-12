@@ -1,0 +1,28 @@
+.app-navigation{display:flex;align-items:center;gap:24px;min-width:0;padding:16px 28px;border-bottom:1px solid var(--line);background:var(--surface);color:var(--text);flex-shrink:0}
+.app-navigation .app-navigation-brand{display:flex;align-items:center;gap:9px;font-size:20px;color:inherit;text-decoration:none;white-space:nowrap}
+.app-navigation .brand-mark{width:29px;height:29px;flex-shrink:0}
+.app-navigation>nav{display:flex;gap:6px;min-width:0}
+.app-navigation>nav>a{display:flex;align-items:center;justify-content:center;gap:7px;min-height:42px;padding:9px 13px;border:1px solid transparent;border-radius:9px;color:var(--muted);text-decoration:none;font-size:13px;font-weight:600;white-space:nowrap}
+.app-navigation>nav>a:hover{background:var(--accent-wash);color:var(--text)}
+.app-navigation>nav>a[aria-current]{color:var(--accent);background:var(--accent-wash);border-color:var(--accent);box-shadow:inset 0 -2px var(--accent)}
+.app-navigation-utilities{display:flex;align-items:center;gap:10px;margin-left:auto;min-width:0;font-size:12px}
+.app-navigation-utilities>a{color:var(--muted);text-decoration:underline;text-underline-offset:3px}
+.app-navigation a:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.app-navigation-compact{padding:7px 20px;gap:22px}.app-navigation-compact>nav>a{min-height:36px;padding:6px 12px}
+.studio-chrome{min-width:0}.studio-chrome .studio-header{min-height:66px}.app-shell.app-shell{grid-template-rows:auto minmax(0,1fr) auto}
+.studio-context{font-size:12px;color:var(--muted)}
+.app-shell[hidden]{display:none!important}
+.public-pathways{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:0 auto;padding:0 32px 44px;max-width:1240px}
+.public-pathways>a{display:flex;flex-direction:column;gap:9px;padding:23px;border:1px solid var(--line);border-radius:14px;text-decoration:none;color:var(--text);background:var(--surface)}
+.public-pathways strong{font-size:18px}.public-pathways span{font-size:14px;color:var(--muted);line-height:1.6}.public-pathways a:hover{border-color:var(--accent)}
+@media(max-width:700px){
+ .app-navigation{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:10px 12px}
+ .app-navigation>nav{grid-column:1/-1;grid-row:2;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;width:100%}
+ .app-navigation>nav>a{padding:8px 3px;gap:5px;font-size:12px;min-width:0;min-height:40px}
+ .app-navigation-utilities{grid-column:2;grid-row:1;gap:9px}.app-navigation .app-navigation-brand{font-size:18px}
+ .app-navigation-compact{padding:6px 10px;gap:5px}.app-navigation-compact .brand-mark{width:22px;height:22px}.app-navigation-compact .app-navigation-brand{font-size:16px}
+ .studio-context{font-size:11px}.studio-chrome .studio-header{grid-template-columns:minmax(0,1fr) 72px 36px;grid-template-rows:52px 44px;min-height:96px}
+ .studio-chrome .studio-header>.studio-project{grid-column:1}.studio-chrome .studio-header>.studio-history{grid-column:2}.studio-chrome .studio-header>.studio-command{grid-column:3}
+ .public-pathways{grid-template-columns:1fr;padding:0 20px 30px;gap:10px}.public-pathways>a{padding:18px}
+}
+@media(max-width:360px){.app-navigation>nav>a{gap:3px;font-size:11px}.app-navigation>nav>a svg{width:14px}.app-navigation-utilities{gap:6px}}

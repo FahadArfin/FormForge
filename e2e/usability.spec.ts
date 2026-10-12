@@ -11,17 +11,17 @@ test('workshop navigation remains readable across widths and More supports keybo
  await page.goto('/#projects');await expect(page.getByRole('heading',{level:1})).toBeVisible()
  for(const width of [320,390,590,768]){
   await page.setViewportSize({width,height:844})
-  const navigation=page.getByRole('navigation',{name:width<=590?'Quick workshop navigation':'Workshop pages',exact:true})
+  const navigation=page.getByRole('navigation',{name:width<=590?'Quick project organization':'Project organization',exact:true})
   await expect(navigation).toBeVisible()
   const boxes=await navigation.getByRole('button').evaluateAll(buttons=>buttons.map(button=>{const r=button.getBoundingClientRect();return{x:r.x,y:r.y,w:r.width,h:r.height,textFits:button.scrollWidth<=button.clientWidth+1}}))
   for(const box of boxes){expect(box.textFits).toBe(true);expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.w).toBeLessThanOrEqual(width);expect(box.h).toBeGreaterThanOrEqual(40)}
   for(let a=0;a<boxes.length;a++)for(let b=a+1;b<boxes.length;b++){const x=boxes[a]!,y=boxes[b]!;expect(x.x+x.w<=y.x+.5||y.x+y.w<=x.x+.5||x.y+x.h<=y.y+.5||y.y+y.h<=x.y+.5).toBe(true)}
  }
- await page.setViewportSize({width:390,height:844});const more=page.getByRole('button',{name:'More workshop pages',exact:true})
- await more.click();await expect(page.getByRole('dialog',{name:'Workshop menu',exact:true})).toBeVisible();await page.keyboard.press('Escape');await expect(more).toBeFocused()
- await more.click();await page.getByRole('dialog',{name:'Workshop menu'}).getByRole('button',{name:'Recovery copies',exact:true}).click()
+ await page.setViewportSize({width:390,height:844});const more=page.getByRole('button',{name:'More project organization',exact:true})
+ await more.click();await expect(page.getByRole('dialog',{name:'Project organization',exact:true})).toBeVisible();await page.keyboard.press('Escape');await expect(more).toBeFocused()
+ await more.click();await page.getByRole('dialog',{name:'Project organization'}).getByRole('button',{name:'Recovery copies',exact:true}).click()
  await expect(page.getByRole('dialog',{name:'Automatic recovery copies',exact:true})).toBeVisible();await page.keyboard.press('Escape')
- await page.getByRole('navigation',{name:'Quick workshop navigation'}).getByRole('button',{name:'Template library',exact:true}).click()
+ await page.getByRole('link',{name:'Templates',exact:true}).click()
  await expect(page.getByRole('heading',{name:'Editable templates',level:1})).toBeVisible();await expect(page.locator('.public-template').getByRole('heading',{level:2})).toHaveCount(8)
 })
 
