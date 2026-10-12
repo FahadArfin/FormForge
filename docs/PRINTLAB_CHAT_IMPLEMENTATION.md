@@ -53,8 +53,8 @@ Conversation history persists separately in IndexedDB schema v6, bounded to 80 m
 
 ## Verification ledger
 
-- 49 shared-model tests, 546 web tests, 26 local API tests passed (621 total).
-- Type checks, production build and entry-budget checks passed; all 34 desktop/phone browser tests passed, including typed-request reload recovery, invalid replies, preview, Apply, undo/redo, cancellation and fixture-backed account model selection.
+- 49 shared-model tests, 547 web tests, 26 local API tests passed (622 total).
+- Type checks, production build and entry-budget checks passed; all 34 desktop/phone browser tests passed, including typed-request reload recovery, invalid replies, preview, Apply, undo/redo, cancellation and fixture-backed account model selection. After the evaluated-parameter readback correction, all 8 affected desktop/phone chat and engineering browser tests passed again.
 - Actual local browser WebMCP discovery, request read/reply and isolated geometry preview were exercised through the supported browser. Public release verification is performed after publication.
-- Independent review corrected transcript-load, fresh-project recovery, canonical reload fingerprints, OAuth-generation, model-refresh and mesh-context edge cases; no remaining blockers reported.
+- Independent review corrected transcript-load, fresh-project recovery, canonical reload fingerprints, OAuth-generation, model-refresh, evaluated parameter context and mesh-context edge cases; no remaining blockers reported.
 - Real ChatGPT OAuth consent and account-funded inference have not been performed by the agent. Mock-provider tests validate cryptographic token checks, account isolation, refresh, response completion, cancellation, bounded parsing and token exclusion. This is implementation verification, not proof of account eligibility or a completed real inference request.

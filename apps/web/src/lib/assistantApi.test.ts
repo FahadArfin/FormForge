@@ -24,3 +24,14 @@ it('explains unavailable local runtime when a static host returns HTML',async()=
  vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response('<html/>',{headers:{'content-type':'text/html'}})))
  await expect(assistantApi('/status')).rejects.toThrow(/local PrintLab API/)
 })
+
+it('sends evaluated named values and refuses unresolved parameter errors',()=>{
+ const doc=createDocument();doc.namedParameters=[{id:'thickness',name:'Thickness',expression:'4',value:3,unit:'mm'}]
+ doc.nodes[0]!.parameterBindings={height:'Thickness'}
+ const context=assistantDocument(doc)
+ expect(context.namedParameters[0]?.value).toBe(4)
+ expect(context.nodes[0]?.parameters.height).toBe(4)
+ expect(doc.namedParameters[0]?.value).toBe(3)
+ doc.namedParameters[0]!.expression='UnknownThickness'
+ expect(()=>assistantDocument(doc)).toThrow(/parameter errors/)
+})

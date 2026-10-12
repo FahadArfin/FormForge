@@ -61,9 +61,10 @@ it('does not read a newly switched project into an earlier conversation request'
 
 it('reports resolved named parameter dimensions instead of stale underlying parameter values',()=>{
  const node=createNode('box');node.parameters.width=10;node.parameterBindings={width:'Width'}
- const document={...createDocument(),nodes:[node],namedParameters:[{id:'width',name:'Width',expression:'',value:42,unit:'mm' as const}]}
+ const document={...createDocument(),nodes:[node],namedParameters:[{id:'width',name:'Width',expression:'42',value:10,unit:'mm' as const}]}
  useEditor.setState({document})
- const result=tool('printlab_read_design').execute({}) as {nodes:{parameters:{width:number}}[]}
+ const result=tool('printlab_read_design').execute({}) as {nodes:{parameters:{width:number}}[];namedParameters:{value:number}[]}
  expect(result.nodes[0]?.parameters.width).toBe(42)
+ expect(result.namedParameters[0]?.value).toBe(42)
  expect(useEditor.getState().document.nodes[0]?.parameters.width).toBe(10)
 })

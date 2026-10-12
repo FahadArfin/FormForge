@@ -15,11 +15,11 @@ export async function assistantApi<T>(path:string,options:{body?:unknown;csrfTok
  return result as T
 }
 export function assistantDocument(document:ModelDocument){
- const resolved=resolveDocumentParameterBindings(document);if(resolved.errors.length)throw Error('Resolve parameter errors before sending the design to an assistant.');document=resolved.document
+ const resolved=resolveDocumentParameterBindings(document);if(Object.keys(resolved.errors).length)throw Error('Resolve parameter errors before sending the design to an assistant.');document=resolved.document
  const nodes=document.nodes.filter(n=>n.kind!=='mesh'&&!n.mesh)
  if(nodes.length>128||document.namedParameters.length>128)throw Error('Direct chat supports up to 128 parametric features and parameters. Use Site tools for larger designs.')
  // Operation history can contain old user instructions. Send the current parametric definition only.
- return {nodes,namedParameters:document.namedParameters,engineering:document.engineering?{...document.engineering,history:[]}:undefined}
+ return {nodes,namedParameters:document.namedParameters.map(parameter=>({...parameter,value:resolved.evaluation?.get(parameter.name)?.value??parameter.value})),engineering:document.engineering?{...document.engineering,history:[]}:undefined}
 }
 export function validatedAuthorizationUrl(value:string){const url=new URL(value);if(url.origin!=='https://auth.openai.com'||url.pathname!=='/api/accounts/authorize'||url.username||url.password||url.hash)throw Error('The local API returned an invalid sign-in destination.');if(url.searchParams.has('id_token_hint'))throw Error('Sign-in URLs must not expose retained tokens.');return url.href}
 export interface AssistantChatResult {message:string;plan?:DesignPlan}
