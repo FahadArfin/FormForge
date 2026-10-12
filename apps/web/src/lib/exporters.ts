@@ -1,3 +1,4 @@
+import { serializeMesh } from './meshExchange'
 import * as THREE from 'three'
 import { STLExporter } from 'three/addons/exporters/STLExporter.js'
 import { OBJExporter } from 'three/addons/exporters/OBJExporter.js'
@@ -113,4 +114,12 @@ export function exportMultiColor3mf(nodes: ModelNode[], name: string) {
   const buffer = new ArrayBuffer(archive.byteLength)
   new Uint8Array(buffer).set(archive)
   return new Blob([buffer], { type: 'model/3mf' })
+}
+
+export function exportOff(payload: MeshPayload) {
+  return new Blob([serializeMesh(payload, 'off')], { type: 'text/plain' })
+}
+
+export function exportPly(payload: MeshPayload) {
+  return new Blob([serializeMesh(payload, 'ply')], { type: 'text/plain' })
 }

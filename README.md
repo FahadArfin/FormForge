@@ -42,7 +42,7 @@ Open `http://localhost:8080`. Geometry processing remains on the client; Postgre
 - Toggle the build plane off for a free-space view, frame all or the selection, and use X-ray outlines to locate hidden features.
 - Paint Add, Carve, or localized Smooth strokes. Radius, strength, spacing, falloff, and X symmetry are adjustable; `[` and `]` resize the brush.
 - Open **Generate** for six editable local recipes, private image reliefs, optional configured TRELLIS.2 image-to-3D, or a declarative CAD script. Recipe generation is not general AI prompt generation.
-- Import STL, OBJ, GLB, or editable project JSON from the workshop or Project actions. The **Export** chooser explains 3MF, STL, OBJ, GLB, editable backups, and multi-color parts. Mesh exports wait for the current geometry and completed placement.
+- Import STL, OBJ, GLB, ASCII triangle PLY/OFF, or editable project JSON from the workshop or Project actions. The **Export** chooser explains 3MF, STL, OBJ, GLB, PLY, OFF, editable backups, and multi-color parts. Mesh exports wait for the current geometry and completed placement.
 - The project header reports real device-local saving and errors. Click the save status or press `Ctrl/Cmd+S` to save immediately. Keep a separate editable backup for recovery.
 - Save named local checkpoints from **Project actions** beside the project name; restore them from the **History** tab.
 - Find actions with `Ctrl/Cmd+K`. Use `V`, `G`, `R`, and `S` to select, move, rotate, and scale; `F` frames the model and `Shift+F` frames the selection. `?` opens help.
@@ -75,3 +75,12 @@ Open PrintLab beside ChatGPT in its supported desktop browser. Site tools submit
 ### Conversational design
 
 Choose **Ask AI** in the studio to queue requests for adjacent ChatGPT through Site tools. Locally running PrintLab also supports **Continue with ChatGPT**, account-specific model selection and direct CAD conversations. See the [chat setup and verification guide](docs/PRINTLAB_CHAT_IMPLEMENTATION.md) for eligibility, exact local setup, and preview/Apply safeguards.
+
+### Studio exchange and inspection
+
+- **Inspect → Section view → Preview section drawing** creates tessellated SVG/DXF section linework in millimeters from the current evaluated model. Preview again after edits; these are not associative production drawings or manufacturing toolpaths.
+- **Prepare → Assembly parts list** lists editable components, assigned materials and source features, with CSV/JSON downloads. Cutters are not counted as separate parts; quantity describes source components, not purchasing quantities. ChatGPT can read this inventory through the read-only `printlab_read_inventory` Site tool.
+- **Parameters → Parameter variants → Import or export presets** shares saved variants using versioned PrintLab JSON. Review imported presets before adding them; apply a saved variant separately to change geometry. This is not OpenSCAD JSON compatibility.
+- PLY/OFF exchange supports ASCII triangle meshes only. Imports require explicit source-unit review; exports contain evaluated geometry in millimeters, without editable history or material metadata.
+
+The [GitHub feature-gap research and implementation record](docs/PRINTLAB_GITHUB_FEATURE_GAPS_2026-10-12.md) lists sources, acceptance evidence, format limits and remaining architecture tracks.

@@ -5,7 +5,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { createDocument, createNode, type MeshPayload, type ModelDocument } from '@formforge/model'
 import { evaluateSnapshot } from '@/geometry/evaluateSnapshot'
 import { downloadBlob } from '@/lib/download'
-import { export3mf, exportGlb, exportMultiColor3mf, exportObj, exportStl } from '@/lib/exporters'
+import { export3mf, exportGlb, exportMultiColor3mf, exportObj, exportStl, exportOff, exportPly } from '@/lib/exporters'
 import { useEditor } from '@/store/editor'
 import { TopBar } from './TopBar'
 
@@ -17,7 +17,7 @@ vi.mock('@/lib/download', async (importOriginal) => ({
   ...await importOriginal<typeof import('@/lib/download')>(),
   downloadBlob: vi.fn(),
 }))
-vi.mock('@/lib/exporters', () => ({ export3mf: vi.fn(), exportStl: vi.fn(), exportGlb: vi.fn(), exportObj: vi.fn(), exportMultiColor3mf: vi.fn() }))
+vi.mock('@/lib/exporters', () => ({ exportOff: vi.fn(), exportPly: vi.fn(), export3mf: vi.fn(), exportStl: vi.fn(), exportGlb: vi.fn(), exportObj: vi.fn(), exportMultiColor3mf: vi.fn() }))
 
 function ExportHarness() {
   const [open, setOpen] = useState(true)
@@ -79,6 +79,8 @@ describe('selected-part export dialog', () => {
     vi.mocked(export3mf).mockReturnValue(exportedBlob)
     vi.mocked(exportStl).mockReturnValue(exportedBlob)
     vi.mocked(exportObj).mockReturnValue(exportedBlob)
+    vi.mocked(exportOff).mockReturnValue(exportedBlob)
+    vi.mocked(exportPly).mockReturnValue(exportedBlob)
     vi.mocked(exportGlb).mockResolvedValue(exportedBlob)
     vi.mocked(exportMultiColor3mf).mockReturnValue(exportedBlob)
     useEditor.setState({
@@ -116,6 +118,17 @@ describe('selected-part export dialog', () => {
     await act(async()=>{select.value=value;select.dispatchEvent(new Event('change',{bubbles:true}))})
   }
 
+  it.each(['PLY', 'OFF'])('exports %s from the selected snapshot and retains complete boolean groups', async format => {
+    await chooseSelection()
+    await chooseFormat(format)
+    expect(downloadButton().textContent).toBe(`Download ${format}`)
+    await act(async () => downloadButton().click())
+    expect(format === 'OFF' ? exportOff : exportPly).toHaveBeenCalledExactlyOnceWith(selectedMesh)
+    expect(downloadBlob).toHaveBeenCalledExactlyOnceWith(exportedBlob, `export-fixture-selection.${format.toLowerCase()}`)
+    expect(vi.mocked(evaluateSnapshot).mock.lastCall![0].nodes.map(node => node.id)).toEqual(['base', 'hole'])
+    expect(useEditor.getState().mesh).toBe(wholeMesh)
+    expect(useEditor.getState().document).toBe(model)
+  })
   it('opens a print-ready 3MF after a separate backup request is closed', async () => {
     await act(async () => host.querySelector<HTMLButtonElement>('.export-dialog [aria-label="Close dialog"]')!.click())
     await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Project actions"]')!.click())

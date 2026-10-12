@@ -264,7 +264,7 @@ export function App({ active = true }: { active?: boolean }) {
   })
 
   const shared = <Suspense fallback={<p role="status">Opening workspace tools…</p>}>
-    <input ref={fileRef} hidden type="file" accept=".json,.forge.json,.3mf,.stl,.obj,.glb,.gltf" aria-label="Import a model or project" onChange={async (event) => {
+    <input ref={fileRef} hidden type="file" accept=".json,.forge.json,.3mf,.stl,.obj,.ply,.off,.glb,.gltf" aria-label="Import a model or project" onChange={async (event) => {
       const file = event.target.files?.[0]
       event.target.value = ''
       if (!file) return

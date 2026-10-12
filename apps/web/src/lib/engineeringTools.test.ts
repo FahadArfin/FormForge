@@ -68,3 +68,18 @@ it('reports resolved named parameter dimensions instead of stale underlying para
  expect(result.namedParameters[0]?.value).toBe(42)
  expect(useEditor.getState().document.nodes[0]?.parameters.width).toBe(10)
 })
+it('offers bounded read-only source inventory without project geometry or mutation',()=>{
+ const doc={...createDocument(),nodes:Array.from({length:201},()=>createNode('box'))}
+ useEditor.setState({document:doc,undoStack:[]})
+ const inventoryTool=tool('printlab_read_inventory')
+ expect(inventoryTool).toBeDefined()
+ expect(inventoryTool.annotations?.readOnlyHint).toBe(true)
+ const result=inventoryTool.execute({}) as {components:unknown[];totalComponents:number;truncated:boolean;source:{projectId:string}}
+ expect(result.components).toHaveLength(200)
+ expect(result.totalComponents).toBe(201)
+ expect(result.truncated).toBe(true)
+ expect(result.source.projectId).toBe(doc.id)
+ expect(result).not.toHaveProperty('document')
+ expect(useEditor.getState().document).toBe(doc)
+ expect(()=>inventoryTool.execute({projectId:'another'})).toThrow(/empty object/)
+})

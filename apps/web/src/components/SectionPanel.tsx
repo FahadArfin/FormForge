@@ -1,11 +1,14 @@
-import { useMemo } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import { useEditor } from '@/store/editor'
 import { useInspection } from '@/store/inspection'
 import { NumberInput } from './NumberInput'
 import type { SectionSettings } from '@/lib/sectionView'
 import './InspectorWorkflows.css'
 
+const SectionDrawingPanel = lazy(() => import('./SectionDrawingPanel').then(module => ({ default: module.SectionDrawingPanel })))
+
 export function SectionPanel() {
+  const [drawingOpen, setDrawingOpen] = useState(false)
   const section = useInspection(state => state.section)
   const setSection = useInspection(state => state.setSection)
   const updateSection = (patch: Partial<SectionSettings>) => {
@@ -32,5 +35,7 @@ export function SectionPanel() {
     <input style={{ width: '100%', margin: '12px 0' }} aria-label="Section position slider" type="range" min={range.min} max={Math.max(range.min + 0.01, range.max)} step="0.01" value={section.offset} onChange={event => updateSection({ offset: Number(event.target.value), enabled: true })} />
     <div className="workflow-actions"><button className="workflow-action secondary" aria-pressed={section.inverted} onClick={() => setSection({ inverted: !section.inverted })}>Flip visible side</button><button className="workflow-action secondary" onClick={() => updateSection({ offset: (range.min + range.max) / 2, enabled: true })}>Middle of model</button></div>
     <p className="workflow-caption">Showing {section.inverted ? 'below' : 'above'} {section.axis.toUpperCase()} = {Number(section.offset.toFixed(3))} mm when enabled.</p>
+    <div data-cad-tool="section-drawing"><button className="workflow-action secondary" onClick={() => setDrawingOpen(true)}>Preview section drawing</button><p className="workflow-caption">Download reviewed tessellated linework as SVG or DXF in millimeters.</p></div>
+    {drawingOpen && <Suspense fallback={<p role="status">Opening section drawing…</p>}><SectionDrawingPanel onClose={() => setDrawingOpen(false)} /></Suspense>}
   </section>
 }
