@@ -11,7 +11,7 @@ vi.mock('@/lib/cloud',()=>({cloudRequest:vi.fn(async()=>({models:[],nextCursor:n
 vi.mock('@/lib/projectThumbnails',()=>({cachedProjectThumbnail:()=>null,renderProjectThumbnails:async()=>{}}))
 let host:HTMLDivElement,root:Root
 beforeEach(()=>{Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true});localStorage.clear();window.history.replaceState(null,'','/#home');host=document.createElement('div');document.body.append(host);root=createRoot(host)})
-afterEach(async()=>{await act(async()=>root.unmount());host.remove()})
+afterEach(async()=>{await act(async()=>root.unmount());host.remove();vi.restoreAllMocks()})
 const links=()=>[...host.querySelectorAll<HTMLAnchorElement>('nav[aria-label="Main navigation"] a')]
 it('offers the same three labeled destinations on home, template library and detail',async()=>{
  for(const surface of [<PublicWebsite/>,<PublicWebsite templatesOnly/>,<TemplatePage template={templateCatalog[0]!}/>]){
@@ -45,4 +45,22 @@ it('keeps old bookmark and recently viewed routes usable with clear labels and s
  await act(async()=>secondary()[2]!.click())
  expect(window.location.hash).toContain('page=profile')
  expect(host.querySelector('h1')?.textContent).toBe('My shared designs')
+})
+
+it('announces bookmark success and storage failure while preserving saved state, with dismissible feedback',async()=>{
+ window.history.replaceState(null,'','/#community')
+ await act(async()=>root.render(<Community theme="light" onToggleTheme={()=>{}} document={createDocument()} onOpenStudio={()=>{}} onOpenProjects={()=>{}} onCreate={()=>{}} onChooseStarter={()=>{}} onRemix={()=>{}} onPublished={()=>{}}/>))
+ const bookmark=host.querySelector<HTMLButtonElement>('.cw-save')!
+ await act(async()=>bookmark.click())
+ expect(host.querySelector('.cw-feedback[role="status"]')?.textContent??'').toContain('Added to Bookmarks on this device.')
+ const persisted=localStorage.getItem('formforge-collected')
+ await act(async()=>host.querySelector<HTMLButtonElement>('[aria-label="Dismiss message"]')!.click())
+ expect(host.querySelector('.cw-feedback')).toBeNull()
+ vi.spyOn(Storage.prototype,'setItem').mockImplementation(()=>{throw new DOMException('Full','QuotaExceededError')})
+ await act(async()=>bookmark.click())
+ expect(host.querySelector('.cw-feedback[role="alert"]')?.textContent??'').toContain('Browser storage is full. Your Bookmarks were not changed.')
+ expect(localStorage.getItem('formforge-collected')).toBe(persisted)
+ expect(bookmark.getAttribute('aria-pressed')).toBe('true')
+ await act(async()=>host.querySelector<HTMLButtonElement>('[aria-label="Dismiss message"]')!.click())
+ expect(host.querySelector('.cw-feedback')).toBeNull()
 })

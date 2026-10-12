@@ -8,7 +8,7 @@ test('opening a saved project frames the ready canvas before the first interacti
  await page.reload()
  await expect(page.getByRole('heading',{level:1})).toBeVisible()
  await page.waitForTimeout(500) // Let background project hydration settle before opening the lazy canvas.
- await page.getByRole('button',{name:/PICK UP WHERE YOU LEFT OFF/}).click()
+ await page.getByRole('button',{name:/CURRENT PROJECT/}).click()
  await expect(page.getByRole('region',{name:'3D modeling viewport'})).toBeVisible()
  const capture=()=>page.evaluate(()=>new Promise<number>(resolve=>window.dispatchEvent(new CustomEvent('formforge:capture-camera',{detail:{receive:(v:{position:{x:number;y:number;z:number};target:{x:number;y:number;z:number}})=>resolve(Math.hypot(v.position.x-v.target.x,v.position.y-v.target.y,v.position.z-v.target.z))}}))))
  await expect.poll(capture).toBeGreaterThan(0)

@@ -127,6 +127,7 @@ export function Community({theme,onToggleTheme,document,onOpenStudio,onOpenProje
  return <div className="community-workshop">
   <AppNavigation active="community" onOpenProjects={onOpenProjects} onOpenStudio={onOpenStudio}><a href="#templates">Templates</a><ThemeToggle theme={theme} onToggle={onToggleTheme}/></AppNavigation>
   <div className="cw-secondary-bar"><nav aria-label="Community navigation">{([{page:'discover',label:'Explore'},{page:'collections',label:'Bookmarks'},{page:'profile',label:'My shared designs'},{page:'history',label:'Recently viewed'}] as const).map(item=><button key={item.page} aria-current={route.page===item.page?'page':undefined} onClick={()=>navigate({page:item.page,modelId:null})}>{item.label}</button>)}</nav><button className="cw-primary" onClick={()=>setCreate(true)}><Plus size={17}/>Create</button></div>
+  {(error||notice)&&<div className={`cw-feedback ${error?'cw-error':''}`} role={error?'alert':'status'}><span>{error||notice}</span><button aria-label="Dismiss message" onClick={()=>{setError('');setNotice('')}}><X size={17}/></button></div>}
   <main ref={content} className="cw-main">
    {route.modelId?active?<>
     <button className="cw-back" onClick={()=>navigate({modelId:null,tab:'details'})}><ArrowLeft size={17}/> Back to {route.page==='collections'?'Bookmarks':route.page==='profile'?'My shared designs':route.page==='history'?'Recently viewed':'Explore'}</button>

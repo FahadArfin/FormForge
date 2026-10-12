@@ -5,6 +5,9 @@ import {createRoot,type Root} from 'react-dom/client'
 import {afterEach,beforeEach,expect,it,vi} from 'vitest'
 import {createDocument,createNode} from '@formforge/model'
 import {SiteRoot} from './SiteRoot'
+// Preload lazy modules outside the timed setup hook; keep their real components.
+import './App'
+import './components/Community'
 import {useEditor} from './store/editor'
 import {db} from './lib/db'
 vi.mock('./geometry/client',()=>({geometryClient:{evaluate:vi.fn(()=>new Promise(()=>{}))}}))
@@ -23,8 +26,6 @@ beforeEach(async()=>{
  const before={...createDocument('Before edit'),nodes:[createNode('box')]}
  useEditor.setState({hydrated:true,document:{...before,name:'Active editable project'},undoStack:[before],redoStack:[],selectedNodeIds:[],selectedNodeId:null,saveStatus:'saved',saveError:null,geometryStatus:'idle',mesh:null,meshDocument:null})
  host=document.createElement('div');document.body.append(host);root=createRoot(host)
- await import('./App')
- await import('./components/Community')
  await act(async()=>root.render(<SiteRoot/>))
  await act(async()=>{await new Promise(r=>setTimeout(r,60))})
 })
@@ -69,8 +70,12 @@ it('keeps the active document and route when the Studio exit save fails, then re
  expect(useEditor.getState().document).toBe(current)
  transaction.mockRestore()
  const retry=[...host.querySelectorAll<HTMLButtonElement>('button')].find(b=>b.textContent==='Retry save and continue')!
- await act(async()=>{retry.click();await new Promise(r=>setTimeout(r,40))})
- expect(window.location.hash).toBe('#projects');expect(host.querySelector('dialog[open]')).toBeNull()
+ await act(async()=>retry.click())
+ await vi.waitFor(async()=>{
+  await act(async()=>{await new Promise(r=>setTimeout(r,0))})
+  expect(window.location.hash).toBe('#projects')
+ },{timeout:4000})
+ expect(host.querySelector('dialog[open]')).toBeNull()
  expect(useEditor.getState().document).toBe(current)
  expect((await db.projects.get(current.id))?.document.name).toBe('Active editable project')
 })
