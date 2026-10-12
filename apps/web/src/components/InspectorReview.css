@@ -67,3 +67,8 @@
 .toolkit-navigation { display: flex; border: 1px solid var(--line); padding: 3px; border-radius: 9px; background: var(--surface-raised); flex-shrink: 0; position: sticky; top: -2px; z-index: 2; box-shadow: 0 -16px 0 0 var(--surface); }
 .toolkit-navigation button { flex: 1; min-height: 36px; border: 0; border-radius: 6px; color: var(--subtle); background: transparent; cursor: pointer; font-size: 12px; }
 .toolkit-navigation button[aria-pressed=true] { color: var(--accent-bright); background: var(--surface); box-shadow: 0 1px 4px #0001; font-weight: 600; }
+
+/* Keep targeted controls below the sticky workflow navigation on short screens. */
+.inspector .cad-toolkit-workflow{scroll-padding-top:64px}.cad-toolkit-workflow [data-cad-tool],.cad-toolkit-workflow button,.cad-toolkit-workflow input{scroll-margin-top:64px}
+
+@media(max-width:980px){.toolkit-navigation{position:static;box-shadow:none}}

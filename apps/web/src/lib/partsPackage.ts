@@ -28,6 +28,6 @@ export async function createPartsPackage(doc:ModelDocument,parts:MeshPayload[],f
   files[`${name}.${format}`]=new Uint8Array(await blob.arrayBuffer())
   files[`${name}-print-report.txt`]=textFile(printReport(doc,analyzeForPrint(doc,mesh,meshBounds(mesh).size),`${scope} · ${name}`))
  }
- files['README.txt']=textFile(`FormForge evaluated parts package\nProject: ${doc.name}\nScope: ${scope}\nEach file is a disconnected solid from the final evaluated geometry. Original millimeter coordinates and orientation are preserved.\nPart numbers describe this snapshot only, not source shapes, assemblies, material slots or a manufacturing bill of materials. Quantity is one per exported solid.\nGeometric volume is not filament usage. No slicer settings or print certification are included. Review placement, walls, supports and layers in your slicer.`)
+ files['README.txt']=textFile(`PrintLab evaluated parts package\nProject: ${doc.name}\nScope: ${scope}\nEach file is a disconnected solid from the final evaluated geometry. Original millimeter coordinates and orientation are preserved.\nPart numbers describe this snapshot only, not source shapes, assemblies, material slots or a manufacturing bill of materials. Quantity is one per exported solid.\nGeometric volume is not filament usage. No slicer settings or print certification are included. Review placement, walls, supports and layers in your slicer.`)
  return zipPackage(files,signal)
 }

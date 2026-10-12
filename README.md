@@ -1,6 +1,6 @@
-# FormForge
+# PrintLab
 
-FormForge is a local-first, browser-based 3D modeler built around playful shape editing and reliable printable mesh output. It combines click-drag primitive creation, additive/subtractive modeling, parametric loft/gear/spring/rounded-box features, safe code-first CAD, image relief generation, optional TRELLIS.2 image-to-3D, direct polygon sculpting, a WebAssembly manifold geometry engine, print checks, local checkpoint history, and broad mesh interchange.
+PrintLab is a local-first, browser-based 3D modeler built around playful shape editing and reliable printable mesh output. It combines click-drag primitive creation, additive/subtractive modeling, parametric loft/gear/spring/rounded-box features, safe code-first CAD, image relief generation, optional TRELLIS.2 image-to-3D, direct polygon sculpting, a WebAssembly manifold geometry engine, print checks, local checkpoint history, and broad mesh interchange.
 
 ## Run locally
 
@@ -67,4 +67,7 @@ The clean-room feature analysis and architecture map for the requested CAD syste
 
 ## Optional TRELLIS.2
 
-TRELLIS.2 is a 4B-parameter single-image-to-3D model; it does not consume the chat prompt directly. The official local implementation requires Linux, CUDA, and an NVIDIA GPU with at least 24 GB VRAM. FormForge keeps this integration off by default. Configure a private compatible Space or opt into the quota-limited Microsoft Hugging Face Space in `.env`, then restart Docker. Uploaded images are sent to that configured provider only after the user clicks **Generate with TRELLIS.2**. Local Relief never uploads the image.
+TRELLIS.2 is a 4B-parameter single-image-to-3D model; it does not consume the chat prompt directly. The official local implementation requires Linux, CUDA, and an NVIDIA GPU with at least 24 GB VRAM. PrintLab keeps this integration off by default. Configure a private compatible Space or opt into the quota-limited Microsoft Hugging Face Space in `.env`, then restart Docker. Uploaded images are sent to that configured provider only after the user clicks **Generate with TRELLIS.2**. Local Relief never uploads the image.
+
+## Engineering Studio
+Open PrintLab beside ChatGPT in its supported desktop browser. Site tools submit structured editable plans; preview validates each operation and Apply creates one undo step. Manual CAD remains available in other browsers. AI suggestions are not certified engineering analysis. Internal formforge storage/package identifiers are retained for compatibility.

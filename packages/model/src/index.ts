@@ -7,3 +7,5 @@ export * from './parameters.js'
 export * from './constraintSolver.js'
 export * from './profileGeometry.js'
 export * from './profileRecipes.js'
+
+export * from './engineering.js'

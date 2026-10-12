@@ -1,3 +1,4 @@
+import {loadEngineeringConfig,registerEngineeringRoutes} from './engineering.js'
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import postgres from 'postgres'
@@ -102,6 +103,10 @@ if (sql) {
 }
 
 app.get('/api/health', async () => ({ ok: true, storage: sql ? 'postgres' : 'local-only', version: '0.1.0' }))
+
+let engineeringConfig=loadEngineeringConfig({})
+try { engineeringConfig=loadEngineeringConfig(process.env) } catch { app.log.warn('Optional local engineering model configuration is invalid; adapter disabled.') }
+registerEngineeringRoutes(app,{config:engineeringConfig})
 
 app.get('/api/ai/capabilities', async () => ({
   trellis: trellisEnabled,

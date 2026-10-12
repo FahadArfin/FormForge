@@ -1,6 +1,6 @@
 import { readLastOpenedProject,forgetOpenedProject } from './projectResume'
 import Dexie, { type EntityTable } from 'dexie'
-import type { ModelDocument } from '@formforge/model'
+import type { ModelDocument, DesignPlan } from '@formforge/model'
 
 export interface SavedProject {
   id: string
@@ -29,6 +29,7 @@ export interface ProjectVersion {
 }
 
 class FormForgeDatabase extends Dexie {
+  engineeringPlans!: EntityTable<{projectId:string;plan:DesignPlan;updatedAt:string}, 'projectId'>
   projects!: EntityTable<SavedProject, 'id'>
   versions!: EntityTable<ProjectVersion, 'id'>
   collections!: EntityTable<ProjectCollection, 'id'>
@@ -47,6 +48,7 @@ class FormForgeDatabase extends Dexie {
       collections: 'id, name, createdAt',
     })
     this.version(4).stores({projects:'id, name, collectionId, updatedAt, deletedAt',versions:'id, projectId, createdAt',collections:'id, name, createdAt',recovery:'id, projectId, createdAt'})
+    this.version(5).stores({engineeringPlans:'projectId, updatedAt'})
   }
 }
 

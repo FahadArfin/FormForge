@@ -9,7 +9,7 @@ const server=await createServer({root:resolve('apps/web'),configFile:resolve('ap
 try{
  const {templateCatalog}=await server.ssrLoadModule('/src/lib/templateCatalog.ts'),{TemplatePage}=await server.ssrLoadModule('/src/components/TemplatePage.tsx'),index=await readFile('dist/index.html','utf8')
  for(const t of templateCatalog){
-  const url=`${origin}/templates/${t.id}`,title=`${t.name} · Editable 3D printing template · FormForge`,description=`${t.description} Customize linked dimensions in your browser and export 3MF. ${t.printNote}`
+  const url=`${origin}/templates/${t.id}`,title=`${t.name} · Editable 3D printing template · PrintLab`,description=`${t.description} Customize linked dimensions in your browser and export 3MF. ${t.printNote}`
   const metadata=`<link rel="canonical" href="${url}"/><meta property="og:type" content="website"/><meta property="og:title" content="${escape(title)}"/><meta property="og:description" content="${escape(description)}"/><meta property="og:url" content="${url}"/><meta property="og:image" content="${origin}/templates/${t.id}.svg"/>`
   const html=index.replace(/<title>.*?<\/title>/,`<title>${escape(title)}</title>`).replace(/<meta name="description"[^>]*>/,`<meta name="description" content="${escape(description)}"/>`).replace('</head>',metadata+'</head>').replace('<div id="root"></div>',`<div id="root">${renderToString(createElement(TemplatePage,{template:t}))}</div>`)
   await mkdir(`dist/templates/${t.id}`,{recursive:true});await writeFile(`dist/templates/${t.id}/index.html`,html)

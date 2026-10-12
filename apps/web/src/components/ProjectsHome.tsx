@@ -112,7 +112,7 @@ export function ProjectsHome({ theme, onToggleTheme, currentDocument, onCreate, 
     {name:'Trash',icon:Trash2,run:()=>setTrashOpen(true),count:trashed.length},
     {name:'Community',icon:Globe2,run:onOpenCommunity},
     ...(onOpenGuide?[{name:'Getting started',icon:BookOpen,run:onOpenGuide}]:[]),
-    {name:'FormForge home',icon:Globe2,run:()=>{window.location.hash='home'}},
+    {name:'PrintLab home',icon:Globe2,run:()=>{window.location.hash='home'}},
   ]
 
   return <div className={`workshop-shell ${projects.length ? 'workshop-returning' : ''}`} data-appearance={theme} onKeyDown={(event) => {
@@ -122,7 +122,7 @@ export function ProjectsHome({ theme, onToggleTheme, currentDocument, onCreate, 
     }
   }}>
     <aside className="workshop-sidebar" aria-label="Workshop navigation">
-      <button className="workshop-brand" onClick={() => setCollection('all')} aria-label="FormForge, my projects"><span className="brand-mark"><span /></span><strong>FormForge<span>Your ideas, in shape.</span></strong></button>
+      <button className="workshop-brand" onClick={() => setCollection('all')} aria-label="PrintLab, my projects"><span className="brand-mark"><span /></span><strong>PrintLab<span>Your ideas, in shape.</span></strong></button>
       <span className="workshop-nav-label">WORKSPACE</span>
       <nav className="workshop-navigation" aria-label="Workshop pages">{navigation.map(item=><button key={item.name} className={item.name==='My projects'&&activeCollection==='all'?'selected':''} aria-current={item.name==='My projects'&&activeCollection==='all'?'page':undefined} onClick={item.run}><item.icon size={18}/><span>{item.name}</span>{'count' in item&&<small>{item.count}</small>}</button>)}</nav>
       <nav className="workshop-mobile-navigation" aria-label="Quick workshop navigation"><button aria-current={activeCollection==='all'?'page':undefined} onClick={()=>setCollection('all')}><FolderOpen size={16}/>My projects</button><button aria-label="Template library" onClick={()=>{window.location.hash='templates'}}><Box size={16}/>Templates</button><button aria-haspopup="dialog" aria-label="More workshop pages" onClick={()=>setNavigationOpen(true)}><Ellipsis size={18}/>More</button></nav>

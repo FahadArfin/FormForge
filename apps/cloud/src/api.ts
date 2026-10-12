@@ -29,7 +29,7 @@ async function body(request:Request,limit=MAX_DOCUMENT+2048):Promise<Record<stri
 }
 function documentPayload(value:unknown){
   try{const doc=parseModelDocument(value);if(doc.nodes.length>2000||doc.namedParameters.length>500||doc.name.length>120)throw 0;const json=JSON.stringify(doc);const bytes=new TextEncoder().encode(json).length;if(bytes>MAX_DOCUMENT)reject(413,'Cloud projects can contain up to 4 MB. Export a local backup for larger models.');const encoded=encodeSnapshot(json);return {doc,json:encoded,bytes:new TextEncoder().encode(encoded).length}}
-  catch(error){if(error instanceof HttpError)throw error;reject(400,'This is not a supported editable FormForge project.')}
+  catch(error){if(error instanceof HttpError)throw error;reject(400,'This is not a supported editable PrintLab project.')}
 }
 const publicProject=(p:Project,user:string)=>({id:p.id,name:p.name,revision:p.revision,updated:p.updated,role:p.owner===user?'owner':'reviewer',sharing:!!p.share_hash&&Number(p.share_expires)>Date.now()})
 const requireRevision=(value:unknown)=>{if(!Number.isSafeInteger(value)||Number(value)<1)reject(400,'A valid cloud revision is required.');return Number(value)}
@@ -42,7 +42,7 @@ export async function cloudApi(request:Request,env:Env):Promise<Response>{
     const user=request.headers.get('oai-authenticated-user-id'),email=request.headers.get('oai-authenticated-user-email')
     if(path==='/api/cloud/session'&&method==='GET')return reply({user:user&&email?{email}:null})
     if(!user||!email)reject(401,'Sign in with ChatGPT to use cloud projects and reviews.')
-    if(!['GET','HEAD'].includes(method)&&request.headers.get('Origin')!==url.origin)reject(403,'This request must come from FormForge.')
+    if(!['GET','HEAD'].includes(method)&&request.headers.get('Origin')!==url.origin)reject(403,'This request must come from PrintLab.')
     const db=env.DB,q=(sql:string,...values:unknown[])=>db.prepare(sql).bind(...values)
     const reserveUpload=async(blob:string,name:string,bytes:number)=>{
       const reservation=`upload-${uid()}`
