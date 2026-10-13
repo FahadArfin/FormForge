@@ -151,9 +151,6 @@ export function Community({theme,onToggleTheme,document,onOpenStudio,onOpenProje
     <div className="cw-category-row" aria-label="Design categories">{['Trending',...communityCategories.slice(2)].map(category=><button key={category} aria-pressed={route.category===category} onClick={()=>navigate({category})}>{category==='Trending'?'All categories':category}</button>)}</div>
     <div className="cw-browse-layout"><aside className="cw-filters">
       <div className="cw-filter-heading"><SlidersHorizontal size={16}/><strong>Find your kind of idea</strong></div>
-      <fieldset><legend>Design type</legend><div className="cw-kind-filters">
-        {(['all','editable','concept'] as const).map(kind=><button type="button" className="cw-filter-chip" key={kind} aria-pressed={route.kind===kind} onClick={()=>navigate({kind})}>{kind==='all'?'Everything':kind==='editable'?'Ready to remix':'Concept inspiration'}</button>)}
-      </div></fieldset>
       <details open><summary>Filter by tags <span>{route.tags.length?`${route.tags.length} selected`:''}</span></summary>
         <input className="cw-tag-search" aria-label="Find a tag" placeholder="Find a tag…" value={tagQuery} onChange={e=>setTagQuery(e.target.value)}/>
         <p>Tap tags to narrow your search. Matches all selected.</p>
