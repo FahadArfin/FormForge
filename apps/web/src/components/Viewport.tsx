@@ -2,6 +2,7 @@ import { shapePlacement } from '@/lib/shapePlacement'
 import { styleResizeGizmo } from '@/lib/resizeGizmo'
 import { clearResizePreview, useResizePreview } from '@/store/resizePreview'
 import { isVolumeContinuation } from '@/lib/volumeContinuation'
+import { canSweepVolume } from '@/lib/volumeSweep'
 import {changeProjection,frameCamera,resizeCamera,zoomCamera,cameraDistanceLimits,updateCameraClipping,type StudioCamera} from '@/lib/cameraProjection'
 import { savedCameraViewSchema } from '@formforge/model'
 import { PointerTap } from '@/lib/pointerTap'
@@ -14,6 +15,7 @@ import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { TransformControls } from 'three/addons/controls/TransformControls.js'
+import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js'
 import type { ModelNode, ToolMode, Vec3Value, Workplane } from '@formforge/model'
 import { meshPayloadToGeometry } from '@/lib/exporters'
 import { makeSourceGeometry, nodeGeometrySignature, nodeWorldBounds } from '@/lib/modelGeometry'
@@ -343,6 +345,19 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     let sculpting = false
     let sculptHasHistory = false
     let lastSculptPoint: THREE.Vector3 | null = null
+    let volumeStrokeSurface: THREE.Mesh | null = null
+    let volumeStrokePointer: number | null = null
+    let lastVolumeStamp: { center: THREE.Vector3; point: THREE.Vector3; normal: THREE.Vector3; settings: string } | null = null
+    const endVolumeStroke = () => {
+      if (!volumeStrokeSurface) return
+      volumeStrokeSurface.geometry.dispose()
+      volumeStrokeSurface = null
+      volumeStrokePointer = null
+      lastVolumeStamp = null
+      lastSculptPoint = null
+      sculpting = false
+      orbit.enabled = true
+    }
     let polygonStroke: {
       nodeId: string
       node: ModelNode
@@ -380,11 +395,11 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
 
     const resultHit = (event: PointerEvent) => {
       updateRay(event)
-      const result = resultGroup.children[0]
+      const result = volumeStrokeSurface ?? resultGroup.children[0]
       if (!result) return null
       const hit = raycaster.intersectObject(result, false).find(hit => sectionPointVisible(hit.point, useInspection.getState().section))
       if (!hit?.face) return null
-      const normal = hit.face.normal.clone().applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld))
+      const normal = (volumeStrokeSurface ? hit.normal ?? hit.face.normal : hit.face.normal).clone().applyNormalMatrix(new THREE.Matrix3().getNormalMatrix(hit.object.matrixWorld)).normalize()
       return { point: hit.point, normal }
     }
 
@@ -479,18 +494,26 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
         center.addScaledVector(hit.normal, mode === 'carve' ? depth : -depth)
       }
       const symmetry = { x: state.brushSymmetryX, y: state.brushSymmetryY, z: state.brushSymmetryZ }
+      const swept = Boolean(volumeStrokeSurface && (mode === 'add' || mode === 'carve'))
+      const settings = JSON.stringify([mode, state.brushRadius, state.brushStrength, symmetry])
+      let previous = swept && lastVolumeStamp?.settings === settings && lastVolumeStamp.normal.dot(hit.normal) > .5 ? lastVolumeStamp : null
+      // Check the intervening surface so a fast pointer leap across empty space
+      // or another part does not turn into an unintended bridge/cut through air.
+      if (previous && volumeStrokeSurface && !canSweepVolume(previous.point, hit.point, state.brushRadius, volumeStrokeSurface, camera, point => sectionPointVisible(point, useInspection.getState().section))) previous = null
       const signs = symmetryPoints(new THREE.Vector3(1, 1, 1), symmetry)
       const stamped = new Set<string>()
       for (const sign of signs) {
         const point = center.clone().multiply(sign)
-        const key = point.toArray().map(value => value.toFixed(5)).join(',')
+        const from = swept ? (previous?.center ?? center).clone().multiply(sign) : undefined
+        const key = [...point.toArray(), ...(from?.toArray() ?? [])].map(value => value.toFixed(5)).join(',')
         if (stamped.has(key)) continue
         stamped.add(key)
         const normal = hit.normal.clone().multiply(sign)
-        state.addSculptStroke({ x: point.x, y: point.y, z: point.z }, mode, state.brushRadius, state.brushStrength, state.brushFalloff, { x: normal.x, y: normal.y, z: normal.z }, !sculptHasHistory)
+        state.addSculptStroke({ x: point.x, y: point.y, z: point.z }, mode, state.brushRadius, state.brushStrength, state.brushFalloff, { x: normal.x, y: normal.y, z: normal.z }, !sculptHasHistory, from ? value(from) : undefined)
         sculptHasHistory = true
       }
       lastSculptPoint = hit.point.clone()
+      lastVolumeStamp = swept ? { center, point: hit.point.clone(), normal: hit.normal.clone(), settings } : null
     }
 
     const replacePolygonGeometry = (object: THREE.Mesh, mesh: NonNullable<ModelNode['mesh']>) => {
@@ -739,12 +762,26 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
         }
         const hit = resultHit(event)
         if (!hit) return
+        if (state.tool === 'sculpt-add' || state.tool === 'sculpt-carve') {
+          endVolumeStroke()
+          const surface = resultGroup.children[0]
+          if (surface instanceof THREE.Mesh) {
+            // Own a geometry snapshot: incoming worker results dispose the displayed mesh.
+            const copied = surface.geometry.clone(), strokeGeometry = toCreasedNormals(copied, Math.PI / 5)
+            if (strokeGeometry !== copied) copied.dispose()
+            volumeStrokeSurface = new THREE.Mesh(strokeGeometry, surface.material)
+            volumeStrokeSurface.matrixAutoUpdate = false
+            volumeStrokeSurface.matrix.copy(surface.matrixWorld)
+            volumeStrokeSurface.matrixWorld.copy(surface.matrixWorld)
+            volumeStrokePointer = event.pointerId
+          }
+        }
         sculpting = true
         orbit.enabled = false
         sculptHasHistory = false
         lastSculptPoint = null
         renderer.domElement.setPointerCapture(event.pointerId)
-        stampSculpt(hit, event.shiftKey)
+        stampSculpt(volumeStrokeSurface ? resultHit(event) ?? hit : hit, event.shiftKey)
         event.preventDefault()
         return
       }
@@ -879,6 +916,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
         return
       }
       if (state.tool.startsWith('sculpt')) {
+        if (volumeStrokeSurface && volumeStrokePointer !== event.pointerId) return
         const directHit = polygonToolMode(state.tool) ? polygonHit(event) : null
         const hit = directHit ?? (sculpting || (state.meshDocument === state.document && state.geometryStatus === 'ready') || (state.buildMode === 'automatic' && state.geometryStatus !== 'error' && isVolumeContinuation(state.meshDocument, state.document)) ? resultHit(event) : null)
         updateBrushCursor(hit)
@@ -913,6 +951,9 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
         } else if (sculpting && hit) {
           const minimumSpacing = Math.max(0.15, state.brushRadius * state.brushSpacing)
           if (!lastSculptPoint || lastSculptPoint.distanceTo(hit.point) >= minimumSpacing) stampSculpt(hit, event.shiftKey)
+        } else if (volumeStrokeSurface && !hit) {
+          lastVolumeStamp = null
+          lastSculptPoint = null
         }
       } else {
         brushCursor.visible = false
@@ -945,6 +986,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
         return
       }
       if (event.button !== 0 && event.type !== 'pointercancel') return
+      if (volumeStrokeSurface && volumeStrokePointer !== event.pointerId) return
       if (emptyPress && Math.hypot(event.clientX - emptyPress.x, event.clientY - emptyPress.y) < 4) state.selectNode(null)
       emptyPress = null
       const drag = gizmoDrag ?? directDrag
@@ -979,6 +1021,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       sculpting = false
       sculptHasHistory = false
       lastSculptPoint = null
+      endVolumeStroke()
       orbit.enabled = true
       if (renderer.domElement.hasPointerCapture(event.pointerId)) renderer.domElement.releasePointerCapture(event.pointerId)
     }
@@ -1000,6 +1043,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       orbit.enabled = true
     }
     const unsubscribeGestures = useEditor.subscribe((state, previous) => {
+      if (volumeStrokeSurface && (state.tool !== previous.tool || (state.document !== previous.document && !isVolumeContinuation(previous.document, state.document)))) endVolumeStroke()
       if (resizeDocument && (state.document !== previous.document || state.tool !== previous.tool || state.selectedNodeIds !== previous.selectedNodeIds)) cancelResize()
       if ((directDrag || placementStart || placementPreview) && (state.document !== previous.document || state.tool !== previous.tool || state.placingNodeId !== previous.placingNodeId)) cancelCanvasGesture()
     })
@@ -1013,6 +1057,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       } else onPointerUp(event)
     }
     const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') endVolumeStroke()
       if (event.key === 'Escape' && resizeDocument) {
         cancelResize()
         event.preventDefault()
@@ -1124,6 +1169,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     const sourceById = new Map<string, THREE.Mesh>()
     runtime.current = { scene, camera, renderer, orbit, transform, sourceGroup, resultGroup, grid, buildPlate, referenceGroup, constructionGroup, annotationGroup, measurementGroup, brushCursor, sketchGroup, sourceById, resize, frame }
     return () => {
+      endVolumeStroke()
       clearResizePreview()
       cancelAnimationFrame(frame)
       resize.disconnect()
@@ -1396,9 +1442,12 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     if (!rt) return
     disposeGroup(rt.resultGroup)
     if (!meshPayload?.positions.length) return
-    const geometry = meshPayloadToGeometry(meshPayload)
+    const rawGeometry = meshPayloadToGeometry(meshPayload)
+    const smoothVolume = Boolean(meshDocument?.sculptStrokes.some(stroke => stroke.sweepFrom))
+    const geometry = smoothVolume ? toCreasedNormals(rawGeometry, Math.PI / 5) : rawGeometry
+    if (geometry !== rawGeometry) rawGeometry.dispose()
     const material = new THREE.MeshStandardMaterial({
-      color: '#829eff', roughness: 0.6, metalness: 0.02, fog: false, flatShading:true,
+      color: '#829eff', roughness: 0.6, metalness: 0.02, fog: false, flatShading: !smoothVolume,
       wireframe: displayMode === 'wireframe',
       transparent: displayMode === 'vertices',
       opacity: displayMode === 'vertices' ? 0.08 : 1,
@@ -1414,7 +1463,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       points.raycast = () => undefined
       object.add(points)
     }
-  }, [meshPayload, displayMode])
+  }, [meshPayload, meshDocument, displayMode])
 
   // Frame only after this mounted viewport owns the current evaluated geometry.
   // App-level timers can fire while the lazy canvas is absent on the workshop page.

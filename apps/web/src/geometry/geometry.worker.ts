@@ -296,9 +296,18 @@ async function evaluateSolid(document: ModelDocument, cache?: VolumeEvaluator) {
   for (const stroke of document.sculptStrokes.slice(start)) {
     if (stroke.mode === 'smooth' || stroke.mode === 'pinch' || stroke.mode === 'flatten') continue
     const radius = stroke.mode === 'inflate' ? stroke.radius * (0.72 + stroke.strength * 0.28) : stroke.radius
-    const sphere = api.Manifold.sphere(radius, 28)
+    const sphere = api.Manifold.sphere(radius, stroke.sweepFrom ? 48 : 28)
     let brush: ManifoldType
     try { brush = sphere.translate([stroke.center.x, stroke.center.y, stroke.center.z]) } finally { sphere.delete() }
+    if (stroke.sweepFrom && Math.hypot(stroke.center.x - stroke.sweepFrom.x, stroke.center.y - stroke.sweepFrom.y, stroke.center.z - stroke.sweepFrom.z) > 1e-7) {
+      let start: ManifoldType | undefined
+      let swept: ManifoldType
+      try {
+        start = brush.translate([stroke.sweepFrom.x - stroke.center.x, stroke.sweepFrom.y - stroke.center.y, stroke.sweepFrom.z - stroke.center.z])
+        swept = api.Manifold.hull([brush, start])
+      } finally { brush.delete(); start?.delete() }
+      brush = swept
+    }
     if (cache) cache.lastEvaluation.appliedStamps++
     let next: ManifoldType
     try { next = stroke.mode === 'carve' ? finalResult.subtract(brush) : finalResult.add(brush) } finally { brush.delete() }

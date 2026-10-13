@@ -190,7 +190,7 @@ interface EditorState extends ProjectSaveState {
   removeSelected: () => void
   duplicateSelected: () => void
   setNotice: (notice: string | null) => void
-  addSculptStroke: (center: Vec3Value, mode: 'add' | 'carve' | 'smooth' | 'inflate' | 'pinch' | 'flatten', radius: number, strength: number, falloff: BrushFalloff, normal?: Vec3Value, remember?: boolean) => void
+  addSculptStroke: (center: Vec3Value, mode: 'add' | 'carve' | 'smooth' | 'inflate' | 'pinch' | 'flatten', radius: number, strength: number, falloff: BrushFalloff, normal?: Vec3Value, remember?: boolean, sweepFrom?: Vec3Value) => void
   newDocument: () => void
   loadDemo: () => void
   importDocument: (value: unknown) => void
@@ -1144,7 +1144,7 @@ export const useEditor = create<EditorState>((set, get) => {
 
     setNotice(notice) { set({ notice }) },
 
-    addSculptStroke(center, mode, radius, strength, falloff, normal, remember = true) {
+    addSculptStroke(center, mode, radius, strength, falloff, normal, remember = true, sweepFrom) {
       if (!remember && volumeGestureDocument !== get().document) return
       if (remember && get().buildMode === 'manual' && (get().meshDocument !== get().document || get().geometryStatus !== 'ready')) {
         set({ notice: 'Rebuild the current model before starting a volume sculpt stroke.' }); return
@@ -1152,7 +1152,7 @@ export const useEditor = create<EditorState>((set, get) => {
       const nodeId = get().selectedNodeId ?? get().document.nodes.find((node) => node.boolean === 'add')?.id
       if (!nodeId) return
       const previous = get().document
-      get().dispatch({ type: 'add-sculpt-stroke', stroke: { id: nanoid(), nodeId, mode, center, normal, radius, strength, falloff, createdAt: new Date().toISOString() } }, remember)
+      get().dispatch({ type: 'add-sculpt-stroke', stroke: { id: nanoid(), nodeId, mode, center, normal, radius, strength, falloff, ...(sweepFrom ? { sweepFrom } : {}), createdAt: new Date().toISOString() } }, remember)
       if (get().document !== previous) volumeGestureDocument = get().document
     },
 

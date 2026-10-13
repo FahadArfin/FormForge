@@ -134,6 +134,8 @@ export interface SculptStroke {
   nodeId: string
   mode: 'add' | 'carve' | 'smooth' | 'inflate' | 'pinch' | 'flatten'
   center: Vec3Value
+  /** Continuous brush segment. Omitted on legacy spherical stamps. */
+  sweepFrom?: Vec3Value
   normal?: Vec3Value
   radius: number
   strength: number

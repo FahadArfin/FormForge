@@ -121,8 +121,10 @@ function FitCouponBuilder() {
         // of its complete brush bounds as well as the ordinary source-node bounds.
         for (const stroke of document.sculptStrokes) {
           const radius = Math.max(stroke.radius, stroke.radius * (0.72 + stroke.strength * 0.28))
-          occupied.expandByPoint(new Vector3(stroke.center.x - radius, stroke.center.y - radius, stroke.center.z - radius))
-          occupied.expandByPoint(new Vector3(stroke.center.x + radius, stroke.center.y + radius, stroke.center.z + radius))
+          for (const center of [stroke.center, ...(stroke.sweepFrom ? [stroke.sweepFrom] : [])]) {
+            occupied.expandByPoint(new Vector3(center.x - radius, center.y - radius, center.z - radius))
+            occupied.expandByPoint(new Vector3(center.x + radius, center.y + radius, center.z + radius))
+          }
         }
         const length = (key: keyof CouponDraft) => parseNumericExpression(draft[key], 'mm')
         const diameter = length('diameter')

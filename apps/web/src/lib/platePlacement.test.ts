@@ -38,11 +38,13 @@ describe('rigid plate placement', () => {
     const document = fixture()
     document.nodes[1]!.suppressed = true
     document.nodes[2]!.visible = false
-    document.sculptStrokes = [{ id: 'stroke', nodeId: document.nodes[0]!.id, mode: 'carve', center: vec3(20, 0, 15), normal: vec3(0, 0, 1), radius: 2, strength: 1, createdAt: document.createdAt }]
+    document.sculptStrokes = [{ id: 'stroke', nodeId: document.nodes[0]!.id, mode: 'carve', center: vec3(20, 0, 15), sweepFrom: vec3(10, -5, 15), normal: vec3(0, 0, 1), radius: 2, strength: 1, createdAt: document.createdAt }]
     const target = getPlatePlacementTarget(document, [], 'document')
     const next = placeDocumentFromMesh(document, target, mesh, 'center-and-drop')!
     expect(next.nodes.map(node => node.transform.position)).toEqual([vec3(-10, 10, 10), vec3(0, 10, 17), vec3(40, 10, 45)])
     expect(next.sculptStrokes[0]!.center).toEqual(vec3(-10, 10, 10))
+    expect(next.sculptStrokes[0]!.sweepFrom).toEqual(vec3(-20, 5, 10))
+    expect(document.sculptStrokes[0]!.sweepFrom).toEqual(vec3(10, -5, 15))
     expect(next.sculptStrokes[0]!.normal).toEqual(vec3(0, 0, 1))
     expect(next.sculptStrokes[0]!.radius).toBe(2)
   })
