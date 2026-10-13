@@ -75,6 +75,12 @@ describe('local showcase persistence', () => {
 })
 
 describe('community detail routes', () => {
+  it('retains album context when opening a bookmarked model and reloading',()=>{
+    const route=readCommunityRoute('#community?page=collections&album=kitchen&model=starter-tray')
+    expect(route.albumId).toBe('kitchen')
+    expect(readCommunityRoute(communityRouteHash(route))).toEqual(route)
+    expect(communityRouteHash({...route,page:'discover'})).not.toContain('album=')
+  })
   it('restores an encoded detail and its search context from a reloadable URL', () => {
     const route = readCommunityRoute('#community?model=my%2Fstand&q=bracket+%26+bolt&category=Tools&page=collections&sort=Newest')
     expect(route).toEqual({ modelId: 'my/stand', query: 'bracket & bolt', category: 'Tools', page: 'collections', sort: 'Newest', tags: [], kind: 'all', tab: 'details' })

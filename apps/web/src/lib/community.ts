@@ -128,7 +128,7 @@ export function applyCommunityReactions(models: CommunityModel[], liked: Set<str
 
 export type CommunityPage = 'discover' | 'profile' | 'collections' | 'history'
 export type CommunitySort = 'Trending' | 'Newest' | 'Most downloaded' | 'Most discussed'
-export interface CommunityRoute { modelId: string | null; query: string; category: string; page: CommunityPage; sort: CommunitySort; tags: string[]; kind: 'all' | 'editable' | 'concept'; tab: 'details' | 'comments' | 'remixes' }
+export interface CommunityRoute { albumId?: string | null; modelId: string | null; query: string; category: string; page: CommunityPage; sort: CommunitySort; tags: string[]; kind: 'all' | 'editable' | 'concept'; tab: 'details' | 'comments' | 'remixes' }
 
 export function readCommunityRoute(hash: string): CommunityRoute {
   const params = new URLSearchParams(hash.split('?')[1] ?? '')
@@ -136,6 +136,7 @@ export function readCommunityRoute(hash: string): CommunityRoute {
   const sort = params.get('sort')
   const category = params.get('category') ?? 'Trending'
   return {
+    ...(params.get('album')&&/^[a-zA-Z0-9_-]{1,256}$/.test(params.get('album')!)?{albumId:params.get('album')}:{}),
     modelId: params.get('model') || null,
     query: params.get('q') ?? '',
     category: communityCategories.includes(category) ? category : 'Trending',
@@ -150,6 +151,7 @@ export function readCommunityRoute(hash: string): CommunityRoute {
 export function communityRouteHash(route: CommunityRoute) {
   const params = new URLSearchParams()
   if (route.modelId) params.set('model', route.modelId)
+  if (route.page === 'collections' && route.albumId) params.set('album', route.albumId)
   if (route.query) params.set('q', route.query)
   if (route.category !== 'Trending') params.set('category', route.category)
   if (route.page !== 'discover') params.set('page', route.page)

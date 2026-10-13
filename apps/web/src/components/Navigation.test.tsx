@@ -6,6 +6,7 @@ import {createDocument} from '@formforge/model'
 import {PublicWebsite} from './PublicWebsite'
 import {TemplatePage} from './TemplatePage'
 import {Community} from './Community'
+import {BOOKMARK_LIBRARY_KEY,readBookmarkLibrary} from '@/lib/communityAlbums'
 import {templateCatalog} from '@/lib/templateCatalog'
 vi.mock('@/lib/cloud',()=>({cloudRequest:vi.fn(async()=>({models:[],nextCursor:null})),signInPath:()=>'/login'}))
 vi.mock('@/lib/projectThumbnails',()=>({cachedProjectThumbnail:()=>null,renderProjectThumbnails:async()=>{}}))
@@ -33,7 +34,7 @@ it('keeps old bookmark and recently viewed routes usable with clear labels and s
  expect(JSON.parse(localStorage.getItem('formforge-history')!)).toHaveLength(1)
  const bookmark=host.querySelector<HTMLButtonElement>('[aria-label="Bookmark design"]')!
  await act(async()=>bookmark.click())
- expect(JSON.parse(localStorage.getItem('formforge-collected')!)).toHaveLength(1)
+ expect(readBookmarkLibrary().bookmarks).toHaveLength(1)
  await act(async()=>secondary()[1]!.click())
  expect(window.location.hash).toContain('page=collections')
  expect(host.querySelector('h1')?.textContent).toBe('Bookmarks')
@@ -53,13 +54,13 @@ it('announces bookmark success and storage failure while preserving saved state,
  const bookmark=host.querySelector<HTMLButtonElement>('.cw-save')!
  await act(async()=>bookmark.click())
  expect(host.querySelector('.cw-feedback[role="status"]')?.textContent??'').toContain('Added to Bookmarks on this device.')
- const persisted=localStorage.getItem('formforge-collected')
+ const persisted=localStorage.getItem(BOOKMARK_LIBRARY_KEY)
  await act(async()=>host.querySelector<HTMLButtonElement>('[aria-label="Dismiss message"]')!.click())
  expect(host.querySelector('.cw-feedback')).toBeNull()
  vi.spyOn(Storage.prototype,'setItem').mockImplementation(()=>{throw new DOMException('Full','QuotaExceededError')})
  await act(async()=>bookmark.click())
- expect(host.querySelector('.cw-feedback[role="alert"]')?.textContent??'').toContain('Browser storage is full. Your Bookmarks were not changed.')
- expect(localStorage.getItem('formforge-collected')).toBe(persisted)
+ expect(host.querySelector('.cw-feedback[role="alert"]')?.textContent??'').toContain('Browser storage is full or unavailable. Your bookmarks and albums were not changed.')
+ expect(localStorage.getItem(BOOKMARK_LIBRARY_KEY)).toBe(persisted)
  expect(bookmark.getAttribute('aria-pressed')).toBe('true')
  await act(async()=>host.querySelector<HTMLButtonElement>('[aria-label="Dismiss message"]')!.click())
  expect(host.querySelector('.cw-feedback')).toBeNull()
