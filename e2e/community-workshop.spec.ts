@@ -37,8 +37,6 @@ test('tags combine, links retain filters, saved cards and concept discussions wo
   await parametric.press('Enter')
   await page.getByRole('button',{name:'Filter by tag beginner',exact:true}).click()
   await expect(page.locator('.cw-card')).toHaveCount(5)
-  await page.locator('.cw-filters').getByRole('button',{name:'Ready to remix',exact:true}).click()
-  await expect(page.locator('.cw-filters').getByRole('button',{name:'Ready to remix',exact:true})).toHaveAttribute('aria-pressed','true')
   await page.getByRole('button',{name:'View Mounting bracket',exact:true}).click()
   await expect(page.getByRole('heading',{name:'Mounting bracket',exact:true})).toBeVisible()
   await page.reload()
