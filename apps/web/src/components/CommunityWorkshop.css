@@ -1,4 +1,20 @@
 /* Scoped workshop surfaces share the editor's light/dark tokens. */
+.cw-albums{padding:20px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(115deg,#a78bfa12,#4ebdaf0b),var(--surface);margin:20px 0 24px;min-width:0}
+.cw-album-heading,.cw-album-heading>div,.cw-album-caption,.cw-album-caption>div{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.cw-album-heading{justify-content:space-between;margin-bottom:16px}.cw-album-heading svg{color:var(--accent-bright)}.cw-album-heading h2{font-size:17px;margin:0}.cw-album-heading>button{font-size:12px;border-radius:999px}
+.cw-album-list{display:flex;gap:10px;overflow:auto;padding:4px 4px 12px;margin:-4px;scrollbar-width:thin;max-height:280px;flex-wrap:wrap}
+.community-workshop .cw-album{justify-content:flex-start;min-width:150px;max-width:260px;text-align:left;gap:12px;padding:14px 16px;border-radius:15px;background:var(--surface-raised)}
+.cw-album>svg{flex-shrink:0;color:var(--accent-bright)}.cw-album>span{overflow-wrap:anywhere;min-width:0;font-size:13px;font-weight:650}.cw-album small{display:block;color:var(--subtle);font-size:11px;font-weight:400;margin-top:5px}
+.community-workshop .cw-album[aria-pressed=true]{border-color:var(--accent);background:var(--accent-wash);box-shadow:inset 0 0 0 1px var(--accent)}
+.cw-album-caption{justify-content:space-between;margin-top:14px}.cw-album-caption p{font-size:12px;color:var(--subtle);margin:0;line-height:1.6;overflow-wrap:anywhere;min-width:0}.cw-album-caption button{font-size:11px}
+.cw-card-album{margin:12px 0}.cw-card-album button{font-size:11px;border-radius:999px;width:100%}
+.cw-album-dialog{width:min(520px,calc(100vw - 28px))}.cw-album-dialog label{display:grid;gap:8px;font-size:13px;font-weight:600}.cw-album-dialog input{min-width:0;width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--text);font:inherit}
+.cw-album-dialog [role=alert]{color:var(--text);border-left:3px solid #e9996f;padding-left:12px;font-size:13px;line-height:1.6}
+.cw-album-dialog .dialog-heading>div{min-width:0}.cw-album-dialog .dialog-heading h2,.cw-album-dialog .dialog-heading p{overflow-wrap:anywhere}
+.cw-album-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:10px;margin-top:22px}.cw-album-actions button{font-size:13px}
+.cw-album-choices{display:grid;gap:8px;max-height:320px;overflow:auto;padding:4px;margin:-4px 0 16px}.cw-album-choices button{justify-content:flex-start;text-align:left;padding:14px;border-radius:12px}.cw-album-choices button>span{flex:1;min-width:0;overflow-wrap:anywhere}.cw-album-choices svg{flex-shrink:0}.cw-album-choices button[aria-pressed=true]{border-color:var(--accent);background:var(--accent-wash)}
+.cw-album-create{display:flex;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-top:12px}.cw-album-create label{flex:1 1 100%}.cw-new-album{width:100%;border-style:dashed!important}.cw-album-privacy{font-size:11px;color:var(--subtle);margin:18px 0 0}
+@media(max-width:760px){.cw-albums{padding:15px}.community-workshop .cw-album{min-width:130px;flex:1;max-width:100%}.cw-album-caption>div{width:100%}.cw-album-caption button{flex:1;min-height:44px}.cw-album-dialog button{min-height:44px}}
 .community-workshop{height:100dvh;display:flex;flex-direction:column;min-width:0;background:var(--bg);color:var(--text);font-size:14px;--cw-purple:#7860cc;--cw-mint:#087b70;--cw-border:var(--line)}
 .community-workshop *{box-sizing:border-box}
 .community-workshop button,.community-workshop a,.cw-publish-dialog button,.cw-create-dialog button{touch-action:manipulation}
