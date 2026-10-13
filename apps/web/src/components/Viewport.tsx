@@ -1,5 +1,6 @@
 import { shapePlacement } from '@/lib/shapePlacement'
 import { styleResizeGizmo } from '@/lib/resizeGizmo'
+import { clearResizePreview, useResizePreview } from '@/store/resizePreview'
 import { isVolumeContinuation } from '@/lib/volumeContinuation'
 import {changeProjection,frameCamera,resizeCamera,zoomCamera,cameraDistanceLimits,updateCameraClipping,type StudioCamera} from '@/lib/cameraProjection'
 import { savedCameraViewSchema } from '@formforge/model'
@@ -284,9 +285,11 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       orbit.enabled = !event.value
     })
     let transformSnapshot: ModelNode[] = []
+    let resizeDocument: ReturnType<typeof useEditor.getState>['document'] | null = null
     const snapshotSelection = () => {
       const state = useEditor.getState()
       transformSnapshot = state.document.nodes.filter(node => state.selectedNodeIds.includes(node.id) && !node.locked).map(node => structuredClone(node))
+      resizeDocument = state.tool === 'scale' ? state.document : null
     }
     const objectTransform = (object: THREE.Object3D, node: ModelNode): ModelNode['transform'] => ({
       position: { x: object.position.x, y: object.position.y, z: object.position.z },
@@ -302,14 +305,31 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
         const target = sourceById.get(update.id)
         if (target) applyNodeTransform(target, { ...node, transform: update.transform })
       }
+      if (resizeDocument) useResizePreview.setState({ document: resizeDocument, scales: Object.fromEntries(updates.map(update => [update.id, update.transform.scale])) })
       return updates
     }
     transform.addEventListener('mouseDown', snapshotSelection)
     transform.addEventListener('objectChange', () => { if (transform.object) previewSelection(transform.object) })
     transform.addEventListener('mouseUp', () => {
-      if (transform.object && !gizmoDrag) useEditor.getState().updateSelectionTransforms(previewSelection(transform.object))
+      const updates = transform.object && !gizmoDrag ? previewSelection(transform.object) : []
+      resizeDocument = null
+      clearResizePreview()
+      if (updates.length) useEditor.getState().updateSelectionTransforms(updates)
       if (!gizmoDrag) transformSnapshot = []
     })
+    const cancelResize = () => {
+      if (!resizeDocument) return
+      transform.reset()
+      for (const node of transformSnapshot) {
+        const object = sourceById.get(node.id)
+        if (object) applyNodeTransform(object, node)
+      }
+      transform.dragging = false
+      transform.axis = null
+      transformSnapshot = []
+      resizeDocument = null
+      clearResizePreview()
+    }
 
     const raycaster = new THREE.Raycaster()
     raycaster.params.Line = { threshold: 1.25 }
@@ -980,9 +1000,11 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       orbit.enabled = true
     }
     const unsubscribeGestures = useEditor.subscribe((state, previous) => {
+      if (resizeDocument && (state.document !== previous.document || state.tool !== previous.tool || state.selectedNodeIds !== previous.selectedNodeIds)) cancelResize()
       if ((directDrag || placementStart || placementPreview) && (state.document !== previous.document || state.tool !== previous.tool || state.placingNodeId !== previous.placingNodeId)) cancelCanvasGesture()
     })
     const onPointerCancel = (event: PointerEvent) => {
+      cancelResize()
       if (placementPointer === event.pointerId || directDrag?.pointerId === event.pointerId) {
         cancelCanvasGesture()
         useEditor.getState().cancelPlacement()
@@ -991,6 +1013,12 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       } else onPointerUp(event)
     }
     const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && resizeDocument) {
+        cancelResize()
+        event.preventDefault()
+        event.stopImmediatePropagation()
+        return
+      }
       if (event.key === 'Escape' && (directDrag || placementStart || placementPreview)) cancelCanvasGesture()
     }
     window.addEventListener('keydown', onEscape, true)
@@ -1096,6 +1124,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     const sourceById = new Map<string, THREE.Mesh>()
     runtime.current = { scene, camera, renderer, orbit, transform, sourceGroup, resultGroup, grid, buildPlate, referenceGroup, constructionGroup, annotationGroup, measurementGroup, brushCursor, sketchGroup, sourceById, resize, frame }
     return () => {
+      clearResizePreview()
       cancelAnimationFrame(frame)
       resize.disconnect()
       unsubscribeProjection()

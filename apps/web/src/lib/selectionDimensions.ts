@@ -1,10 +1,10 @@
 import type {ModelNode} from '@formforge/model'
 import {makeSourceGeometry} from './modelGeometry'
 const sizes=new WeakMap<ModelNode,{x:number;y:number;z:number}>()
-export function shapeDimensions(node:ModelNode) {
+export function shapeDimensions(node:ModelNode,scale=node.transform.scale) {
  let local=sizes.get(node)
  if(!local){const geometry=makeSourceGeometry(node);geometry.computeBoundingBox();const b=geometry.boundingBox!;local={x:b.max.x-b.min.x,y:b.max.y-b.min.y,z:b.max.z-b.min.z};geometry.dispose();sizes.set(node,local)}
- return {x:local.x*Math.abs(node.transform.scale.x),y:local.y*Math.abs(node.transform.scale.y),z:local.z*Math.abs(node.transform.scale.z)}
+ return {x:local.x*Math.abs(scale.x),y:local.y*Math.abs(scale.y),z:local.z*Math.abs(scale.z)}
 }
 export function resizeNodeDimension(node:ModelNode,axis:'x'|'y'|'z',next:number,proportional:boolean) {
  const dimensions=shapeDimensions(node)
