@@ -1,4 +1,5 @@
 import { shapePlacement } from '@/lib/shapePlacement'
+import { styleResizeGizmo } from '@/lib/resizeGizmo'
 import { isVolumeContinuation } from '@/lib/volumeContinuation'
 import {changeProjection,frameCamera,resizeCamera,zoomCamera,cameraDistanceLimits,updateCameraClipping,type StudioCamera} from '@/lib/cameraProjection'
 import { savedCameraViewSchema } from '@formforge/model'
@@ -275,6 +276,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
 
     const transform = new TransformControls(camera, renderer.domElement)
     transform.setSize(1.12)
+    styleResizeGizmo(transform)
     scene.add(transform.getHelper())
     let transformDragging = false
     transform.addEventListener('dragging-changed', (event) => {
