@@ -27,7 +27,7 @@ export function AssemblyInventoryPanel() {
     const state = useEditor.getState()
     state.setTool('select')
     state.selectNode(null)
-    component.nodeIds.forEach((id, index) => state.selectNode(id, index > 0))
+    component.nodeIds.forEach(id => { if (!useEditor.getState().selectedNodeIds.includes(id)) state.selectNode(id, true) })
   }
   return <section className="workflow-card" aria-label="Assembly inventory">
     <h3>Assembly parts list</h3>

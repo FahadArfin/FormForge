@@ -21,6 +21,72 @@ afterEach(() => { vi.clearAllTimers(); vi.useRealTimers() })
 const evaluatedMesh = (min: number[], max: number[]): MeshPayload => ({ positions: new Float32Array([...min, ...max]), indices: new Uint32Array([0, 1, 0]), triangleCount: 1, volume: 1 })
 
 describe('CAD selection editing', () => {
+  it('keeps group anchors visible through select-all, duplication and visibility changes',()=>{
+    useEditor.getState().combineSelected('union')
+    useEditor.getState().selectAll()
+    expect(useEditor.getState().selectedNodeId).toBe(useEditor.getState().document.nodes[0]!.id)
+    useEditor.getState().duplicateSelected()
+    const copies=useEditor.getState().document.nodes.slice(2)
+    expect(useEditor.getState().selectedNodeId).toBe(copies[0]!.id)
+    useEditor.getState().updateNode(copies[0]!.id,{visible:false})
+    expect(useEditor.getState().document.nodes.slice(2).every(n=>!n.visible)).toBe(true)
+    useEditor.getState().updateNode(copies[1]!.id,{visible:true})
+    expect(useEditor.getState().document.nodes.slice(2).every(n=>n.visible)).toBe(true)
+  })
+  it('protects joined source meshes from polygon conversion, component editing and brushes',()=>{
+    const mesh=createNode('mesh');mesh.mesh={positions:[0,0,0,1,0,0,0,1,0],indices:[0,1,2]}
+    const sphere=createNode('sphere')
+    useEditor.setState({document:{...createDocument(),nodes:[mesh,sphere]},selectedNodeId:mesh.id,selectedNodeIds:[mesh.id,sphere.id],meshComponentMode:'face',selectedMeshFaces:[0]})
+    useEditor.getState().combineSelected('union')
+    const joined=useEditor.getState().document
+    expect(useEditor.getState().meshComponentMode).toBe('object')
+    useEditor.getState().setTool('sculpt-clay')
+    expect(useEditor.getState().tool).toBe('select')
+    useEditor.getState().setMeshComponentMode('face')
+    expect(useEditor.getState().meshComponentMode).toBe('object')
+    useEditor.getState().makeSculptable()
+    expect(useEditor.getState().document).toBe(joined)
+    expect(useEditor.getState().notice).toContain('Separate')
+  })
+  it('selects and moves a joined entity together, then separates it without losing source geometry',()=>{
+    const before=useEditor.getState().document
+    useEditor.getState().combineSelected('subtract')
+    const joined=useEditor.getState().document
+    useEditor.getState().selectNode(joined.nodes[1]!.id)
+    expect(useEditor.getState().selectedNodeIds).toEqual(joined.nodes.map(n=>n.id))
+    expect(useEditor.getState().selectedNodeId).toBe(joined.nodes[0]!.id)
+    useEditor.getState().translateSelection(vec3(5,0,0))
+    expect(useEditor.getState().document.nodes.map(n=>n.transform.position.x)).toEqual([15,45])
+    useEditor.getState().undo();expect(useEditor.getState().document).toEqual(joined)
+    useEditor.getState().ungroupSelected()
+    useEditor.getState().selectNode(before.nodes[1]!.id)
+    expect(useEditor.getState().selectedNodeIds).toEqual([before.nodes[1]!.id])
+    expect(useEditor.getState().document.nodes.every(n=>!n.combined&&!n.groupId&&n.boolean==='add')).toBe(true)
+  })
+  it('toggles a whole joined entity with additive selection',()=>{
+    useEditor.getState().combineSelected('union')
+    const nodes=useEditor.getState().document.nodes
+    useEditor.getState().selectNode(null)
+    useEditor.getState().selectNode(nodes[1]!.id,true)
+    expect(useEditor.getState().selectedNodeIds).toEqual(nodes.map(n=>n.id))
+    useEditor.getState().selectNode(nodes[0]!.id,true)
+    expect(useEditor.getState().selectedNodeIds).toEqual([])
+  })
+  it('protects entity geometry across selection, alignment and partial locks',()=>{
+    const state=useEditor.getState();state.combineSelected('subtract')
+    const doc=useEditor.getState().document,first=doc.nodes[0]!,second=doc.nodes[1]!
+    useEditor.setState({tool:'sculpt-clay',meshComponentMode:'face',selectedMeshFaces:[1]})
+    state.selectNode(second.id)
+    expect(useEditor.getState().tool).toBe('select')
+    state.alignSelected('x','center');state.distributeSelected('x')
+    state.commitPolygonSculpt(first.id,{positions:[0,0,0],indices:[]})
+    expect(useEditor.getState().document).toBe(doc)
+    useEditor.setState({meshComponentMode:'face',selectedMeshFaces:[1]});state.selectNode(second.id,true)
+    expect(useEditor.getState().meshComponentMode).toBe('object')
+    state.selectNode(first.id);state.updateNode(second.id,{locked:true})
+    const locked=useEditor.getState().document
+    state.removeSelected();expect(useEditor.getState().document).toBe(locked)
+  })
   it('keeps Rotate active when selecting a different shape', () => {
     useEditor.getState().selectNode(useEditor.getState().document.nodes[1]!.id)
     expect(useEditor.getState().tool).toBe('rotate')

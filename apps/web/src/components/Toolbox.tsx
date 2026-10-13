@@ -5,6 +5,7 @@ import { useEditor } from '@/store/editor'
 import { IconButton } from './IconButton'
 import { ProfileRecipeCreator } from './ProfileRecipeCreator'
 import './Toolbox.css'
+import {ShapeBooleanTools} from './ShapeBooleanTools'
 
 type ShapeChoice = Exclude<PrimitiveKind, 'extrude' | 'revolve' | 'mesh'>
 
@@ -82,6 +83,7 @@ export function Toolbox({ onClose }: { onClose?: () => void }) {
             <button key={value} type="button" className={tool === value ? 'active' : ''} aria-label={label} aria-keyshortcuts={shortcut} aria-pressed={tool === value} title={`${label} (${shortcut})`} onClick={() => setTool(value)}><Icon size={18} aria-hidden="true" /></button>
           ))}
         </div>
+        <ShapeBooleanTools/>
       </div>
       <div className="modeling-task-tabs" role="tablist" aria-label="Modeling task" onKeyDown={(event) => {
         if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
