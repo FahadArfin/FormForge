@@ -31,6 +31,8 @@ test('volume add and carve render while dragging, retain undo/redo, and survive 
   }
   const draw=WebGL2RenderingContext.prototype.drawElements
   WebGL2RenderingContext.prototype.drawElements=function(mode,count,type,offset){if(state.pressed&&mode===this.TRIANGLES)state.draws.push(count);return draw.call(this,mode,count,type,offset)}
+  const drawArrays=WebGL2RenderingContext.prototype.drawArrays
+  WebGL2RenderingContext.prototype.drawArrays=function(mode,first,count){if(state.pressed&&mode===this.TRIANGLES)state.draws.push(count);return drawArrays.call(this,mode,first,count)}
  })
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message))
  await page.goto('/#projects')
@@ -43,7 +45,7 @@ test('volume add and carve render while dragging, retain undo/redo, and survive 
  await page.getByRole('button',{name:'Fit all',exact:true}).click()
  const canvas=page.locator('.viewport-canvas canvas');await expect(canvas).toBeVisible()
  const initialMesh=(await probe(page)).responses.at(-1)!
- const volumes=[initialMesh.volume],triangles=[initialMesh.triangles]
+ const volumes=[initialMesh.volume]
  for(const [index,label] of ['Volume add','Volume carve'].entries()){
   await chooseBrush(page,label)
   const box=(await canvas.boundingBox())!,startX=box.x+box.width*.3,y=box.y+box.height*(index===0?.46:.54),distance=box.width*.4
@@ -61,18 +63,30 @@ test('volume add and carve render while dragging, retain undo/redo, and survive 
   await expect(page.locator('.engine-status')).toContainText('Live preview ready')
   const volume=(await probe(page)).responses.at(-1)!.volume
   if(index===0)expect(volume).toBeGreaterThan(volumes[0]!);else expect(volume).toBeLessThan(volumes[1]!)
-  volumes.push(volume);triangles.push((await probe(page)).responses.at(-1)!.triangles)
+  volumes.push(volume)
  }
  await page.getByRole('button',{name:'Undo',exact:true}).click();await expect(page.locator('.engine-status')).toContainText('Live preview ready')
- await expect(page.locator('.statusbar')).toContainText(`${triangles[1]!.toLocaleString()} triangles`)
+ // Manifold may retriangulate coplanar swept faces on full replay; verify the solid's volume.
+ await expect.poll(async()=>Number((await probe(page)).responses.at(-1)!.volume.toFixed(4))).toBe(Number(volumes[1]!.toFixed(4)))
  await page.getByRole('button',{name:'Undo',exact:true}).click();await expect(page.locator('.engine-status')).toContainText('Live preview ready')
- await expect(page.locator('.statusbar')).toContainText(`${triangles[0]!.toLocaleString()} triangles`)
+ await expect.poll(async()=>Number((await probe(page)).responses.at(-1)!.volume.toFixed(4))).toBe(Number(volumes[0]!.toFixed(4)))
  for(let i=0;i<2;i++){await page.getByRole('button',{name:'Redo',exact:true}).click();await expect(page.locator('.engine-status')).toContainText('Live preview ready')}
  await expect(page.getByRole('button',{name:'Saved on this device',exact:true})).toBeVisible()
  await page.getByRole('button',{name:'Project actions',exact:true}).click();await page.getByRole('button',{name:/Download an editable backup/}).click()
  const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Download editable backup',exact:true}).click()
  const saved=JSON.parse(await readFile((await(await pending).path())!,'utf8'));expect(saved.sculptStrokes.some((s:{mode:string})=>s.mode==='add')).toBe(true);expect(saved.sculptStrokes.some((s:{mode:string})=>s.mode==='carve')).toBe(true)
- await page.keyboard.press('Escape');await page.reload();await expect(page.locator('.engine-status')).toContainText('Live preview ready')
+ for(const mode of ['add','carve']){
+  const strokes=saved.sculptStrokes.filter((s:{mode:string})=>s.mode===mode) as {center:{x:number;y:number;z:number};sweepFrom:{x:number;y:number;z:number}}[]
+  expect(strokes.length).toBeGreaterThan(3)
+  expect(strokes[0]!.sweepFrom).toEqual(strokes[0]!.center)
+  for(let i=1;i<strokes.length;i++)expect(strokes[i]!.sweepFrom).toEqual(strokes[i-1]!.center)
+  const heights=strokes.map(s=>s.center.z)
+  expect(Math.max(...heights)-Math.min(...heights),'a flat stroke must not climb its own fresh material').toBeLessThan(.001)
+ }
+ await page.keyboard.press('Escape')
+ await page.getByRole('combobox',{name:'Camera view'}).selectOption('iso')
+ await page.screenshot({path:testInfo.outputPath('smooth-volume-finished.png')})
+ await page.reload();await expect(page.locator('.engine-status')).toContainText('Live preview ready')
  await expect.poll(async()=>Number((await probe(page)).responses.at(-1)!.volume.toFixed(3))).toBe(Number(volumes[2]!.toFixed(3)))
  expect(errors).toEqual([])
 })

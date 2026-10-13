@@ -194,6 +194,7 @@ export const modelDocumentSchema = z.object({
     nodeId: z.string(),
     mode: z.enum(['add', 'carve', 'smooth', 'inflate', 'pinch', 'flatten']),
     center: vec3Schema,
+    sweepFrom: vec3Schema.optional(),
     normal: vec3Schema.optional(),
     radius: z.number().positive(),
     strength: z.number().min(0).max(1),

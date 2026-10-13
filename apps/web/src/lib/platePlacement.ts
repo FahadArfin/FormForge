@@ -53,7 +53,7 @@ export function placeDocumentFromMesh(document: ModelDocument, target: PlatePlac
   return {
     ...document,
     nodes: document.nodes.map(node => {if(!target.nodeIds.has(node.id))return node;const bindings={...node.parameterBindings};if(document.template?.nodeIds.includes(node.id))for(const axis of axes){const key=`position${axis.toUpperCase()}` as ParameterBindingTarget;if(bindings[key]&&Math.abs(delta[axis])>=.00001)bindings[key]=`(${bindings[key]}) + (${delta[axis]})`}return { ...node,parameterBindings:node.parameterBindings?bindings:undefined, transform: { ...node.transform, position: translated(node.transform.position) } }}),
-    sculptStrokes: target.movesWholeDocument ? document.sculptStrokes.map(stroke => ({ ...stroke, center: translated(stroke.center) })) : document.sculptStrokes,
+    sculptStrokes: target.movesWholeDocument ? document.sculptStrokes.map(stroke => ({ ...stroke, center: translated(stroke.center), ...(stroke.sweepFrom ? { sweepFrom: translated(stroke.sweepFrom) } : {}) })) : document.sculptStrokes,
     revision: document.revision + 1,
     updatedAt: new Date().toISOString(),
   }

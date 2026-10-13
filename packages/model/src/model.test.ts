@@ -19,6 +19,16 @@ describe('model document', () => {
     expect(parseModelDocument(JSON.parse(JSON.stringify(document)))).toEqual(document)
   })
 
+  it('round-trips swept volume strokes and preserves legacy spherical stamps', () => {
+    const document = createDocument()
+    const legacy = { id: 'old', nodeId: document.nodes[0]!.id, mode: 'add' as const, center: { x: 4, y: 0, z: 5 }, radius: 3, strength: .5, createdAt: document.createdAt }
+    document.sculptStrokes = [legacy, { ...legacy, id: 'sweep', sweepFrom: { x: -4, y: 0, z: 5 } }]
+    const parsed = parseModelDocument(JSON.parse(JSON.stringify(document)))
+    expect(parsed.sculptStrokes).toEqual(document.sculptStrokes)
+    expect(parsed.sculptStrokes[0]).not.toHaveProperty('sweepFrom')
+    expect(() => parseModelDocument({ ...document, sculptStrokes: [{ ...legacy, sweepFrom: { x: Infinity, y: 0, z: 0 } }] })).toThrow()
+  })
+
   it('loads documents created before named parameters with an empty default', () => {
     const legacyDocument = JSON.parse(JSON.stringify(createDocument('Legacy fixture')))
     delete legacyDocument.namedParameters
