@@ -198,6 +198,7 @@ function SelectionActions({ count }: { count: number }) {
   const uniformScale = useEditor(state => selectionNeedsUniformScale(state.document.nodes.filter(node => state.selectedNodeIds.includes(node.id))))
   const base = useEditor(state => state.document.nodes.find(node => node.id === state.selectedNodeIds[0]))
   const locked = useEditor(state => state.document.nodes.some(node => state.selectedNodeIds.includes(node.id) && node.locked))
+  const grouped = useEditor(state => state.document.nodes.some(node => state.selectedNodeIds.includes(node.id) && node.combined && node.groupId))
   const combineSelected = useEditor((state) => state.combineSelected)
   const ungroupSelected = useEditor((state) => state.ungroupSelected)
   const alignSelected = useEditor((state) => state.alignSelected)
@@ -205,17 +206,18 @@ function SelectionActions({ count }: { count: number }) {
   return <div className="selection-actions">
     <div><strong>{count} shapes selected</strong><span>Move, rotate, or scale together using the active shape as the pivot.</span></div>
     {uniformScale && <p className="selection-scale-note">Different rotations: scaling keeps proportions for the whole selection. Select one shape to scale a single axis.</p>}
-    <fieldset disabled={locked} className="boolean-actions">
-      <button onClick={() => combineSelected('union')}><Combine size={17} /><strong>Union</strong><span>Join volumes</span></button>
-      <button onClick={() => combineSelected('subtract')}><Scissors size={17} /><strong>Subtract</strong><span>Keep {base?.name}; cut the rest</span></button>
+    <fieldset disabled={locked || grouped} className="boolean-actions">
+      <button onClick={() => combineSelected('union')}><Combine size={17} /><strong>Join</strong><span>Join volumes</span></button>
+      <button onClick={() => combineSelected('subtract')}><Scissors size={17} /><strong>Exclude</strong><span>Keep {base?.name}; cut the rest</span></button>
       <button onClick={() => combineSelected('intersect')}><ScanLine size={17} /><strong>Intersect</strong><span>Keep overlap</span></button>
       <button onClick={() => combineSelected('hull')}><Spline size={17} /><strong>Hull</strong><span>Wrap selection</span></button>
     </fieldset>
     {locked && <p className="locked-note">Unlock shapes before combining.</p>}
-    <button className="ungroup-action" onClick={ungroupSelected}><Ungroup size={15} /> Separate combined parts</button>
+    {grouped && <p className="selection-scale-note">Joined parts move as one object. Separate them to edit or combine individual parts.</p>}
+    <button className="ungroup-action" disabled={locked || !grouped} onClick={ungroupSelected}><Ungroup size={15} /> Separate combined parts</button>
     <div className="selection-layout-tools">
       <strong>Align to {base?.name ?? 'first selected'}</strong>
-      {(['x', 'y', 'z'] as const).map((axis) => <div key={axis}><span>{axis.toUpperCase()}</span><button aria-label={`Align ${axis.toUpperCase()} minimum`} onClick={() => alignSelected(axis, 'min')}>Min</button><button aria-label={`Align ${axis.toUpperCase()} centers`} onClick={() => alignSelected(axis, 'center')}>Center</button><button aria-label={`Align ${axis.toUpperCase()} maximum`} onClick={() => alignSelected(axis, 'max')}>Max</button><button aria-label={`Distribute along ${axis.toUpperCase()}`} disabled={count < 3} onClick={() => distributeSelected(axis)}>Distribute</button></div>)}
+      {(['x', 'y', 'z'] as const).map((axis) => <div key={axis}><span>{axis.toUpperCase()}</span><button disabled={locked || grouped} aria-label={`Align ${axis.toUpperCase()} minimum`} onClick={() => alignSelected(axis, 'min')}>Min</button><button disabled={locked || grouped} aria-label={`Align ${axis.toUpperCase()} centers`} onClick={() => alignSelected(axis, 'center')}>Center</button><button disabled={locked || grouped} aria-label={`Align ${axis.toUpperCase()} maximum`} onClick={() => alignSelected(axis, 'max')}>Max</button><button aria-label={`Distribute along ${axis.toUpperCase()}`} disabled={count < 3 || locked || grouped} onClick={() => distributeSelected(axis)}>Distribute</button></div>)}
     </div>
   </div>
 }

@@ -18,7 +18,7 @@ function insertRecipe(nodes: ModelNode[], notice: string) {
   editor.dispatch({ type: 'add-nodes', nodes })
   if (!nodes.every(node => useEditor.getState().document.nodes.some(current => current.id === node.id))) return
   editor.selectNode(nodes[0]!.id)
-  for (const node of nodes.slice(1)) editor.selectNode(node.id, true)
+  for (const node of nodes.slice(1)) if (!useEditor.getState().selectedNodeIds.includes(node.id)) editor.selectNode(node.id, true)
   editor.setTool('select')
   editor.setNotice(notice)
 }

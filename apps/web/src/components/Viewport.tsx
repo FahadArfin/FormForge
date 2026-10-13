@@ -1,3 +1,5 @@
+import {useGroupPreviews} from './useGroupPreviews'
+import {entityNodes} from '@/lib/shapeEntities'
 import { shapePlacement } from '@/lib/shapePlacement'
 import { styleResizeGizmo } from '@/lib/resizeGizmo'
 import { clearResizePreview, useResizePreview } from '@/store/resizePreview'
@@ -161,6 +163,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
   const overhangs=useInspection(s=>s.overhangs),meshDocument=useEditor(s=>s.meshDocument),geometryStatus=useEditor(s=>s.geometryStatus)
   useEffect(()=>{useInspection.setState({overhangs:false})},[document.id])
   const showResult = useEditor((state) => state.showResult)
+  const groupPreviews=useGroupPreviews(document,showResult)
   const showGrid = useEditor((state) => state.showGrid)
   const showReferencePlanes = useEditor((state) => state.showReferencePlanes)
   const xrayEnabled = useEditor((state) => state.xrayEnabled)
@@ -406,7 +409,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     const polygonHit = (event: PointerEvent) => {
       const state = useEditor.getState()
       const node = state.document.nodes.find((candidate) => candidate.id === state.selectedNodeId)
-      const object = node?.kind === 'mesh' && !node.locked ? sourceById.get(node.id) : undefined
+      const object = node?.kind === 'mesh' && !node.locked && !(node.combined&&node.groupId) ? sourceById.get(node.id) : undefined
       if (!node || !object) return null
       updateRay(event)
       const hit = raycaster.intersectObject(object, false).find(hit => sectionPointVisible(hit.point, useInspection.getState().section))
@@ -755,6 +758,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
           event.preventDefault()
           return
         }
+        if (polygonToolMode(state.tool)) return
         if ((state.meshDocument !== state.document || state.geometryStatus !== 'ready') && !(state.buildMode === 'automatic' && state.geometryStatus !== 'error' && isVolumeContinuation(state.meshDocument, state.document))) {
           state.setNotice('Rebuild the current model before starting a volume sculpt stroke.')
           event.preventDefault()
@@ -832,7 +836,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       // empty canvas, even when an uncut source operand spans it.
       const resultSurface = state.showResult && state.meshDocument === state.document && state.geometryStatus === 'ready'
         ? raycaster.intersectObjects(resultGroup.children, false).find(hit => sectionPointVisible(hit.point, useInspection.getState().section)) : null
-      const hits = raycaster.intersectObjects(sourceGroup.children.filter(o=>{const focus=useInspection.getState().focus;return state.document.nodes.some(n=>n.id===o.userData.nodeId&&n.visible&&!n.suppressed)&&(!focus||focus.documentId!==state.document.id||focus.ids.includes(o.userData.nodeId))}), false).filter(hit => sectionPointVisible(hit.point, useInspection.getState().section) && (!state.showResult || Boolean(resultSurface && Math.abs(hit.distance - resultSurface.distance) < 0.1)))
+      const hits = raycaster.intersectObjects(sourceGroup.children.filter(o=>{if(o.userData.entityHidden)return false;const focus=useInspection.getState().focus;return state.document.nodes.some(n=>n.id===o.userData.nodeId&&n.visible&&!n.suppressed)&&(!focus||focus.documentId!==state.document.id||focus.ids.includes(o.userData.nodeId))}), false).filter(hit => sectionPointVisible(hit.point, useInspection.getState().section) && (!state.showResult || Boolean(resultSurface && Math.abs(hit.distance - resultSurface.distance) < 0.1)))
       if(useInspection.getState().pickOverlaps){const ids=overlapChoices(state.document.nodes,hits.map(h=>h.object.userData.nodeId as string));window.dispatchEvent(new CustomEvent('formforge:overlaps',{detail:{documentId:state.document.id,ids}}));event.preventDefault();return}
       const hit = hits[0]
       if (hit) {
@@ -843,7 +847,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
           const node = state.document.nodes.find((item) => item.id === nodeId)
           const dragPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(vector(state.document.workplane?.normal ?? { x: 0, y: 0, z: 1 }), hit.object.position)
           const point = raycaster.ray.intersectPlane(dragPlane, new THREE.Vector3())
-          if (node && !node.locked && point && !additive) {
+          if (node && !entityNodes(state.document.nodes,nodeId).some(n=>n.locked) && point && !additive) {
             if (state.showResult) state.setShowResult(false)
             snapshotSelection()
             directDrag = { nodeId, startPoint: point, startPosition: hit.object.position.clone(), screen: { x: event.clientX, y: event.clientY }, moved: false, pointerId: event.pointerId, plane: dragPlane, workplane: state.document.workplane }
@@ -1246,17 +1250,19 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       const selected = selectedNodeIds.includes(node.id)
       const suppressed = Boolean(node.suppressed)
       const editing = !showResult
-      const signature = nodeGeometrySignature(node)
+      const preview=groupPreviews.previews.get(node.id)
+      const signature = preview?.key??nodeGeometrySignature(node)
+      const geometry=()=>{if(!preview)return makeSourceGeometry(node);const raw=meshPayloadToGeometry(preview.mesh),creased=toCreasedNormals(raw,Math.PI/5);if(raw!==creased)raw.dispose();return creased}
       let object = rt.sourceById.get(node.id)
       if (!object) {
-        object = new THREE.Mesh(makeSourceGeometry(node), new THREE.MeshStandardMaterial({ fog: false }))
+        object = new THREE.Mesh(geometry(), new THREE.MeshStandardMaterial({ fog: false }))
         object.userData.nodeId = node.id
         object.userData.geometrySignature = signature
         rt.sourceGroup.add(object)
         rt.sourceById.set(node.id, object)
       } else if (object.userData.geometrySignature !== signature) {
         object.geometry.dispose()
-        object.geometry = makeSourceGeometry(node)
+        object.geometry = geometry()
         object.userData.geometrySignature = signature
       }
 
@@ -1266,13 +1272,14 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       material.metalness = 0.05
       material.transparent = true
       material.opacity = node.id === useEditor.getState().placingNodeId ? 0.48 : suppressed ? selected ? 0.28 : 0.1 : editing
-        ? node.boolean === 'add' ? 0.88 : 0.28
+        ? node.boolean === 'add' ? 1 : 0.28
         : selected || xrayEnabled ? 0.14 : 0
       material.depthWrite = !suppressed && editing && node.boolean === 'add' && displayMode === 'solid'
       material.wireframe = suppressed || displayMode === 'wireframe' || (node.boolean !== 'add' && editing)
       updateMaskColors(object, suppressed ? '#6d7080' : node.color, node.mesh?.mask)
       material.needsUpdate = true
-      object.visible = (editing || selected || xrayEnabled) && (!focus || focus.documentId !== document.id || focus.ids.includes(node.id))
+      object.userData.entityHidden=groupPreviews.hidden.has(node.id)
+      object.visible = !object.userData.entityHidden && (editing || selected || xrayEnabled) && (!focus || focus.documentId !== document.id || focus.ids.includes(node.id))
       object.castShadow = editing && node.boolean === 'add'
       object.receiveShadow = editing && node.boolean === 'add'
       applyNodeTransform(object, node)
@@ -1312,12 +1319,12 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       }
     }
     const selectedObject = selectedNodeId ? rt.sourceById.get(selectedNodeId) : undefined
-    if (selectedObject?.visible && document.sculptStrokes.length === 0 && !document.nodes.find(node => node.id === selectedNodeId)?.locked && !document.nodes.find(node => node.id === selectedNodeId)?.suppressed && ['move', 'rotate', 'scale'].includes(tool)) {
+    if (selectedObject?.visible && document.sculptStrokes.length === 0 && !document.nodes.some(node => selectedNodeIds.includes(node.id)&&node.locked) && !document.nodes.find(node => node.id === selectedNodeId)?.suppressed && ['move', 'rotate', 'scale'].includes(tool)) {
       rt.transform.setMode(transformModeFor(tool))
       rt.transform.setSpace(tool === 'scale' ? 'local' : 'world')
       rt.transform.attach(selectedObject)
     }
-  }, [document.nodes, document.sculptStrokes, selectedNodeId, selectedNodeIds, showResult, tool, xrayEnabled, displayMode, focus])
+  }, [document.nodes, document.sculptStrokes, selectedNodeId, selectedNodeIds, showResult, tool, xrayEnabled, displayMode, focus, groupPreviews])
 
   useEffect(() => {
     const rt = runtime.current
@@ -1614,5 +1621,5 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
 
   useEffect(()=>{window.dispatchEvent(new Event('formforge:cancel-sketch'))},[document.workplane])
 
-  return <div ref={hostRef} tabIndex={0} role="region" className={`viewport-canvas ${tool === 'place' || tool === 'draw-profile' || tool === 'measure' || tool === 'measure-angle' || tool === 'measure-circle' ? 'is-placing' : tool.startsWith('sculpt') ? 'is-sculpting' : ''}`} aria-label="3D modeling viewport" />
+  return <div ref={hostRef} data-joined-previews={groupPreviews.previews.size} tabIndex={0} role="region" className={`viewport-canvas ${tool === 'place' || tool === 'draw-profile' || tool === 'measure' || tool === 'measure-angle' || tool === 'measure-circle' ? 'is-placing' : tool.startsWith('sculpt') ? 'is-sculpting' : ''}`} aria-label="3D modeling viewport" />
 }
