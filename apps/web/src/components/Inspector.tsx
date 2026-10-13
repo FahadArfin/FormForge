@@ -12,7 +12,7 @@ import { ReferenceImagePanel } from './ReferenceImagePanel'
 import { TextPanel } from './TextPanel'
 import { WorkplanePanel } from './WorkplanePanel'
 import { Copy, Eye, EyeOff, Lock, Search, Trash2, Unlock, BoxSelect, Printer, ArrowDownToLine, FlipHorizontal2, Grid2X2Plus, History, RotateCw, Combine, Scissors, ScanLine, Ungroup, Palette, Spline, ArrowUp, ArrowDown, Power, Layers3, Sparkles } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ModelNode, TransformValue, Vec3Value } from '@formforge/model'
 import { useEditor } from '@/store/editor'
 import { IconButton } from './IconButton'
@@ -24,7 +24,8 @@ import { PrintPanel } from './PrintPanel'
 import { HistoryPanel } from './HistoryPanel'
 import { NumberInput } from './NumberInput'
 import { selectionNeedsUniformScale } from '@/lib/selectionTransforms'
-import { makeSourceGeometry } from '@/lib/modelGeometry'
+import { shapeDimensions } from '@/lib/selectionDimensions'
+import { useResizeScale } from '@/store/resizePreview'
 import './InspectorReview.css'
 import { CadToolsPanel } from './CadToolsPanel'
 import { SectionPanel } from './SectionPanel'
@@ -57,15 +58,8 @@ function ShapeInspector({ node }: { node: ModelNode }) {
   const updateParameter = (key: keyof ModelNode['parameters'], value: number) => updateNode(node.id, { parameters: { ...node.parameters, [key]: key === 'segments' ? Math.max(8, Math.min(256, Math.round(value))) : key === 'count' ? Math.max(1, Math.min(256, Math.round(value))) : key === 'twist' ? value : Math.max(['radiusTop', 'fillet', 'wall'].includes(key) ? 0 : 0.1, value) } })
   const updateSurface = (key: keyof NonNullable<ModelNode['surface']>, value: number) => updateNode(node.id, { surface: { smoothAngle: 0, refineLength: 0, simplifyTolerance: 0, hollowThickness: 0, ...node.surface, [key]: Math.max(0, value) } })
   const [proportional, setProportional] = useState(false)
-  const localSize = useMemo(() => {
-    const geometry = makeSourceGeometry(node)
-    geometry.computeBoundingBox()
-    const bounds = geometry.boundingBox!
-    const size = { x: bounds.max.x - bounds.min.x, y: bounds.max.y - bounds.min.y, z: bounds.max.z - bounds.min.z }
-    geometry.dispose()
-    return size
-  }, [node])
-  const dimensions = { x: localSize.x * Math.abs(transform.scale.x), y: localSize.y * Math.abs(transform.scale.y), z: localSize.z * Math.abs(transform.scale.z) }
+  const previewScale = useResizeScale(node.id)
+  const dimensions = shapeDimensions(node, previewScale)
   const resizeDimension = (axis: 'x' | 'y' | 'z', next: number) => {
     if (next <= 0 || dimensions[axis] <= 0) return
     const factor = next / dimensions[axis]
