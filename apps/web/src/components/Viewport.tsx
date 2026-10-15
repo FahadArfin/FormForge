@@ -888,7 +888,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
             event.preventDefault()
           }
         }
-      } else emptyPress = { x: event.clientX, y: event.clientY }
+      } else if (!(event.shiftKey || event.ctrlKey || event.metaKey)) emptyPress = { x: event.clientX, y: event.clientY }
     }
 
     const onPointerMove = (event: PointerEvent) => {
@@ -1135,6 +1135,17 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       renderer.domElement.classList.remove('sculpt-hit')
       if (!sculpting) brushCursor.visible = false
     }
+    const onSelectionPointerDown = (event: PointerEvent) => {
+      if (event.button !== 0 || !event.isPrimary || !(event.shiftKey || event.ctrlKey || event.metaKey)) return
+      if (!['select', 'move', 'rotate', 'scale'].includes(useEditor.getState().tool) || transformDragging || directDrag || gizmoDrag) return
+      // TransformControls registers before our picking handler. Multi-selection
+      // must pick the shape underneath its handles, without starting a transform
+      // or OrbitControls' Shift-pan gesture.
+      event.stopImmediatePropagation()
+      event.preventDefault()
+      onPointerDown(event)
+    }
+    renderer.domElement.addEventListener('pointerdown', onSelectionPointerDown, true)
     renderer.domElement.addEventListener('pointerdown', onPointerDown)
     renderer.domElement.addEventListener('pointermove', onPointerMove)
     renderer.domElement.addEventListener('pointerup', onPointerUp)
@@ -1238,6 +1249,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       cancelAnimationFrame(frame)
       resize.disconnect()
       unsubscribeProjection()
+      renderer.domElement.removeEventListener('pointerdown', onSelectionPointerDown, true)
       renderer.domElement.removeEventListener('pointerdown', onPointerDown)
       renderer.domElement.removeEventListener('pointermove', onPointerMove)
       renderer.domElement.removeEventListener('pointerup', onPointerUp)
