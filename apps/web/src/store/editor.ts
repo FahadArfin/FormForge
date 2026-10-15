@@ -429,7 +429,7 @@ export const useEditor = create<EditorState>((set, get) => {
       node.transform.position.z -= nodeWorldBounds(node).min.z
       Object.assign(node.transform, placeNodeOnWorkplane(node, get().document.workplane, {x:0,y:0}).transform)
       get().dispatch({ type: 'add-node', node }, true, false)
-      set({ selectedNodeId: node.id, selectedNodeIds: [node.id], meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], placingNodeId: node.id, tool: 'place', showResult: false, notice: `Click to place or drag to resize the ${node.name.toLowerCase()}.` })
+      set({ selectedNodeId: node.id, selectedNodeIds: [node.id], meshComponentMode: 'object', selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], placingNodeId: node.id, tool: 'place', showResult: false, notice: `Click to place the ${node.name.toLowerCase()}, or draw its footprint and then set its height.` })
     },
 
     updateNode(nodeId, patch, remember = true) {

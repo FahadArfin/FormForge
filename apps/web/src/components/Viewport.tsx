@@ -1,11 +1,11 @@
 import {useGroupPreviews} from './useGroupPreviews'
 import {entityNodes,isGroupedNode} from '@/lib/shapeEntities'
-import { shapePlacement } from '@/lib/shapePlacement'
+import { shapePlacement, supportsPlacementHeight } from '@/lib/shapePlacement'
 import { styleResizeGizmo } from '@/lib/resizeGizmo'
 import { clearResizePreview, useResizePreview } from '@/store/resizePreview'
 import { isVolumeContinuation } from '@/lib/volumeContinuation'
 import { canSweepVolume } from '@/lib/volumeSweep'
-import {changeProjection,frameCamera,resizeCamera,zoomCamera,cameraDistanceLimits,updateCameraClipping,type StudioCamera} from '@/lib/cameraProjection'
+import {cameraSpan,changeProjection,frameCamera,resizeCamera,zoomCamera,cameraDistanceLimits,updateCameraClipping,type StudioCamera} from '@/lib/cameraProjection'
 import { savedCameraViewSchema } from '@formforge/model'
 import { PointerTap } from '@/lib/pointerTap'
 import {snapSketchPoint} from '@/lib/sketchPrecision'
@@ -13,7 +13,7 @@ import {analyzeOverhangs} from '@/lib/overhangs'
 import { overlapChoices } from '@/lib/selectionFocus'
 import { geometryKey,annotationValue } from '@/lib/annotations'
 import { circleMeasurementGeometry } from '@/lib/circleMeasurement'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { TransformControls } from 'three/addons/controls/TransformControls.js'
@@ -133,6 +133,12 @@ interface PlacementPreview {
 
 export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
   const hostRef = useRef<HTMLDivElement>(null)
+  const [placementHeight, setPlacementHeight] = useState<string | null>(null)
+  const heightControls = useRef<{change:(height:number)=>void;finish:()=>void;freeze:()=>void} | null>(null)
+  const validPlacementHeight = placementHeight !== null && Number(placementHeight) >= .1 && Number(placementHeight) <= 10000
+  const heightValid = useRef(true)
+  const placementDraft = useRef<ModelNode | null>(null)
+  heightValid.current = placementHeight === null || validPlacementHeight
   const runtime = useRef<{
     scene: THREE.Scene
     camera: StudioCamera
@@ -343,6 +349,8 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     let placementPreview: PlacementPreview | null = null
     let placementPress: { x: number; y: number } | null = null
     let placementPointer: number | null = null
+    let heightPlacement: {node:ModelNode;startY:number;startHeight:number;units:number;hover:boolean} | null = null
+    let footprintDrawn = false
     let directDrag: { nodeId: string; startPoint: THREE.Vector3; startPosition: THREE.Vector3; screen: { x: number; y: number }; moved: boolean; pointerId: number; plane: THREE.Plane; workplane?: Workplane } | null = null
     let gizmoDrag: { nodeId: string; axis: string; startPoint: THREE.Vector3; startPosition: THREE.Vector3; plane: THREE.Plane } | null = null
     let sculpting = false
@@ -637,12 +645,9 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       return true
     }
 
-    const previewPlacement = (point: THREE.Vector3, resizing = false) => {
-      const state = useEditor.getState()
-      const node = state.document.nodes.find(item => item.id === state.placingNodeId)
-      const object = node ? sourceById.get(node.id) : undefined
-      if (!node || !object) return
-      const placed = shapePlacement(node, resizing && placementStart ? placementStart : point, resizing ? point : null, state.document.workplane, state.translationSnap)
+    const showPlacement = (placed: ModelNode) => {
+      const object = sourceById.get(placed.id)
+      if (!object) return
       const signature = nodeGeometrySignature(placed)
       if (object.userData.geometrySignature !== signature) {
         object.geometry.dispose()
@@ -655,9 +660,31 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       applyNodeTransform(object, placed)
       object.visible = true
       placementPreview = { transform: placed.transform, parameters: placed.parameters }
+      placementDraft.current = placed
       const bounds = nodeWorldBounds(placed), size = bounds.getSize(new THREE.Vector3())
       host.dataset.placementSize = `${size.x.toFixed(1)} × ${size.y.toFixed(1)} × ${size.z.toFixed(1)} mm`
     }
+    const previewPlacement = (point: THREE.Vector3, resizing = false) => {
+      const state = useEditor.getState(), node = state.document.nodes.find(item => item.id === state.placingNodeId)
+      if (!node) return
+      showPlacement(shapePlacement(node, resizing && placementStart ? placementStart : point, resizing ? point : null, state.document.workplane, state.translationSnap))
+    }
+    const changePlacementHeight = (height:number, snap:number|null = null, publish = true) => {
+      if (!heightPlacement) return
+      const state=useEditor.getState(), node=heightPlacement.node
+      const point=worldToPlane(vector(node.transform.position),state.document.workplane)
+      // Keep the drawn center exact; only the height uses grid snapping.
+      const adjusted=snap&&snap>0?Math.round(height/snap)*snap:height
+      const placed=shapePlacement(node,point,null,state.document.workplane,null,adjusted)
+      showPlacement(placed)
+      if(publish)setPlacementHeight(String(placed.parameters.height))
+    }
+    const finishHeight = () => {
+      if (!heightPlacement || !placementPreview || !heightValid.current) return
+      const id=heightPlacement.node.id, preview=placementPreview
+      useEditor.getState().finishPlacement(id,preview.transform,preview.parameters)
+    }
+    heightControls.current={change:height=>changePlacementHeight(height,null,false),finish:finishHeight,freeze:()=>{if(heightPlacement)heightPlacement.hover=false}}
 
     let emptyPress: { x: number; y: number } | null = null
     const measurementTap = new PointerTap()
@@ -734,6 +761,11 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       }
       if (state.tool === 'measure-angle' || state.tool === 'measure-circle' || state.tool === 'measure') return
       if (state.tool === 'place' && state.placingNodeId) {
+        if(heightPlacement){
+          if(event.pointerType!=='mouse'||!heightPlacement.hover){heightPlacement.startY=event.clientY;heightPlacement.startHeight=placementPreview!.parameters.height}
+          heightPlacement.hover=true;placementPointer=event.pointerId
+          renderer.domElement.setPointerCapture(event.pointerId);event.preventDefault();return
+        }
         const point = pointOnWorkplane(event)
         if (!point) return
         placementStart = point
@@ -914,8 +946,13 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       }
       if (state.tool === 'place' && state.placingNodeId) {
         if (placementPointer !== null && event.pointerId !== placementPointer) return
+        if(heightPlacement){
+          if(heightPlacement.hover&&(event.pointerType==='mouse'||placementPointer!==null))changePlacementHeight(heightPlacement.startHeight+(heightPlacement.startY-event.clientY)*heightPlacement.units,state.translationSnap)
+          return
+        }
         const point = pointOnWorkplane(event)
         const resizing = Boolean(placementPress && Math.hypot(event.clientX - placementPress.x, event.clientY - placementPress.y) >= 4)
+        footprintDrawn ||= resizing
         if (point) previewPlacement(point, resizing)
         return
       }
@@ -990,6 +1027,10 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
         return
       }
       if (event.button !== 0 && event.type !== 'pointercancel') return
+      if(heightPlacement){
+        if(placementPointer===event.pointerId){finishHeight();if(renderer.domElement.hasPointerCapture(event.pointerId))renderer.domElement.releasePointerCapture(event.pointerId);placementPointer=null}
+        return
+      }
       if (volumeStrokeSurface && volumeStrokePointer !== event.pointerId) return
       if (emptyPress && Math.hypot(event.clientX - emptyPress.x, event.clientY - emptyPress.y) < 4) state.selectNode(null)
       emptyPress = null
@@ -1004,6 +1045,15 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       if (placementStart && state.placingNodeId) {
         const node = state.document.nodes.find((item) => item.id === state.placingNodeId)
         if (node) {
+          if(footprintDrawn&&placementPreview&&supportsPlacementHeight(node)){
+            const draft={...node,...placementPreview}
+            heightPlacement={node:draft,startY:event.clientY,startHeight:draft.parameters.height,units:cameraSpan(camera,vector(draft.transform.position))/Math.max(1,host.clientHeight),hover:event.pointerType==='mouse'}
+            setPlacementHeight(String(draft.parameters.height));host.dataset.placementStage='height'
+            placementStart=null;placementPress=null;placementPointer=null;footprintDrawn=false
+            if(renderer.domElement.hasPointerCapture(event.pointerId))renderer.domElement.releasePointerCapture(event.pointerId)
+            state.setNotice('Set the height: move up or drag upward, then click to finish. You can also enter an exact height.')
+            return
+          }
           const fallbackTransform = structuredClone(node.transform)
           fallbackTransform.position = {
             x: placementStart.x,
@@ -1015,8 +1065,10 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       }
       placementStart = null
       placementPreview = null
+      placementDraft.current = null
       placementPress = null
       placementPointer = null
+      footprintDrawn = false
       delete host.dataset.placementSize
       if (polygonStroke) {
         if (polygonStroke.modified) state.commitPolygonSculpt(polygonStroke.nodeId, geometryToSculptMesh(polygonStroke.object.geometry, polygonStroke.mask))
@@ -1041,8 +1093,13 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       }
       placementStart = null
       placementPreview = null
+      placementDraft.current = null
       placementPress = null
       placementPointer = null
+      heightPlacement = null
+      footprintDrawn = false
+      setPlacementHeight(null)
+      delete host.dataset.placementStage
       delete host.dataset.placementSize
       orbit.enabled = true
     }
@@ -1061,6 +1118,8 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       } else onPointerUp(event)
     }
     const onEscape = (event: KeyboardEvent) => {
+      if(event.key==='Escape'&&heightPlacement){useEditor.getState().cancelPlacement();event.preventDefault();event.stopImmediatePropagation();return}
+      if(event.key==='Enter'&&heightPlacement&&!(event.target instanceof HTMLElement&&event.target.closest('input,button,textarea,select'))){finishHeight();event.preventDefault();event.stopImmediatePropagation();return}
       if (event.key === 'Escape') endVolumeStroke()
       if (event.key === 'Escape' && resizeDocument) {
         cancelResize()
@@ -1173,6 +1232,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     const sourceById = new Map<string, THREE.Mesh>()
     runtime.current = { scene, camera, renderer, orbit, transform, sourceGroup, resultGroup, grid, buildPlate, referenceGroup, constructionGroup, annotationGroup, measurementGroup, brushCursor, sketchGroup, sourceById, resize, frame }
     return () => {
+      heightControls.current=null
       endVolumeStroke()
       clearResizePreview()
       cancelAnimationFrame(frame)
@@ -1245,7 +1305,8 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
       rt.sourceById.delete(id)
     }
 
-    for (const node of document.nodes) {
+    for (const sourceNode of document.nodes) {
+      const node=placementDraft.current?.id===sourceNode.id&&useEditor.getState().placingNodeId===sourceNode.id?placementDraft.current:sourceNode
       if (!node.visible) continue
       const selected = selectedNodeIds.includes(node.id)
       const suppressed = Boolean(node.suppressed)
@@ -1621,5 +1682,12 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
 
   useEffect(()=>{window.dispatchEvent(new Event('formforge:cancel-sketch'))},[document.workplane])
 
-  return <div ref={hostRef} data-joined-previews={groupPreviews.previews.size} tabIndex={0} role="region" className={`viewport-canvas ${tool === 'place' || tool === 'draw-profile' || tool === 'measure' || tool === 'measure-angle' || tool === 'measure-circle' ? 'is-placing' : tool.startsWith('sculpt') ? 'is-sculpting' : ''}`} aria-label="3D modeling viewport" />
+  return <div ref={hostRef} data-joined-previews={groupPreviews.previews.size} tabIndex={0} role="region" className={`viewport-canvas ${tool === 'place' || tool === 'draw-profile' || tool === 'measure' || tool === 'measure-angle' || tool === 'measure-circle' ? 'is-placing' : tool.startsWith('sculpt') ? 'is-sculpting' : ''}`} aria-label="3D modeling viewport">
+    {placementHeight!==null&&<div className="placement-height" role="group" aria-label="Set shape height" onPointerDown={()=>heightControls.current?.freeze()}>
+      <div><strong>Now give it height</strong><p>Move up or drag upward. Click the canvas to finish.</p></div>
+      <label>Height <span><input aria-label="Placement height" type="number" min="0.1" max="10000" step="any" value={placementHeight} aria-invalid={!validPlacementHeight} onFocus={()=>heightControls.current?.freeze()} onChange={e=>{const value=e.target.value;setPlacementHeight(value);if(Number(value)>=.1&&Number(value)<=10000)heightControls.current?.change(Number(value))}} onKeyDown={e=>{if(e.key==='Enter'&&validPlacementHeight){heightControls.current?.finish();e.preventDefault()}}}/><small>mm</small></span></label>
+      <button className="studio-primary" disabled={!validPlacementHeight} onClick={()=>heightControls.current?.finish()}>Finish shape</button>
+      <button className="studio-secondary" aria-label="Cancel placement" onClick={()=>useEditor.getState().cancelPlacement()}>Cancel</button>
+    </div>}
+  </div>
 }

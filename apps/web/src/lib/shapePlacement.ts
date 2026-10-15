@@ -3,11 +3,18 @@ import { placeNodeOnWorkplane } from './workplanes'
 
 type Point = { x: number; y: number }
 
-/** A placement draft: no document writes until the pointer is released. */
-export function shapePlacement(node: ModelNode, start: Point, end: Point | null, workplane?: Workplane, snap: number | null = null): ModelNode {
+export const supportsPlacementHeight = (node: ModelNode) => ['box','roundedBox','cylinder','cone','tube','wedge','star','gear','loft','capsule','spring'].includes(node.kind)
+
+/** A placement draft: no document writes until placement is confirmed. */
+export function shapePlacement(node: ModelNode, start: Point, end: Point | null, workplane?: Workplane, snap: number | null = null, height?: number): ModelNode {
   const round = (n: number) => snap && snap > 0 ? Math.round(n / snap) * snap : n
   const origin = { x: round(start.x), y: round(start.y) }
   const parameters = { ...node.parameters }
+  if (height !== undefined) {
+    if (!Number.isFinite(height)) throw new Error('Height must be a finite number.')
+    parameters.height = Math.min(10000, Math.max(.1, round(height)))
+    parameters.fillet = Math.min(parameters.fillet, parameters.height / 2)
+  }
   let point = origin
   if (end) {
     const dx = round(end.x) - origin.x, dy = round(end.y) - origin.y
