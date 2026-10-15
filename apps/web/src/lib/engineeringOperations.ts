@@ -97,7 +97,7 @@ function refineShelfSlots(doc:ModelDocument,count:number,replaceCount=true):Mode
  const slots:ModelNode[]=[]
  for(let i=0;i<count;i++){
   const slot=createNode('box','cut'),previous=doc.nodes.find(n=>n.id==='rack:slot:'+i)
-  slot.id='rack:slot:'+i;slot.name='Ventilation slot '+(i+1);slot.combined=base.combined;slot.groupId=base.groupId;slot.assemblyPath=base.assemblyPath;slot.color=base.color
+  slot.id='rack:slot:'+i;slot.name='Ventilation slot '+(i+1);slot.combined=base.combined;slot.groupId=base.groupId;slot.assemblyPath=base.assemblyPath;slot.booleanPath=base.booleanPath?structuredClone(base.booleanPath):undefined;slot.color=base.color
   if(previous)slot.createdAt=previous.createdAt
   slot.transform={position:{...base.transform.position},rotation:{...base.transform.rotation},scale:{...base.transform.scale}}
   const localX='(-rack_deviceWidth / 2 + rack_deviceWidth * '+(i+1)+' / '+(count+1)+')'
@@ -126,7 +126,7 @@ export async function applyEngineeringOperation(source:ModelDocument,input:Engin
   validateRequestedFields(op.kind,op.parameters,op.bindings)
   if(doc.nodes.some(n=>n.id===op.id))throw new Error('Feature ID already exists.')
   const n=createNode(op.kind,op.boolean,op.position);n.id=op.id;n.name=op.name;n.parameters={...n.parameters,...op.parameters};if(op.rotation)n.transform.rotation=op.rotation;n.parameterBindings=op.bindings
-  if(op.groupId){n.groupId=op.groupId;n.combined=true}
+  if(op.groupId){n.groupId=op.groupId;n.combined=true;const member=doc.nodes.find(node=>node.groupId===op.groupId);n.booleanPath=member?.booleanPath?structuredClone(member.booleanPath):undefined;n.assemblyPath=member?.assemblyPath?[...member.assemblyPath]:undefined}
   doc.nodes.push(n)
  }else if(op.type==='edit-feature'){
   const n=selected(op.nodeId)

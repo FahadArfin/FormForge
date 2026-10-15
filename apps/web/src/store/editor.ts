@@ -1,4 +1,5 @@
-import {entityNodes,entityAnchor,preferSolidPreview} from '@/lib/shapeEntities'
+import {nestCombination,separateOuter} from '@/lib/nestedBooleans'
+import {entityNodes,entityAnchor,preferSolidPreview,isGroupedNode} from '@/lib/shapeEntities'
 import { isVolumeContinuation } from '@/lib/volumeContinuation'
 import {detachDirectBindings} from '../lib/modelParameters'
 import {jumpToHistory} from '@/lib/sessionHistory'
@@ -207,7 +208,7 @@ let rebuildGeneration = 0
 let placementController: AbortController | null = null
 
 function splitDisconnectedMeshNode(node: ModelNode): ModelNode[] {
-  if (node.kind !== 'mesh' || !node.mesh || node.text || node.combined || node.groupId) return [node]
+  if (node.kind !== 'mesh' || !node.mesh || node.text || isGroupedNode(node)) return [node]
   const components = splitMeshIntoConnectedComponents(node.mesh)
   if (components.length <= 1) return [node]
   return components.map((component, index) => {
@@ -512,8 +513,16 @@ export const useEditor = create<EditorState>((set, get) => {
       const selected = selectedIds.map(id => get().document.nodes.find(node => node.id === id)).filter((node): node is ModelNode => Boolean(node))
       if (selected.some(node => node.locked)) { set({ notice: 'Unlock selected shapes before combining them.' }); return }
       if(selected.some(n=>n.faceAttachment||get().document.nodes.some(h=>h.faceAttachment?.targetNodeId===n.id))){set({notice:'Bake attached holes by exporting and reimporting the solid result before recombining their bodies.'});return}
-      if (new Set(selected.map(node => JSON.stringify(node.assemblyPath ?? []))).size > 1) { set({ notice: 'Combine shapes within the same inserted assembly. Convert assemblies to meshes before combining across their boundaries.' }); return }
-      if(selected.some(n=>n.combined&&n.groupId)){set({notice:'Separate existing joined shapes before combining their parts again.'});return}
+      if(selected.some(isGroupedNode)||new Set(selected.map(n=>JSON.stringify(n.assemblyPath??[]))).size>1){
+        try{
+          const nodes=nestCombination(get().document.nodes,selectedIds,mode,nanoid())
+          get().dispatch({type:'replace-nodes',nodes})
+          if(get().document.nodes!==nodes)return
+          const ids=entityNodes(nodes,selectedIds[0]!).map(n=>n.id)
+          set({selectedNodeIds:ids,selectedNodeId:entityAnchor(nodes,ids[0]!)!.id,meshComponentMode:'object',selectedMeshVertices:[],selectedMeshEdges:[],selectedMeshFaces:[],tool:'select',showResult:false,notice:'Combined objects. Previous cuts and editable parts were preserved. Separate removes only this outer combination.'})
+        }catch(error){set({notice:(error as Error).message})}
+        return
+      }
       const groupId = nanoid()
       const nodes = get().document.nodes.map((node) => {
         const index = selected.findIndex((candidate) => candidate.id === node.id)
@@ -529,6 +538,13 @@ export const useEditor = create<EditorState>((set, get) => {
       set({ selectedNodeId: selected[0]?.id ?? null, selectedNodeIds: selected.map((node) => node.id), meshComponentMode:'object', selectedMeshVertices:[], selectedMeshEdges:[], selectedMeshFaces:[], tool:'select', showResult: false, notice: `${mode === 'union' ? 'Join' : mode === 'subtract' ? 'Exclude' : mode === 'hull' ? 'Convex hull' : 'Intersection'} created. Select it to move as one shape. Use Separate to edit the parts.` })
     },
     ungroupSelected() {
+      const selected=get().selectedNodeIds.flatMap(id=>entityNodes(get().document.nodes,id))
+      if(selected.some(n=>n.booleanPath?.length)){
+        if(selected.some(n=>n.locked)){set({notice:'Unlock joined shapes before separating them.'});return}
+        const nodes=separateOuter(get().document.nodes,get().selectedNodeIds)
+        get().dispatch({type:'replace-nodes',nodes})
+        set({selectedNodeId:entityAnchor(nodes,get().selectedNodeId??'')?.id??null,showResult:false,notice:'Outer combination separated. Previous cuts and groups remain intact.'});return
+      }
       const selectedGroups = new Set(get().document.nodes.filter((node) => get().selectedNodeIds.includes(node.id)).map((node) => node.groupId).filter(Boolean))
       if (!selectedGroups.size) { set({ notice: 'The selection is not a combined group.' }); return }
       if(get().document.nodes.some(n=>selectedGroups.has(n.groupId)&&n.locked)){set({notice:'Unlock joined shapes before separating them.'});return}
@@ -542,7 +558,7 @@ export const useEditor = create<EditorState>((set, get) => {
       const polygonTools: ToolMode[] = ['sculpt-draw', 'sculpt-clay', 'sculpt-smooth', 'sculpt-inflate', 'sculpt-pinch', 'sculpt-flatten', 'sculpt-crease', 'sculpt-grab', 'sculpt-snake', 'sculpt-relax', 'sculpt-mask']
       const selected = get().document.nodes.find((node) => node.id === get().selectedNodeId)
       if (tool.startsWith('sculpt') && selected?.locked) { set({ notice: 'Unlock the selected shape before sculpting.' }); return }
-      if(polygonTools.includes(tool)&&selected?.combined&&selected.groupId){set({notice:'Separate the joined shape before editing its polygon surface.'});return}
+      if(polygonTools.includes(tool)&&isGroupedNode(selected)){set({notice:'Separate the joined shape before editing its polygon surface.'});return}
       if (polygonTools.includes(tool) && selected?.kind !== 'mesh') {
         set({ notice: 'Start Polygon Sculpt first to turn the visible model into an editable mesh.' })
         return
@@ -654,7 +670,7 @@ export const useEditor = create<EditorState>((set, get) => {
       }
       const state = get()
       const selected = state.document.nodes.find((node) => node.id === state.selectedNodeId)
-      if(selected?.combined&&selected.groupId){set({notice:'Separate the joined shape before editing vertices, edges or faces.'});return}
+      if(isGroupedNode(selected)){set({notice:'Separate the joined shape before editing vertices, edges or faces.'});return}
       if (!selected?.mesh) { set({ notice: 'Start Polygon Sculpt or select an imported mesh before editing components.' }); return }
       const topology = extractMeshTopology(selected.mesh)
       const needsCanonicalMesh = topology.mesh.positions.length !== selected.mesh.positions.length
@@ -876,7 +892,7 @@ export const useEditor = create<EditorState>((set, get) => {
 
     mirrorSelected(axis) {
       const selection = get().document.nodes.filter(n => get().selectedNodeIds.includes(n.id))
-      if (selection.length > 1 || selection.some(n => n.combined || n.assemblyPath?.length || n.edgeTreatment || n.faceAttachment || get().document.nodes.some(h=>h.faceAttachment?.targetNodeId===n.id))) {
+      if (selection.length > 1 || selection.some(n => isGroupedNode(n) || n.assemblyPath?.length || n.edgeTreatment || n.faceAttachment || get().document.nodes.some(h=>h.faceAttachment?.targetNodeId===n.id))) {
         set({ notice: 'Convert the complete assembly to a mesh before mirroring, so its holes stay with it.' })
         return
       }
@@ -904,7 +920,7 @@ export const useEditor = create<EditorState>((set, get) => {
 
     polarPatternSelected(axis, count, degrees, radius) {
       const selection = get().document.nodes.filter(n => get().selectedNodeIds.includes(n.id))
-      if (selection.length > 1 || selection.some(n => n.combined || n.assemblyPath?.length || n.edgeTreatment || n.faceAttachment || get().document.nodes.some(h=>h.faceAttachment?.targetNodeId===n.id))) {
+      if (selection.length > 1 || selection.some(n => isGroupedNode(n) || n.assemblyPath?.length || n.edgeTreatment || n.faceAttachment || get().document.nodes.some(h=>h.faceAttachment?.targetNodeId===n.id))) {
         set({ notice: 'Use Prepare → Assembly arrangement for a complete assembly pattern with an explicit rotation origin.' })
         return
       }
@@ -948,7 +964,7 @@ export const useEditor = create<EditorState>((set, get) => {
     alignSelected(axis, alignment) {
       const selectedIds = get().selectedNodeIds
       const selected = selectedIds.map((id) => get().document.nodes.find((node) => node.id === id)).filter((node): node is ModelNode => Boolean(node))
-      if(selected.some(n=>n.combined&&n.groupId)){set({notice:'Separate joined shapes before aligning their individual parts.'});return}
+      if(selected.some(isGroupedNode)){set({notice:'Separate joined shapes before aligning their individual parts.'});return}
       if (selected.length < 2) { set({ notice: 'Select at least two shapes to align.' }); return }
       const bounds = selected.map((node) => ({ node, bounds: nodeWorldBounds(node) }))
       const anchor = bounds[0]!.bounds
@@ -966,7 +982,7 @@ export const useEditor = create<EditorState>((set, get) => {
     distributeSelected(axis) {
       const selectedIds = get().selectedNodeIds
       const selected = selectedIds.map((id) => get().document.nodes.find((node) => node.id === id)).filter((node): node is ModelNode => Boolean(node))
-      if(selected.some(n=>n.combined&&n.groupId)){set({notice:'Separate joined shapes before distributing their individual parts.'});return}
+      if(selected.some(isGroupedNode)){set({notice:'Separate joined shapes before distributing their individual parts.'});return}
       if (selected.length < 3) { set({ notice: 'Select at least three shapes to distribute.' }); return }
       const sorted = selected.map((node) => {
         const bounds = nodeWorldBounds(node)
@@ -1000,7 +1016,7 @@ export const useEditor = create<EditorState>((set, get) => {
 
     makeSculptable(subdivisionLevels = 2) {
       const selected = get().document.nodes.find((node) => node.id === get().selectedNodeId)
-      if(selected?.combined&&selected.groupId){set({notice:'Separate the joined shape before converting its parts to polygon meshes.'});return}
+      if(isGroupedNode(selected)){set({notice:'Separate the joined shape before converting its parts to polygon meshes.'});return}
       if (selected?.locked) { set({ notice: 'Unlock the selected shape before sculpting.' }); return }
       if (get().document.sculptStrokes.length && get().document.nodes.some(node => node.locked && !node.suppressed)) {
         set({ notice: 'Unlock all shapes before converting a model with volume strokes. Conversion resets those strokes on the combined model.' })
@@ -1061,7 +1077,7 @@ export const useEditor = create<EditorState>((set, get) => {
 
     commitPolygonSculpt(nodeId, mesh) {
       const node=get().document.nodes.find(n=>n.id===nodeId)
-      if(node?.combined&&node.groupId){set({notice:'Separate the joined shape before editing its polygon surface.'});return}
+      if(isGroupedNode(node)){set({notice:'Separate the joined shape before editing its polygon surface.'});return}
       get().dispatch({ type: 'update-node', nodeId, patch: { mesh } }, true, true)
     },
 
@@ -1148,7 +1164,7 @@ export const useEditor = create<EditorState>((set, get) => {
 
     duplicateSelected() {
       const ids = get().selectedNodeIds.length ? get().selectedNodeIds : get().selectedNodeId ? [get().selectedNodeId!] : []
-      if(get().document.nodes.some(n=>ids.includes(n.id)&&(n.assemblyPath?.length||n.combined||n.faceAttachment||get().document.nodes.some(h=>h.faceAttachment?.targetNodeId===n.id)))){
+      if(get().document.nodes.some(n=>ids.includes(n.id)&&(n.assemblyPath?.length||isGroupedNode(n)||n.faceAttachment||get().document.nodes.some(h=>h.faceAttachment?.targetNodeId===n.id)))){
         try{const previous=get().document,next=patternAssembly(previous,ids,{mode:'linear',axis:'x',count:2,spacing:8,degrees:360,origin:vec3()});const copies=next.nodes.slice(previous.nodes.length);for(const n of copies)n.transform.position.y+=8;get().dispatch({type:'replace-document',document:next});set({selectedNodeIds:copies.map(n=>n.id),selectedNodeId:entityAnchor(next.nodes,copies.at(-1)!.id)!.id,notice:'Independent assembly duplicated.'})}catch(e){set({notice:(e as Error).message})}return
       }
       const copies = get().document.nodes.filter((node) => ids.includes(node.id)).map((node) => ({

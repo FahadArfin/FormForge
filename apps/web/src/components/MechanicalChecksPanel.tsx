@@ -10,7 +10,7 @@ export function MechanicalChecksPanel(){
  const [result,setResult]=useState<{key:string;data:MechanicalResult}|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),controller=useRef<AbortController|null>(null)
  const [first,setFirst]=useState(''),[second,setSecond]=useState(''),[search,setSearch]=useState('5'),[wall,setWall]=useState(String(doc.printer.minimumWall))
  const key=geometryKey(doc)
- const choices=useMemo(()=>{const groups=new Set<string>();return doc.nodes.filter(n=>{if(n.boolean!=='add'||n.suppressed)return false;const id=n.assemblyPath?.[0]??n.groupId??n.id;if(groups.has(id))return false;groups.add(id);return true})},[doc])
+ const choices=useMemo(()=>{const groups=new Set<string>();return doc.nodes.filter(n=>{if(n.boolean!=='add'||n.suppressed)return false;const id=n.booleanPath?.[0]?.id??n.assemblyPath?.[0]??n.groupId??n.id;if(groups.has(id))return false;groups.add(id);return true})},[doc])
  useEffect(()=>{controller.current?.abort();setBusy(false);setResult(null);setError('');window.dispatchEvent(new Event('formforge:diagnostic-point'));return()=>{controller.current?.abort();window.dispatchEvent(new Event('formforge:diagnostic-point'))}},[key])
  useEffect(()=>{controller.current?.abort();setBusy(false);setResult(null)},[first,second,search,wall])
  const run=async(kind:'walls'|'interference')=>{
@@ -18,7 +18,7 @@ export function MechanicalChecksPanel(){
   try{
    let data:MechanicalResult
    if(kind==='walls'){if(!mesh||meshDoc!==doc||status!=='ready')throw new Error('Wait for the current solid to finish building.');data=await mechanicalCheck({kind,mesh,target:Number(wall)},abort.signal)}
-   else{if(!first||!second||first===second)throw new Error('Choose two different independent parts.');if(doc.nodes.some(n=>n.boolean!=='add'&&!n.combined&&!n.assemblyPath?.length&&!n.faceAttachment&&!n.suppressed))throw new Error('Group free cutters with their target before comparing independent parts.');const a=await evaluateSnapshot(createExportDocument(doc,[first]),abort.signal),b=await evaluateSnapshot(createExportDocument(doc,[second]),abort.signal);data=await mechanicalCheck({kind,meshes:[a,b],search:Number(search)},abort.signal)}
+   else{if(!first||!second||first===second)throw new Error('Choose two different independent parts.');if(doc.nodes.some(n=>n.boolean!=='add'&&!n.booleanPath?.length&&!n.combined&&!n.assemblyPath?.length&&!n.faceAttachment&&!n.suppressed))throw new Error('Group free cutters with their target before comparing independent parts.');const a=await evaluateSnapshot(createExportDocument(doc,[first]),abort.signal),b=await evaluateSnapshot(createExportDocument(doc,[second]),abort.signal);data=await mechanicalCheck({kind,meshes:[a,b],search:Number(search)},abort.signal)}
    if(!abort.signal.aborted)setResult({key,data})
   }catch(e){if(!abort.signal.aborted)setError((e as Error).message)}finally{if(controller.current===abort)setBusy(false)}
  }

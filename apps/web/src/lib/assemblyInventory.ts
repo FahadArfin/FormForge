@@ -36,6 +36,7 @@ export function assemblyInventory(document: ModelDocument, selectedIds?: readonl
   }
   const join = (a: number, b: number) => { parents[find(b)] = find(a) }
   const byId = new Map(nodes.map((node, i) => [node.id, i]))
+  const booleans = new Map<string, number>()
   const groups = new Map<string, number>(), assemblies = new Map<string, number>()
   const connect = (map: Map<string, number>, key: string | undefined, index: number) => {
     if (!key) return
@@ -45,6 +46,7 @@ export function assemblyInventory(document: ModelDocument, selectedIds?: readonl
   }
   // Same connected relationships as completeSelection, with bounded linear passes.
   nodes.forEach((node, index) => {
+    connect(booleans,node.booleanPath?.[0]?.id,index)
     if (node.combined) connect(groups, node.groupId, index)
     connect(assemblies, node.assemblyPath?.[0], index)
     const target = node.faceAttachment && byId.get(node.faceAttachment.targetNodeId)

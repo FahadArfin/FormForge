@@ -23,3 +23,16 @@ it('enables explicit operations for multiple shapes and exposes Separate for a j
  expect(useEditor.getState().document.nodes.every(n=>!n.groupId)).toBe(true)
  expect(button('Intersect').disabled).toBe(false)
 })
+
+it('enables another combination for a joined object plus a new shape',async()=>{
+ await act(async()=>root.render(<ShapeBooleanTools/>))
+ await act(async()=>{useEditor.getState().selectAll();useEditor.getState().combineSelected('subtract')})
+ const before=useEditor.getState().document.nodes,extra=createNode('box')
+ await act(async()=>{useEditor.getState().dispatch({type:'add-node',node:extra});useEditor.getState().selectNode(extra.id,true)})
+ expect(button('Join').disabled).toBe(false)
+ await act(async()=>button('Join').click())
+ expect(useEditor.getState().document.nodes.every(n=>n.booleanPath?.length===1)).toBe(true)
+ expect(useEditor.getState().document.nodes[1]!.boolean).toBe('cut')
+ await act(async()=>button('Separate').click())
+ expect(useEditor.getState().document.nodes.slice(0,2)).toEqual(before)
+})

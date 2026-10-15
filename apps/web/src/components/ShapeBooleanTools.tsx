@@ -1,10 +1,11 @@
+import {entityAnchor,isGroupedNode} from '@/lib/shapeEntities'
 import {Combine,Scissors,ScanLine,Ungroup} from 'lucide-react'
 import {useEditor} from '@/store/editor'
 export function ShapeBooleanTools(){
  const nodes=useEditor(s=>s.document.nodes),ids=useEditor(s=>s.selectedNodeIds),placing=useEditor(s=>s.placingNodeId)
- const selected=nodes.filter(n=>ids.includes(n.id)),locked=selected.some(n=>n.locked),grouped=selected.some(n=>n.combined&&n.groupId)
+ const selected=nodes.filter(n=>ids.includes(n.id)),locked=selected.some(n=>n.locked),grouped=selected.some(isGroupedNode)
  const combine=useEditor(s=>s.combineSelected),separate=useEditor(s=>s.ungroupSelected)
- const disabled=Boolean(placing)||locked||selected.length<2||grouped
+ const disabled=Boolean(placing)||locked||new Set(selected.map(n=>entityAnchor(nodes,n.id)?.id)).size<2
  const base=nodes.find(n=>n.id===ids[0])
  return <div className="shape-boolean-section"><div className="shape-boolean-tools" role="group" aria-label="Combine shapes">
   <button disabled={disabled} onClick={()=>combine('union')} title="Join selected shapes into one object"><Combine size={18}/><span>Join</span></button>

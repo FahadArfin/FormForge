@@ -257,20 +257,48 @@ async function evaluateSolid(document: ModelDocument, cache?: VolumeEvaluator) {
     }return groupResult}catch(error){groupResult.delete();throw error}
   }
   const evaluateScope = (active: ModelNode[]): ManifoldType | null => {
-    const groupedIds=new Set<string>(),assemblies=new Set<string>(),operations:{shape:ManifoldType;mode:ModelNode['boolean']}[]=[]
+    const commonScopes=new Map<string,string|undefined>()
+    for(const n of active){const id=n.booleanPath?.[0]?.id;if(id&&!commonScopes.has(id)){const members=active.filter(p=>p.booleanPath?.[0]?.id===id),scope=n.assemblyPath?.[0];commonScopes.set(id,scope&&members.every(p=>p.assemblyPath?.[0]===scope)?scope:undefined)}}
+    const nestedIds=new Set<string>(),groupedIds=new Set<string>(),assemblies=new Set<string>(),operations:{shape:ManifoldType;mode:ModelNode['boolean']}[]=[]
     let result:ManifoldType|null=null
     try{
       for(const node of active){
+        const layer=node.booleanPath?.[0]
+        if(layer&&!commonScopes.get(layer.id)){
+          if(nestedIds.has(layer.id))continue
+          nestedIds.add(layer.id)
+          const members=active.filter(n=>n.booleanPath?.[0]?.id===layer.id)
+          const operandIds=[...new Set(members.map(n=>n.booleanPath![0]!.operandId))]
+          const parts:{shape:ManifoldType;mode:ModelNode['boolean']}[]=[]
+          let combined:ManifoldType|null=null
+          try{
+            for(const operandId of operandIds){
+              const source=members.filter(n=>n.booleanPath![0]!.operandId===operandId)
+              const inner=source.map(n=>({...n,booleanPath:n.booleanPath!.slice(1)}))
+              // An ungrouped cutter is a solid tool inside its new operand.
+              if(inner.length===1&&!inner[0]!.combined&&!inner[0]!.booleanPath.length)inner[0]!.boolean='add'
+              parts.push({shape:evaluateScope(inner)??api.Manifold.union([]),mode:source[0]!.booleanPath![0]!.mode})
+            }
+            if(layer.operation==='hull')combined=api.Manifold.hull(parts.map(p=>p.shape))
+            else for(const part of parts){
+              if(!combined){combined=part.shape.asOriginal();continue}
+              const next:ManifoldType=part.mode==='cut'?combined.subtract(part.shape):part.mode==='intersect'?combined.intersect(part.shape):combined.add(part.shape)
+              combined.delete();combined=next
+            }
+            if(combined){operations.push({shape:combined,mode:'add'});combined=null}
+          }finally{combined?.delete();parts.forEach(p=>p.shape.delete())}
+          continue
+        }
         const assembly=node.assemblyPath?.[0]
         if(assembly){
           if(assemblies.has(assembly))continue
           assemblies.add(assembly)
-          const shape=evaluateScope(active.filter(n=>n.assemblyPath?.[0]===assembly).map(n=>({...n,assemblyPath:n.assemblyPath!.slice(1)})))
+          const shape=evaluateScope(active.filter(n=>n.assemblyPath?.[0]===assembly&&(!n.booleanPath?.length||commonScopes.get(n.booleanPath[0]!.id)===assembly)).map(n=>({...n,assemblyPath:n.assemblyPath!.slice(1)})))
           if(shape)operations.push({shape,mode:'add'})
         }else if(node.combined&&node.groupId){
           if(groupedIds.has(node.groupId))continue
           groupedIds.add(node.groupId)
-          const shape=combine(active.filter(n=>!n.assemblyPath?.length&&n.combined&&n.groupId===node.groupId))
+          const shape=combine(active.filter(n=>!n.booleanPath?.length&&!n.assemblyPath?.length&&n.combined&&n.groupId===node.groupId))
           if(shape)operations.push({shape,mode:'add'})
         }else operations.push({shape:nodeShape(node),mode:node.boolean})
       }
