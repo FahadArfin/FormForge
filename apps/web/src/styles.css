@@ -1045,18 +1045,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .placement-height input { width:100%; min-width:0; min-height:44px; border:1px solid var(--line); border-radius:10px; padding:8px; background:var(--panel); color:var(--text); font:inherit; font-variant-numeric:tabular-nums; }
 .placement-height input[aria-invalid=true] { border-color:#d66565; }
 .placement-height button { min-height:44px; padding:8px; font-size:12px; }
-.selection-dimensions { display:flex; align-items:center; gap:10px; }
-.resize-dimensions { position:absolute; top:116px; right:16px; z-index:5; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; max-width:calc(100% - 32px); padding:9px 13px; border:1px solid var(--border); border-radius:12px; background:var(--panel); box-shadow:0 4px 16px #0001; pointer-events:none; }
-.resize-dimensions span { display:block; margin-bottom:3px; color:var(--muted); font-size:10px; }
-.resize-dimensions output { display:block; color:var(--text); font-size:12px; font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; }
-@media(max-width:980px) { .mobile-panel-inspector .resize-dimensions,.mobile-panel-tools .resize-dimensions,.phone-review .resize-dimensions { display:none; } }
-.selection-dimensions:has(details[open]) { display:block; }
-.selection-dimensions details { min-width:0; }
-.selection-dimensions summary { display:flex; align-items:center; gap:5px; }
-.selection-dimensions summary::before { content:"▸"; }
-.selection-dimensions details[open] summary::before { content:"▾"; }
-.shape-direct-actions { display:flex; flex-shrink:0; gap:6px; }
-.shape-direct-actions button { min-height:34px; border:1px solid var(--border); border-radius:8px; padding:5px 9px; color:var(--text); background:var(--panel); cursor:pointer; }
+.shape-direct-actions { display:flex; gap:6px; margin-bottom:12px; }
+.shape-direct-actions button { flex:1; min-height:36px; border:1px solid var(--border); border-radius:8px; padding:5px 9px; color:var(--text); background:var(--panel); cursor:pointer; }
 .shape-direct-actions button[aria-pressed=true] { color:var(--accent); border-color:var(--accent); }
 @media(pointer:coarse) { .shape-direct-actions button { min-height:44px; } }
 

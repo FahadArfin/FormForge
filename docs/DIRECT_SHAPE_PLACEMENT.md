@@ -29,3 +29,5 @@ PrintLab reuses the existing editable primitive nodes, Three.js viewport, source
 `direct-placement.spec.ts`: desktop/phone placement, live dimensions, direct movement, quick movement from Solid view, undo/redo, editable backup and saved reload, real touch footprint/height gestures, cancellation from the height field, invalid height input, display toggles, pointer cancellation, vertical workplanes, and empty Boolean holes. Existing volume-sculpt scenarios verify that camera control remains disabled during sculpt strokes.
 
 Storage names, file formats, API routes, and geometry workers are unchanged.
+
+Shape Move/Resize actions, live Width/Depth/Height fields, and Keep proportions are consolidated in the right inspector in both Modeling and Engineering. On phones, open Inspector; choosing a manipulation tool closes the drawer so the canvas is accessible. No selection-size cards cover the viewport.
