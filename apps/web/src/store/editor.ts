@@ -1,4 +1,5 @@
 import {nestCombination,separateOuter} from '@/lib/nestedBooleans'
+import { emptyModel, hasResettableModel } from '@/lib/resetModel'
 import {entityNodes,entityAnchor,preferSolidPreview,isGroupedNode} from '@/lib/shapeEntities'
 import { isVolumeContinuation } from '@/lib/volumeContinuation'
 import {detachDirectBindings} from '../lib/modelParameters'
@@ -189,6 +190,7 @@ interface EditorState extends ProjectSaveState {
   invertSculptMask: () => void
   undo: () => void
   redo: () => void
+  resetModel: (confirmedDocument: ModelDocument) => boolean
   removeSelected: () => void
   duplicateSelected: () => void
   setNotice: (notice: string | null) => void
@@ -1151,6 +1153,27 @@ export const useEditor = create<EditorState>((set, get) => {
         parameterErrors,
       }))
       scheduleSideEffects()
+    },
+
+    resetModel(confirmedDocument) {
+      const state = get()
+      if (state.document !== confirmedDocument || state.placingNodeId || state.tool === 'draw-profile'
+        || !hasResettableModel(state.document)) return false
+      // This explicit whole-model reset includes locked/hidden shapes. Unlike ordinary
+      // edits it is confirmed in the toolbar, and the complete source stays in Undo.
+      get().cancelBuild()
+      placementController?.abort()
+      placementController = null
+      set({
+        ...resetDocumentTransientState, buildMode: state.buildMode, showResult: false,
+        document: emptyModel(confirmedDocument),
+        selectedNodeId: null, selectedNodeIds: [], meshComponentMode: 'object',
+        selectedMeshVertices: [], selectedMeshEdges: [], selectedMeshFaces: [], parameterErrors: {},
+        undoStack: [...state.undoStack.slice(-49), confirmedDocument], redoStack: [],
+        notice: 'Build plate reset. Undo restores your previous model.',
+      })
+      scheduleSideEffects()
+      return true
     },
 
     removeSelected() {

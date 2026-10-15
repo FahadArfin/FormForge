@@ -21,7 +21,7 @@
  .app-navigation>nav>a{padding:8px 3px;gap:5px;font-size:12px;min-width:0;min-height:40px}
  .app-navigation-utilities{grid-column:2;grid-row:1;gap:9px}.app-navigation .app-navigation-brand{font-size:18px}
  .app-navigation-compact{padding:6px 10px;gap:5px}.app-navigation-compact .brand-mark{width:22px;height:22px}.app-navigation-compact .app-navigation-brand{font-size:16px}
- .studio-context{font-size:11px}.studio-chrome .studio-header{grid-template-columns:minmax(0,1fr) 72px 36px;grid-template-rows:52px 44px;min-height:96px}
+ .studio-context{font-size:11px}.studio-chrome .studio-header{grid-template-columns:minmax(0,1fr) max-content 36px;grid-template-rows:52px 44px;min-height:96px}
  .studio-chrome .studio-header>.studio-project{grid-column:1}.studio-chrome .studio-header>.studio-history{grid-column:2}.studio-chrome .studio-header>.studio-command{grid-column:3}
  .public-pathways{grid-template-columns:1fr;padding:0 20px 30px;gap:10px}.public-pathways>a{padding:18px}
 }
