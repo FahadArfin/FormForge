@@ -7,6 +7,7 @@ import { PartPropertiesPanel } from './PartPropertiesPanel'
 import { MechanicalChecksPanel } from './MechanicalChecksPanel'
 import { MeshDoctorPanel } from './MeshDoctorPanel'
 import { PrintPanel } from './PrintPanel'
+import { ShapeDimensions } from './ShapeDimensions'
 import './InspectorWorkflows.css'
 import './EngineeringInspector.css'
 
@@ -15,7 +16,8 @@ const statusLabel: Record<EngineeringFinding['status'],string> = {pass:'Within t
 const number = (value:number) => value.toLocaleString(undefined,{maximumFractionDigits:3})
 type OrientationReport = {source:ModelDocument;mesh:MeshPayload;candidates:EngineeringOrientation[]}
 
-export function EngineeringInspector({onProposeOrientation}:{onProposeOrientation?: (rotation:Vec3Value)=>void}) {
+export function EngineeringInspector({onProposeOrientation,onManipulate}:{onManipulate?:()=>void;onProposeOrientation?: (rotation:Vec3Value)=>void}) {
+  const selected=useEditor(s=>s.selectedNodeIds.length===1?s.document.nodes.find(n=>n.id===s.selectedNodeId):undefined)
   const document=useEditor(s=>s.document),mesh=useEditor(s=>s.mesh),meshDocument=useEditor(s=>s.meshDocument)
   const status=useEditor(s=>s.geometryStatus),placing=useEditor(s=>s.placingNodeId)
   const [first,setFirst]=useState(''),[second,setSecond]=useState(''),[spacing,setSpacing]=useState(''),[tolerance,setTolerance]=useState('0.2'),[angle,setAngle]=useState('1')
@@ -41,6 +43,7 @@ export function EngineeringInspector({onProposeOrientation}:{onProposeOrientatio
   const panel=(id:string,title:string,content:React.ReactNode)=><details data-section={id} tabIndex={-1} className="workflow-card engineering-detail" open={Boolean(expanded[id])} onToggle={event=>{const open=event.currentTarget.open;setExpanded(value=>value[id]===open?value:{...value,[id]:open})}}><summary>{title}</summary>{expanded[id]&&content}</details>
   return <div ref={root} className="inspector-workflow engineering-inspector">
     <section className="workflow-card engineering-intro"><span className="engineering-eyebrow">Engineering inspector</span><h2>Design checks</h2><p>Check dimensions, compare orientations and prepare for your printer.</p><div className="engineering-summary" aria-label="Findings summary"><strong>{findings.filter(f=>f.status==='warning').length} to review</strong><span>{findings.filter(f=>f.status==='unknown').length} unverified</span></div><nav className="engineering-jumps" aria-label="Engineering sections"><button onClick={()=>jump('findings')}>Findings</button><button onClick={()=>jump('holes')}>Hole targets</button><button onClick={()=>jump('orientation')}>Orientation</button><button onClick={()=>jump('print')}>Printer setup</button></nav><details><summary>What these checks mean</summary><p>Deterministic checks use geometry and design data. Heuristics need slicer review. AI suggestions, physical fit and strength remain unverified.</p></details></section>
+    {selected && <section className="workflow-card"><h3>{selected.name}</h3><ShapeDimensions key={selected.id} node={selected} onManipulate={onManipulate}/></section>}
     <section data-section="holes" tabIndex={-1} className="workflow-card"><h3>Hole targets</h3><p className="workflow-caption">Select two parametric cylinder cutters. These are nominal design features; holes are not reverse-engineered from mesh triangles.</p>
       <div className="engineering-targets engineering-hole-selectors">{[[firstId,setFirst,'First hole'],[secondId,setSecond,'Second hole']].map(([value,set,label])=><label key={label as string}>{label as string}<select value={value as string} onChange={event=>(set as (v:string)=>void)(event.target.value)}><option value="">Choose a hole</option>{holes.map((hole,index)=><option value={hole.id} key={hole.id}>{index+1}. {hole.name} · X {number(hole.transform.position.x)}, Y {number(hole.transform.position.y)}, Z {number(hole.transform.position.z)}</option>)}</select></label>)}</div>
       <label>Center spacing target (mm)<input type="number" min="0" step="any" placeholder="Optional target" value={spacing} onChange={e=>setSpacing(e.target.value)}/></label>

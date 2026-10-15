@@ -15,7 +15,12 @@ async function setup(page: Page) {
   await page.getByRole('button', { name: 'Fit all', exact: true }).click()
   const b = (await page.locator('.viewport-canvas canvas').boundingBox())!
   await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2)
-  await page.getByRole('button', { name: 'Resize shape', exact: true }).click()
+  if (page.viewportSize()!.width <= 980) await page.getByRole('button', { name: 'Inspector', exact: true }).click()
+  const inspector = page.locator('aside.inspector')
+  await expect(inspector.getByRole('button', { name: 'Resize shape', exact: true })).toBeVisible()
+  await expect(page.locator('.viewport-wrap').getByRole('group', { name: 'Shape manipulation' })).toHaveCount(0)
+  await expect(page.locator('.selection-dimensions, .resize-dimensions')).toHaveCount(0)
+  await inspector.getByRole('button', { name: 'Resize shape', exact: true }).click()
   // Positive X handle in the default perspective; gizmo size tracks canvas height.
   return { document, centerX: b.x + b.width / 2, centerY: b.y + b.height / 2, unit: b.height / 720, x: b.x + b.width / 2 + 83 * b.height / 720, y: b.y + b.height / 2 + 32 * b.height / 720 }
 }
@@ -34,16 +39,16 @@ test('dimensions follow the held resize handle and commit as one undo step', asy
   const { document, x, y } = await setup(page)
   await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + 40, y + 15, { steps: 8 })
   if (page.viewportSize()!.width > 980) {
-    await expect(page.locator('.dimensions-editor').getByRole('textbox', { name: 'Width (millimeters)', exact: true })).not.toHaveValue('80')
+    await expect(page.locator('.dimensions-editor').getByLabel('Width (millimeters)', { exact: true })).not.toHaveValue('80')
     await expect(page.locator('.dimensions-editor').getByRole('textbox', { name: 'Depth (millimeters)', exact: true })).toHaveValue('12')
   }
-  const width = page.locator('.resize-dimensions [data-axis="x"]')
-  await expect(width).not.toHaveText('80 mm')
-  await expect(width).toBeVisible()
+  const width = page.locator('.dimensions-editor').getByLabel('Width (millimeters)', { exact: true })
+  await expect(width).not.toHaveValue('80')
+  if (page.viewportSize()!.width > 980) await expect(width).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('live-dimensions-drag.png') })
-  const midway = await width.innerText()
+  const midway = await width.inputValue()
   await page.mouse.move(x + 65, y + 24, { steps: 5 })
-  await expect(width).not.toHaveText(midway)
+  await expect(width).not.toHaveValue(midway)
   await page.mouse.up()
   const resized = await backup(page)
   expect(resized.nodes[0].transform.scale.x).toBeGreaterThan(1)
@@ -53,20 +58,27 @@ test('dimensions follow the held resize handle and commit as one undo step', asy
   expect((await backup(page)).nodes).toEqual(document.nodes)
   await page.getByRole('button', { name: 'Redo', exact: true }).click()
   expect((await backup(page)).nodes).toEqual(resized.nodes)
+  const finalWidth = await width.inputValue()
+  await page.getByRole('button', { name: 'Engineering', exact: true }).click()
+  const engineering = page.locator('aside.inspector[aria-label="Engineering inspector"]')
+  await expect(engineering.getByLabel('Width (millimeters)', { exact: true })).toHaveValue(finalWidth)
+  await expect(engineering.getByRole('button', { name: 'Move shape', exact: true })).toBeVisible()
+  await page.screenshot({ path: testInfo.outputPath('engineering-sidebar-dimensions.png') })
+  await engineering.getByRole('button', { name: 'Move shape', exact: true }).click()
 })
 
 test('Escape and pointer cancellation restore live dimensions without saving a resize', async ({ page }) => {
   const { document, centerX, centerY, unit } = await setup(page)
   for (const cancel of ['escape', 'pointercancel']) {
-    const axis = cancel === 'escape' ? 'y' : 'z', original = axis === 'y' ? '12 mm' : '40 mm'
+    const axis = cancel === 'escape' ? 'y' : 'z', original = axis === 'y' ? '12' : '40'
     const x = centerX + (axis === 'y' ? 63 : 0) * unit, y = centerY + (axis === 'y' ? -32 : -97) * unit
     await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + (axis === 'y' ? 26 : 0), y - 30, { steps: 6 })
-    const size = page.locator(`.resize-dimensions [data-axis="${axis}"]`)
-    await expect(size).not.toHaveText(original)
+    const size = page.locator('.dimensions-editor').getByLabel(`${axis === 'y' ? 'Depth' : 'Height'} (millimeters)`, { exact: true })
+    await expect(size).not.toHaveValue(original)
     if (cancel === 'escape') await page.keyboard.press('Escape')
     else await page.locator('.viewport-canvas canvas').dispatchEvent('pointercancel', { pointerId: 1, pointerType: 'mouse', isPrimary: true, button: 0 })
     await page.mouse.up()
-    await expect(size).toHaveText(original)
+    await expect(size).toHaveValue(original)
     expect((await backup(page)).nodes).toEqual(document.nodes)
   }
 })

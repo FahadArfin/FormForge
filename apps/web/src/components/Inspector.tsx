@@ -25,8 +25,7 @@ import { PrintPanel } from './PrintPanel'
 import { HistoryPanel } from './HistoryPanel'
 import { NumberInput } from './NumberInput'
 import { selectionNeedsUniformScale } from '@/lib/selectionTransforms'
-import { shapeDimensions } from '@/lib/selectionDimensions'
-import { useResizeScale } from '@/store/resizePreview'
+import { ShapeDimensions } from './ShapeDimensions'
 import './InspectorReview.css'
 import { CadToolsPanel } from './CadToolsPanel'
 import { SectionPanel } from './SectionPanel'
@@ -43,7 +42,7 @@ function VectorFields({ label, value, onChange, suffix }: { label: string; value
   )
 }
 
-function ShapeInspector({ node }: { node: ModelNode }) {
+function ShapeInspector({ node, onManipulate }: { node: ModelNode; onManipulate?: () => void }) {
   const [patternAxis, setPatternAxis] = useState<'x' | 'y' | 'z'>('x')
   const [patternCount, setPatternCount] = useState(3)
   const [patternSpacing, setPatternSpacing] = useState(12)
@@ -58,14 +57,6 @@ function ShapeInspector({ node }: { node: ModelNode }) {
   const updateTransform = (part: keyof TransformValue, value: Vec3Value) => updateNode(node.id, { transform: { ...transform, [part]: value } })
   const updateParameter = (key: keyof ModelNode['parameters'], value: number) => updateNode(node.id, { parameters: { ...node.parameters, [key]: key === 'segments' ? Math.max(8, Math.min(256, Math.round(value))) : key === 'count' ? Math.max(1, Math.min(256, Math.round(value))) : key === 'twist' ? value : Math.max(['radiusTop', 'fillet', 'wall'].includes(key) ? 0 : 0.1, value) } })
   const updateSurface = (key: keyof NonNullable<ModelNode['surface']>, value: number) => updateNode(node.id, { surface: { smoothAngle: 0, refineLength: 0, simplifyTolerance: 0, hollowThickness: 0, ...node.surface, [key]: Math.max(0, value) } })
-  const [proportional, setProportional] = useState(false)
-  const previewScale = useResizeScale(node.id)
-  const dimensions = shapeDimensions(node, previewScale)
-  const resizeDimension = (axis: 'x' | 'y' | 'z', next: number) => {
-    if (next <= 0 || dimensions[axis] <= 0) return
-    const factor = next / dimensions[axis]
-    updateTransform('scale', proportional ? { x: transform.scale.x * factor, y: transform.scale.y * factor, z: transform.scale.z * factor } : { ...transform.scale, [axis]: transform.scale[axis] * factor })
-  }
   const dropToPlate = useEditor(state => state.dropSelectionToPlate)
   const swatches = [
     '#f7f7f2', '#d9d9d6', '#8b8d92', '#424754', '#17191f',
@@ -82,13 +73,7 @@ function ShapeInspector({ node }: { node: ModelNode }) {
       </div>
 
       {node.locked && <p className="locked-note"><Lock size={13} /> Locked. Use the lock beside the shape to edit.</p>}
-      <div className="property-group dimensions-editor">
-        <h3>Dimensions <small>mm</small></h3>
-        {Object.values(transform.rotation).some(value => Math.abs(value) > 0.001) && <p className="local-dimensions-note">Along this shape’s own axes, before rotation. Print shows the final overall size.</p>}
-        <div className="vector-fields">{(['x', 'y', 'z'] as const).map((axis, index) => <NumberInput key={axis} label={['Width', 'Depth', 'Height'][index]!} value={dimensions[axis]} suffix="mm" min={0.01} onChange={value => resizeDimension(axis, value)} />)}</div>
-        <label className="proportions-toggle"><input type="checkbox" checked={proportional} onChange={event => setProportional(event.target.checked)} /> Keep proportions</label>
-        <p className="numeric-entry-tip">Tip: enter 1/2 in, 2 cm, or 25.4 / 2. Values are shown in mm.</p>
-      </div>
+      <ShapeDimensions node={node} onManipulate={onManipulate} />
       <details className="property-group advanced-shape-controls"><summary>Shape role, transform and appearance</summary><p className="workflow-caption">These controls edit the source shape before holes and other modeling operations.</p><div className="property-group shape-role-editor">
         <h3>Shape role</h3>
         <div role="group" aria-label="Shape boolean role">
@@ -305,7 +290,7 @@ export function Inspector({ onClose }: { onClose?: () => void }) {
       {document.nodes.length > 0 && matchingNodes.length === 0 && <div className="feature-search-empty" role="status"><span>No shapes match “{featureQuery}”.</span><button type="button" onClick={() => setFeatureQuery('')}>Clear search</button></div>}
 
       {selected ? <>
-        {selectedNodeIds.length > 1 ? <SelectionActions count={selectedNodeIds.length} /> : <ShapeInspector key={selected.id} node={selected} />}
+        {selectedNodeIds.length > 1 ? <SelectionActions count={selectedNodeIds.length} /> : <ShapeInspector key={selected.id} node={selected} onManipulate={onClose} />}
         <div className="inspector-footer">
           <IconButton compact icon={<Copy size={17} />} label="Duplicate" onClick={duplicateSelected} />
           <IconButton compact icon={<Trash2 size={17} />} label="Delete" className="danger" onClick={removeSelected} />

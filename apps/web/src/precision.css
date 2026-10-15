@@ -65,39 +65,6 @@
   padding:5px 10px;
   min-height:32px;
   font:inherit}
-.selection-dimensions{
-  position:absolute;
-  left:16px;
-  bottom:76px;
-  max-width:min(330px,calc(100% - 32px));
-  border:1px solid var(--border,#ded8e8);
-  border-radius:10px;
-  background:var(--panel,#fff);
-  color:var(--text,#282733);
-  box-shadow:0 6px 18px #0001;
-  padding:10px 12px;
-  font-size:12px;
-  z-index:12}
-.selection-dimensions summary{
-  cursor:pointer;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-  min-height:24px;
-  font-weight:650}
-.selection-dimensions p{
-  font-size:11px;
-  color:var(--muted,#645975);
-  margin:10px 0}
-.selection-dimensions .size-fields{
-  display:grid;
-  grid-template-columns:repeat(3,minmax(0,1fr));
-  gap:8px}
-.selection-dimensions label:has(input[type=checkbox]){
-  display:flex;
-  gap:8px;
-  align-items:center;
-  margin-top:12px}
 .sketch-canvas{
   padding:8px;
   background:var(--surface,#f8f7fc);
@@ -265,17 +232,6 @@
   border-radius:8px;
   font:inherit;
   font-size:11px}
-.selection-dimensions{
-  bottom:110px;
-  left:10px;
-  max-width:calc(100% - 20px);
-  padding:8px 10px}
-.selection-dimensions summary{
-  min-height:28px}
-.mobile-panel-inspector .selection-dimensions,.mobile-panel-tools .selection-dimensions{
-  display:none}
-.selection-dimensions:has(details[open]){
-  z-index:25}
 .measurement-details{
   max-height:42vh;
   overflow:auto}
@@ -309,8 +265,6 @@
   min-height:44px}
 .public-site summary{
   min-height:44px}
-.selection-dimensions summary{
-  min-height:36px}
 }
 
 @media(prefers-reduced-motion:reduce){
@@ -369,8 +323,6 @@
   color:var(--text,#333);
   font:inherit;
   font-size:12px}
-.selection-dimensions{
-  bottom:114px}
 .viewport-tools>button,.viewport-tools select,.mobile-panel-controls button,.preview-controls button{
   min-height:44px;
   min-width:44px}
@@ -412,9 +364,6 @@
  .app-shell .view-pills{
   top:auto;
   bottom:113px}
-
- .app-shell .selection-dimensions{
-  bottom:165px}
 
  .app-shell .measurement-details{
   left:0;
