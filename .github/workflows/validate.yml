@@ -13,7 +13,8 @@ jobs:
   validate:
     name: Types, tests and production build
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    # The complete browser suite approached 35 minutes before adding recipe coverage.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

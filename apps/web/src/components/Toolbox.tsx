@@ -109,6 +109,9 @@ export function Toolbox({ onClose }: { onClose?: () => void }) {
         </div>
         {visibleShapes.length === 0 && <p className="shape-search-empty">No shapes found. Try “box” or “tube”.</p>}
         {!search && <button className="more-shapes-button" aria-expanded={moreShapes} onClick={() => setMoreShapes((current) => !current)}>{moreShapes ? 'Show basic shapes' : 'More shapes'}<ChevronDown size={15} className={moreShapes ? 'expanded' : ''} /></button>}
+        <button className="profile-recipe-launch" type="button" disabled={Boolean(placingNodeId)} onClick={() => { onClose?.(); window.dispatchEvent(new CustomEvent('formforge:open-inspector', { detail: { tab: 'tools', toolkit: 'create', tool: 'print-parts' } })) }}>
+          <Sparkles size={17}/><span><strong>Print-friendly parts</strong><small>Vents, ribs and insert mounts</small></span><ChevronDown size={15}/>
+        </button>
         <button
           className={`profile-recipe-launch ${recipeOpen ? 'active' : ''}`}
           type="button"

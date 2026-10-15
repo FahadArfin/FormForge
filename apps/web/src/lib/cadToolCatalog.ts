@@ -1,4 +1,5 @@
 export const cadTools = [
+  { id: 'print-parts', name: 'Print-friendly parts: vents, ribs and insert bosses', group: 'Create', keywords: 'ventilation panel grille reinforcement gusset bracket heat set hardware mount', tab: 'tools', toolkit: 'create' },
   { id: 'workplane', name: 'Workplane and drawing plane', group: 'Create', keywords: 'surface face plane', tab: 'tools', toolkit: 'create' },
   { id: 'image', name: 'Trace a reference image', group: 'Create', keywords: 'reference photo picture blueprint calibrate', tab: 'tools', toolkit: 'create' },
   { id: 'text', name: 'Emboss or engrave text', group: 'Create', keywords: 'writing letters label deboss', tab: 'tools', toolkit: 'create' },
