@@ -12,6 +12,7 @@ PrintLab reuses the existing editable primitive nodes, Three.js viewport, source
 - Cancel, Escape, switching tools, and pointer cancellation discard placement. Interrupted body drags restore the unchanged document. Document/tool changes invalidate transient gestures.
 - The first shape stays where it was drawn instead of triggering automatic camera framing. Imported projects retain automatic framing.
 - Solid-view picking requires a matching evaluated surface, so empty Boolean holes do not select hidden source operands.
+- The eraser icon beside Undo/Redo opens **Reset build plate**. Confirmation clears the current model (including hidden/locked shapes, sculpting, parameters, measurements, reference images, and model-specific metadata), while preserving its project identity, printer/material preferences, attribution, and separately saved checkpoints. Cancel is the initial keyboard focus. Reset is one session Undo step, autosaves the empty plate, and cannot run during unfinished placement or against an outdated confirmation. Geometry jobs and inspection filters are cleared so new shapes can be drawn normally.
 
 ## Research
 
@@ -22,6 +23,8 @@ PrintLab reuses the existing editable primitive nodes, Three.js viewport, source
 `shapePlacement.test.ts`: negative-direction rectangular draws, footprint and height snapping, bounded finite heights, default click placement, small radial geometry, rotated/offset workplanes, and unchanged source nodes.
 
 `editor.test.ts`: cancellation, switching tools, and one-step creation undo.
+
+`resetModel.test.ts`, `ResetModelButton.test.tsx`, and `reset-model.spec.ts`: confirmation/cancellation, stale confirmation, locked/hidden shapes, Undo/Redo, settings preservation, inspection cleanup, desktop/phone toolbar placement, autosave and reload.
 
 `direct-placement.spec.ts`: desktop/phone placement, live dimensions, direct movement, quick movement from Solid view, undo/redo, editable backup and saved reload, real touch footprint/height gestures, cancellation from the height field, invalid height input, display toggles, pointer cancellation, vertical workplanes, and empty Boolean holes. Existing volume-sculpt scenarios verify that camera control remains disabled during sculpt strokes.
 

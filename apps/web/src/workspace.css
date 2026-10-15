@@ -24,6 +24,10 @@ input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); 
 .device-save.saving svg { animation: spin 1.2s linear infinite; }
 .studio-history, .studio-utilities { display: flex; align-items: center; gap: 2px; }
 .studio-history { border-left: 1px solid var(--line); padding-left: 10px; }
+.reset-model-dialog { max-width: 480px; }
+.reset-model-dialog p { line-height: 1.6; color: var(--muted); }
+.reset-model-dialog strong { color: var(--text); }
+.reset-model-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 24px; }
 .studio-icon { border: 0; border-radius: 7px; background: transparent; color: var(--subtle); width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; }
 .studio-icon:hover:not(:disabled) { color: var(--text); background: var(--panel-2); }
 .studio-command { flex: 0 1 205px; display: flex; align-items: center; gap: 9px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-raised); color: var(--subtle); font-size: 12px; white-space: nowrap; margin-right: auto; }
