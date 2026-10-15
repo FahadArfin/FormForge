@@ -10,7 +10,7 @@ export function WorkspaceHelp({ onClose, onExample, onLaunch }: { onClose: () =>
     <LearningPanel onLaunch={onLaunch}/>
     <details><summary>Workspace basics</summary><div className="guide-steps">{[
       [Box, '01', 'Start with a shape', 'Open Build and choose a shape. On a small screen, open Build tools first. Measurements use millimeters.'],
-      [MousePointer2, '02', 'Place it in the world', 'Click or tap the build plane to place it. Drag on the plane while placing to set a footprint.'],
+      [MousePointer2, '02', 'Place it in the world', 'Click or tap for the default size. Drag to draw a footprint, then move up or enter a height and finish the shape.'],
       [SlidersHorizontal, '03', 'Make it yours', 'Select a shape and open the Model tab in Inspector to edit dimensions, position, color, or its Solid / Hole / Intersect role.'],
       [Download, '04', 'Review and export', 'Run Print checks, then export 3MF for your slicer. Check layer previews, supports, and wall thickness in the slicer before printing.'],
     ].map(([Icon, number, title, description]) => { const StepIcon = Icon as typeof Box; return <article key={number as string}><span><StepIcon size={21} /></span><div><small>STEP {number as string}</small><h3>{title as string}</h3><p>{description as string}</p></div></article> })}</div>

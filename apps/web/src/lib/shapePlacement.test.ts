@@ -5,6 +5,28 @@ import { axisWorkplane } from './workplanes'
 import { nodeWorldBounds } from './modelGeometry'
 
 describe('direct shape placement', () => {
+  it('bounds height drafts and rejects non-finite input', () => {
+    const node=createNode('roundedBox')
+    const small=shapePlacement(node,{x:0,y:0},null,undefined,1,-5)
+    expect(small.parameters.height).toBe(.1)
+    expect(small.parameters.fillet).toBeLessThanOrEqual(.05)
+    expect(shapePlacement(node,{x:0,y:0},null,undefined,null,20000).parameters.height).toBe(10000)
+    expect(()=>shapePlacement(node,{x:0,y:0},null,undefined,null,NaN)).toThrow('finite')
+  })
+  it.each(['box', 'cylinder', 'roundedBox'] as const)('sets %s height during placement without moving its footprint', kind => {
+    const source = createNode(kind), before = structuredClone(source)
+    const draft = shapePlacement(source, {x: 12, y: 18}, {x: 38, y: 40}, undefined, 1, 47)
+    expect(draft.parameters.height).toBe(47)
+    expect(nodeWorldBounds(draft).min.z).toBeCloseTo(0)
+    expect(nodeWorldBounds(draft).max.z).toBeCloseTo(47)
+    expect(source).toEqual(before)
+  })
+  it('sets height along an offset vertical workplane and snaps the height', () => {
+    const draft = shapePlacement(createNode('box'), {x: 12, y: 18}, {x: 38, y: 40}, axisWorkplane('xz',30), 1, 47.4)
+    expect(draft.parameters.height).toBe(47)
+    expect(nodeWorldBounds(draft).max.y).toBeCloseTo(-30)
+    expect(nodeWorldBounds(draft).min.y).toBeCloseTo(-77)
+  })
   it('draws rectangular footprints in either direction and leaves the source unchanged', () => {
     const node = createNode('box'), before = structuredClone(node)
     const placed = shapePlacement(node, { x: 20, y: 30 }, { x: -20, y: 10 }, undefined, 1)

@@ -1036,6 +1036,15 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .inspector-tabs button.active { background: #30323e; color: #eeeef5; }
 
 .viewport-canvas.is-placing[data-placement-size]::after { content: attr(data-placement-size); position:absolute; top:110px; left:50%; transform:translateX(-50%); padding:8px 12px; border:1px solid var(--border); border-radius:12px; background:var(--panel); color:var(--text); font-size:12px; font-variant-numeric:tabular-nums; pointer-events:none; white-space:nowrap; }
+.placement-height { position:absolute; z-index:20; bottom:90px; left:50%; transform:translateX(-50%); width:min(360px,calc(100% - 24px)); display:flex; flex-wrap:wrap; align-items:end; gap:12px; padding:16px; border:1px solid var(--border); border-radius:18px; background:var(--panel); color:var(--text); box-shadow:0 12px 36px #142c3d22; }
+.placement-height > div { width:100%; }
+.placement-height strong { font-size:14px; }
+.placement-height p { font-size:12px; line-height:1.5; margin:4px 0 0; }
+.placement-height label { flex:1; min-width:100px; display:grid; gap:5px; font-size:12px; }
+.placement-height label span { display:flex; align-items:center; gap:6px; }
+.placement-height input { width:100%; min-width:60px; min-height:44px; border:1px solid var(--border); border-radius:10px; padding:8px; background:var(--panel); color:var(--text); font:inherit; font-variant-numeric:tabular-nums; }
+.placement-height input[aria-invalid=true] { border-color:#d66565; }
+.placement-height button { min-height:44px; }
 .selection-dimensions { display:flex; align-items:center; gap:10px; }
 .resize-dimensions { position:absolute; top:116px; right:16px; z-index:5; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; max-width:calc(100% - 32px); padding:9px 13px; border:1px solid var(--border); border-radius:12px; background:var(--panel); box-shadow:0 4px 16px #0001; pointer-events:none; }
 .resize-dimensions span { display:block; margin-bottom:3px; color:var(--muted); font-size:10px; }
@@ -1050,3 +1059,5 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .shape-direct-actions button { min-height:34px; border:1px solid var(--border); border-radius:8px; padding:5px 9px; color:var(--text); background:var(--panel); cursor:pointer; }
 .shape-direct-actions button[aria-pressed=true] { color:var(--accent); border-color:var(--accent); }
 @media(pointer:coarse) { .shape-direct-actions button { min-height:44px; } }
+
+.viewport-canvas[data-placement-stage=height] ~ .placement-actions, .viewport-canvas[data-placement-stage=height] ~ .view-pills { display:none; }
