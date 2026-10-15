@@ -1,3 +1,4 @@
+import {entityAnchor,isGroupedNode} from '@/lib/shapeEntities'
 import { AssemblyInventoryPanel } from './AssemblyInventoryPanel'
 import { MeshDoctorPanel } from './MeshDoctorPanel'
 import { PartPropertiesPanel } from './PartPropertiesPanel'
@@ -198,7 +199,8 @@ function SelectionActions({ count }: { count: number }) {
   const uniformScale = useEditor(state => selectionNeedsUniformScale(state.document.nodes.filter(node => state.selectedNodeIds.includes(node.id))))
   const base = useEditor(state => state.document.nodes.find(node => node.id === state.selectedNodeIds[0]))
   const locked = useEditor(state => state.document.nodes.some(node => state.selectedNodeIds.includes(node.id) && node.locked))
-  const grouped = useEditor(state => state.document.nodes.some(node => state.selectedNodeIds.includes(node.id) && node.combined && node.groupId))
+  const grouped = useEditor(state => state.document.nodes.some(node => state.selectedNodeIds.includes(node.id) && isGroupedNode(node)))
+  const entityCount = useEditor(state=>new Set(state.selectedNodeIds.map(id=>entityAnchor(state.document.nodes,id)?.id)).size)
   const combineSelected = useEditor((state) => state.combineSelected)
   const ungroupSelected = useEditor((state) => state.ungroupSelected)
   const alignSelected = useEditor((state) => state.alignSelected)
@@ -206,14 +208,14 @@ function SelectionActions({ count }: { count: number }) {
   return <div className="selection-actions">
     <div><strong>{count} shapes selected</strong><span>Move, rotate, or scale together using the active shape as the pivot.</span></div>
     {uniformScale && <p className="selection-scale-note">Different rotations: scaling keeps proportions for the whole selection. Select one shape to scale a single axis.</p>}
-    <fieldset disabled={locked || grouped} className="boolean-actions">
+    <fieldset disabled={locked || entityCount < 2} className="boolean-actions">
       <button onClick={() => combineSelected('union')}><Combine size={17} /><strong>Join</strong><span>Join volumes</span></button>
       <button onClick={() => combineSelected('subtract')}><Scissors size={17} /><strong>Exclude</strong><span>Keep {base?.name}; cut the rest</span></button>
       <button onClick={() => combineSelected('intersect')}><ScanLine size={17} /><strong>Intersect</strong><span>Keep overlap</span></button>
       <button onClick={() => combineSelected('hull')}><Spline size={17} /><strong>Hull</strong><span>Wrap selection</span></button>
     </fieldset>
     {locked && <p className="locked-note">Unlock shapes before combining.</p>}
-    {grouped && <p className="selection-scale-note">Joined parts move as one object. Separate them to edit or combine individual parts.</p>}
+    {grouped && <p className="selection-scale-note">Joined parts move as one object. Select another object to combine again; previous cuts are kept. Separate removes the outermost combination.</p>}
     <button className="ungroup-action" disabled={locked || !grouped} onClick={ungroupSelected}><Ungroup size={15} /> Separate combined parts</button>
     <div className="selection-layout-tools">
       <strong>Align to {base?.name ?? 'first selected'}</strong>
@@ -288,7 +290,7 @@ export function Inspector({ onClose }: { onClose?: () => void }) {
           <div key={node.id} data-node-id={node.id} role="listitem" className={`feature-row ${selectedNodeIds.includes(node.id) ? 'selected' : ''} ${node.suppressed ? 'suppressed' : ''}`}>
             <button type="button" className="feature-select" aria-label={`Select ${node.name}`} aria-pressed={selectedNodeIds.includes(node.id)} onClick={(event) => selectNode(node.id, multiSelect || event.ctrlKey || event.metaKey || event.shiftKey)}>
               <span aria-hidden="true" className={`feature-icon ${node.boolean}`}>{node.boolean === 'add' ? index + 1 : node.boolean === 'cut' ? '−' : '∩'}</span>
-              <span className="feature-name"><strong>{node.name}</strong><small>{node.kind} · {node.suppressed ? 'suppressed' : node.combined ? 'combined' : node.boolean === 'add' ? 'solid' : node.boolean === 'cut' ? 'hole' : 'overlap'}</small></span>
+              <span className="feature-name"><strong>{node.name}</strong><small>{node.kind} · {node.suppressed ? 'suppressed' : isGroupedNode(node) ? 'combined' : node.boolean === 'add' ? 'solid' : node.boolean === 'cut' ? 'hole' : 'overlap'}</small></span>
             </button>
             <div className="feature-actions" role="group" aria-label={`Actions for ${node.name}`}>
               <button type="button" aria-label={`Move ${node.name} earlier`} title="Move shape earlier" disabled={index === 0} onClick={() => moveFeature(node.id, -1)}><ArrowUp size={14} /></button>

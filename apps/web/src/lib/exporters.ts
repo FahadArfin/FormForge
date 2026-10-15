@@ -75,7 +75,7 @@ export function export3mf(payload: MeshPayload, name: string) {
 
 export function exportMultiColor3mf(nodes: ModelNode[], name: string) {
   const active = nodes.filter((node) => !node.suppressed)
-  if (active.some((node) => node.boolean !== 'add' || node.groupOperation === 'hull' || Object.values(node.surface ?? {}).some((value) => value > 0))) throw new Error('Use standard 3MF to preserve holes, intersections, hulls, and surface modifiers. Multi-color export supports separate solid parts.')
+  if (active.some((node) => node.booleanPath?.length || node.boolean !== 'add' || node.groupOperation === 'hull' || Object.values(node.surface ?? {}).some((value) => value > 0))) throw new Error('Use standard 3MF to preserve holes, intersections, hulls, and surface modifiers. Multi-color export supports separate solid parts.')
   const printable = active.filter((node) => node.boolean === 'add')
   if (!printable.length) throw new Error('Add at least one visible solid before exporting.')
   const slotColors = new Map<number, string>()

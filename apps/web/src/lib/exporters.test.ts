@@ -91,3 +91,8 @@ describe('model exporters', () => {
     expect(new Set(resourceIds).size).toBe(7)
   })
 })
+
+it('does not export nested Boolean sources as separate multicolor solids',()=>{
+ const box=createNode('box');box.booleanPath=[{id:'outer',operandId:'tool',mode:'cut',operation:'boolean'}]
+ expect(()=>exportMultiColor3mf([box],'Nested cuts')).toThrow('standard 3MF')
+})

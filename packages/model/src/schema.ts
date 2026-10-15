@@ -94,6 +94,7 @@ const sketchConstraintSchema = z.discriminatedUnion('type', [
 ])
 
 export const modelNodeSchema = z.object({
+  booleanPath:z.array(z.object({id:z.string().min(1).max(128),operandId:z.string().min(1).max(128),mode:z.enum(['add','cut','intersect']),operation:z.enum(['boolean','hull'])}).strict()).max(32).optional(),
   faceAttachment:z.object({version:z.literal(1),targetNodeId:z.string().min(1).max(128),targetKind:z.enum(['box','cylinder']),face:z.enum(['x+','x-','y+','y-','z+','z-']),offsetU:z.number().finite().min(-10000).max(10000),offsetV:z.number().finite().min(-10000).max(10000),depthMode:z.enum(['through','blind']),depth:z.number().min(.1).max(10000)}).optional(),
   edgeTreatment:z.object({version:z.literal(1),mode:z.enum(['chamfer','fillet']),axis:z.enum(['x','y','z']),sideU:z.union([z.literal(1),z.literal(-1)]),sideV:z.union([z.literal(1),z.literal(-1)]),amount:z.number().min(.01).max(1000)}).optional(),
   assemblyPath: z.array(z.string().min(1).max(128)).max(8).optional(),
@@ -213,6 +214,17 @@ export const modelDocumentSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
 }).superRefine((document, context) => {
+  const layers=new Map<string,string>(),operands=new Map<string,string>()
+  document.nodes.forEach((node,index)=>{
+    const seen=new Set<string>()
+    node.booleanPath?.forEach((layer,depth)=>{
+      const parent=JSON.stringify(node.booleanPath!.slice(0,depth).map(p=>[p.id,p.operandId]))
+      const definition=JSON.stringify([parent,layer.operation])
+      const operandKey=JSON.stringify([layer.id,layer.operandId])
+      if(seen.has(layer.id)||(layers.has(layer.id)&&layers.get(layer.id)!==definition)||(operands.has(operandKey)&&operands.get(operandKey)!==layer.mode))context.addIssue({code:'custom',path:['nodes',index,'booleanPath',depth],message:'Inconsistent or cyclic Boolean group.'})
+      seen.add(layer.id);layers.set(layer.id,definition);operands.set(operandKey,layer.mode)
+    })
+  })
   const materialIds = new Map<string, number>()
   const printSlots = new Map<number, number>()
 

@@ -355,3 +355,19 @@ it('renames parameter dependencies in one undoable edit and protects used dimens
  expect(useEditor.getState().undoStack).toEqual([doc]);useEditor.getState().removeNamedParameter('w');expect(useEditor.getState().document.namedParameters).toHaveLength(2)
  useEditor.getState().undo();expect(useEditor.getState().document).toEqual(doc)
 })
+
+
+it('combines an existing cut with new solids without flattening its operands',async()=>{
+ const {evaluate}=await import('@/geometry/geometry.worker')
+ const a=createNode('box'),b=createNode('box','add',vec3(5,0,0)),c=createNode('box','add',vec3(20,0,0))
+ for(const n of [a,b,c])n.parameters={...n.parameters,width:10,depth:10,height:10}
+ useEditor.setState({document:{...createDocument(),nodes:[a,b,c]},selectedNodeIds:[a.id,b.id],selectedNodeId:a.id})
+ const s=useEditor.getState();s.combineSelected('subtract');const inner=useEditor.getState().document.nodes.slice(0,2)
+ s.selectNode(c.id,true);s.combineSelected('union')
+ const joined=useEditor.getState().document
+ expect(useEditor.getState().notice).not.toContain('Separate existing')
+ expect((await evaluate(joined)).volume).toBeCloseTo(1500)
+ s.selectNode(c.id);expect(useEditor.getState().selectedNodeIds).toHaveLength(3)
+ s.ungroupSelected();expect(useEditor.getState().document.nodes.slice(0,2)).toEqual(inner)
+ s.undo();expect(useEditor.getState().document).toEqual(joined)
+})

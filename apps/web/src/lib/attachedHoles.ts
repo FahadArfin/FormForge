@@ -22,7 +22,7 @@ export function resolveHole(node:ModelNode,target:ModelNode|undefined):ModelNode
 }
 export function createAttachedHole(target:ModelNode,face:AttachedFace,diameter:number,u:number,v:number,depthMode:'through'|'blind',depth:number){
  if(!Number.isFinite(diameter)||diameter<.2||diameter>1000||![u,v,depth].every(Number.isFinite)||Math.abs(u)>10000||Math.abs(v)>10000||depth<.1||depth>10000)throw new Error('Use finite dimensions: diameter 0.2–1,000 mm, depth 0.1–10,000 mm and offsets within ±10,000 mm.')
- const n=createNode('cylinder','cut');n.name=`Attached hole · ${target.name} ${face}`;n.parameters.radius=diameter/2;n.parameters.segments=96;n.assemblyPath=target.assemblyPath?[...target.assemblyPath]:undefined;n.combined=target.combined;n.groupId=target.groupId;n.groupOperation=target.groupOperation
+ const n=createNode('cylinder','cut');n.name=`Attached hole · ${target.name} ${face}`;n.parameters.radius=diameter/2;n.parameters.segments=96;n.assemblyPath=target.assemblyPath?[...target.assemblyPath]:undefined;n.booleanPath=target.booleanPath?structuredClone(target.booleanPath):undefined;n.combined=target.combined;n.groupId=target.groupId;n.groupOperation=target.groupOperation
  n.faceAttachment={version:1,targetNodeId:target.id,targetKind:target.kind as 'box'|'cylinder',face,offsetU:u,offsetV:v,depthMode,depth}
  return resolveHole(n,target)
 }

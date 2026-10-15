@@ -1,5 +1,5 @@
 import {useGroupPreviews} from './useGroupPreviews'
-import {entityNodes} from '@/lib/shapeEntities'
+import {entityNodes,isGroupedNode} from '@/lib/shapeEntities'
 import { shapePlacement } from '@/lib/shapePlacement'
 import { styleResizeGizmo } from '@/lib/resizeGizmo'
 import { clearResizePreview, useResizePreview } from '@/store/resizePreview'
@@ -409,7 +409,7 @@ export function Viewport({ theme }: { theme: 'dark' | 'light' }) {
     const polygonHit = (event: PointerEvent) => {
       const state = useEditor.getState()
       const node = state.document.nodes.find((candidate) => candidate.id === state.selectedNodeId)
-      const object = node?.kind === 'mesh' && !node.locked && !(node.combined&&node.groupId) ? sourceById.get(node.id) : undefined
+      const object = node?.kind === 'mesh' && !node.locked && !isGroupedNode(node) ? sourceById.get(node.id) : undefined
       if (!node || !object) return null
       updateRay(event)
       const hit = raycaster.intersectObject(object, false).find(hit => sectionPointVisible(hit.point, useInspection.getState().section))

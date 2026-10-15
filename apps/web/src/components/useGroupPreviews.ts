@@ -1,6 +1,6 @@
 import {useEffect,useMemo,useRef,useState} from 'react'
 import type {MeshPayload,ModelDocument} from '@formforge/model'
-import {entityNodes,entityAnchor} from '@/lib/shapeEntities'
+import {entityNodes,entityAnchor,isGroupedNode} from '@/lib/shapeEntities'
 import {groupPreviewKey,localGroupMesh} from '@/lib/groupPreview'
 import {evaluateSnapshot} from '@/geometry/evaluateSnapshot'
 import {useEditor} from '@/store/editor'
@@ -12,7 +12,7 @@ export function useGroupPreviews(document:ModelDocument,showResult:boolean){
  const groups=useMemo(()=>{
   const seen=new Set<string>()
   return document.nodes.flatMap(n=>{
-   if(!n.combined||!n.groupId||seen.has(n.id))return []
+   if(!isGroupedNode(n)||seen.has(n.id))return []
    const nodes=entityNodes(document.nodes,n.id);nodes.forEach(n=>seen.add(n.id))
    const anchor=entityAnchor(nodes,n.id)!
    return [{nodes,anchor,key:document.id+anchor.id+groupPreviewKey(nodes,anchor)}]
