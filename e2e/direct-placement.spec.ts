@@ -43,7 +43,11 @@ test('pick → cursor preview → draw size → drag body → undo/redo and save
   await page.mouse.up()
   const height = page.getByRole('spinbutton', {name:'Placement height'})
   await expect(height).toBeVisible()
-  await page.mouse.move(x + 90, y + 15, {steps:5})
+  // Use exposed canvas: system font metrics can change the overlay's height.
+  const controls = await page.getByRole('group', {name:'Set shape height'}).boundingBox()
+  const heightPoint = {x:bounds.x + 20,y:Math.min(y + 15, controls!.y - 15)}
+  expect(await canvas.evaluate((el,p)=>document.elementFromPoint(p.x,p.y)===el,heightPoint)).toBe(true)
+  await page.mouse.move(heightPoint.x, heightPoint.y, {steps:5})
   await expect(height).not.toHaveValue('18')
   await height.fill('45')
   await expect(host).toHaveAttribute('data-placement-size', /45.0 mm$/)
