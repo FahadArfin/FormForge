@@ -1,6 +1,6 @@
 import {test,expect} from '@playwright/test'
 
-test('focused Home offers three destinations, real Community starters and a light public entry',async({page},testInfo)=>{
+test('simple Home keeps three destinations visible, accessible and lightweight',async({page},testInfo)=>{
  const errors:string[]=[],requests:string[]=[]
  page.on('pageerror',error=>errors.push(error.message))
  page.on('request',request=>requests.push(request.url()))
@@ -9,23 +9,31 @@ test('focused Home offers three destinations, real Community starters and a ligh
  await expect(page.getByRole('heading',{level:1})).toHaveText('What will you make today?')
  await expect(choices.getByRole('link')).toHaveCount(3)
  for(const name of ['Community','Studio','My projects'])await expect(choices.getByRole('link',{name,exact:true})).toBeVisible()
- const designs=page.locator('.home-design')
- await expect(designs).toHaveCount(3)
- for(const image of await designs.locator('img').all()){
-  await image.scrollIntoViewIfNeeded()
-  await expect.poll(()=>image.evaluate((node:HTMLImageElement)=>node.complete&&node.naturalWidth>0)).toBe(true)
+ for(const choice of await choices.getByRole('link').all()){
+  const box=await choice.boundingBox()
+  expect(box!.y).toBeGreaterThanOrEqual(0)
+  expect(box!.y+box!.height).toBeLessThanOrEqual(page.viewportSize()!.height)
  }
  expect(requests.filter(url=>/\/(?:App|Viewport|manifold)[-.\/]/i.test(url))).toEqual([])
- await expect(page.locator('.public-workflow,.public-library,.public-storage')).toHaveCount(0)
+ await expect(page.locator('.public-workflow,.public-library,.public-storage,.home-inspiration,.public-footer')).toHaveCount(0)
  await page.getByRole('heading',{level:1}).scrollIntoViewIfNeeded()
  await page.screenshot({path:testInfo.outputPath('home-light.png'),fullPage:true})
  await page.getByRole('button',{name:'Switch to dark mode'}).click()
  await expect(page.locator('.public-home-site')).toHaveAttribute('data-appearance','dark')
  await page.screenshot({path:testInfo.outputPath('home-dark.png'),fullPage:true})
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
- await designs.getByRole('heading',{name:'Small parts tray',exact:true}).click()
- await expect(page).toHaveURL(/#community\?model=starter-tray$/)
- await expect(page.getByRole('heading',{level:1,name:'Small parts tray',exact:true})).toBeVisible()
+ await page.reload()
+ await expect(page.locator('.public-home-site')).toHaveAttribute('data-appearance','dark')
+ // Keyboard users can identify and follow the same large card links.
+ const community=choices.getByRole('link',{name:'Community',exact:true})
+ await community.focus()
+ await page.keyboard.press('Tab')
+ await expect(choices.getByRole('link',{name:'Studio',exact:true})).toBeFocused()
+ await page.keyboard.press('Shift+Tab')
+ await expect(community).toBeFocused()
+ await page.keyboard.press('Enter')
+ await expect(page).toHaveURL(/#community$/)
+ await expect(page.locator('.community-workshop')).toBeVisible()
  await page.getByRole('link',{name:'PrintLab home',exact:true}).click()
  await choices.getByRole('link',{name:'Studio',exact:true}).click()
  await expect(page.getByLabel('Project name',{exact:true})).toBeVisible()

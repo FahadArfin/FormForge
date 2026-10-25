@@ -6,18 +6,12 @@ import {PublicWebsite} from './PublicWebsite'
 import {TemplatePage} from './TemplatePage'
 import {templateCatalog} from '@/lib/templateCatalog'
 beforeEach(()=>{localStorage.clear();Object.assign(globalThis,{IS_REACT_ACT_ENVIRONMENT:true})})
-it('offers three clear home destinations and genuine editable Community starters',async()=>{
+it('offers three clear home destinations without secondary browsing sections',async()=>{
  const host=document.createElement('div');document.body.append(host);const root=createRoot(host)
  await act(async()=>root.render(<PublicWebsite/>))
  expect([...host.querySelectorAll('.home-destinations a')].map(a=>a.getAttribute('href'))).toEqual(['#community','#studio','#projects'])
- const previews=[...host.querySelectorAll<HTMLAnchorElement>('.home-design')]
- expect(previews).toHaveLength(3)
- for(const preview of previews){
-  const template=templateCatalog.find(item=>preview.hash===`#community?model=starter-${item.id}`)
-  expect(template).toBeDefined();expect(preview.textContent).toContain(template!.name)
-  expect(preview.querySelector('img')?.getAttribute('src')).toBe(`/templates/${template!.id}.svg`)
- }
- expect(host.textContent).toContain('Editable starters by PrintLab')
+ expect(host.querySelector('.home-inspiration,.public-footer')).toBeNull()
+ expect(host.querySelector('a[href="#templates"]')?.textContent).toBe('Templates')
  expect(host.querySelector('h1')?.textContent).toBe('What will you make today?')
  expect(host.querySelector('.public-workflow,.public-storage,.public-library,.public-hero-model')).toBeNull()
  await act(async()=>root.unmount());host.remove()

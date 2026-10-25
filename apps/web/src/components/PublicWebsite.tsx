@@ -6,19 +6,15 @@ import {AppNavigation} from './AppNavigation'
 import {ThemeToggle} from './ThemeToggle'
 import './PublicHome.css'
 const PublicDemo=lazy(()=>import('./PublicDemo').then(m=>({default:m.PublicDemo})))
-// These are the same editable starters exposed by Community. Import only their
-// catalogue metadata here so browsing Home does not initialize the CAD engine.
-const homeStarters=['tray','enclosure','cable-guide'].map(id=>templateCatalog.find(item=>item.id===id)!)
 const destinations=[
- {id:'community',title:'Community',description:'Find an idea to remix and make your own.',action:'Browse designs',Icon:Users},
- {id:'studio',title:'Studio',description:'Make something new, or continue your current design.',action:'Open Studio',Icon:Box},
- {id:'projects',title:'My projects',description:'Your saved designs, ready for another good idea.',action:'Find my projects',Icon:FolderOpen},
+ {id:'community',title:'Community',description:'Explore ideas. Make them yours.',Icon:Users},
+ {id:'studio',title:'Studio',description:'Bring your ideas to life in 3D.',Icon:Box},
+ {id:'projects',title:'My projects',description:'Pick up where you left off.',Icon:FolderOpen},
 ] as const
 function Home(){
  return <div className="public-home">
-  <section className="home-welcome" aria-labelledby="home-heading"><span className="public-eyebrow">A LITTLE CURIOSITY. SOMETHING YOU MADE.</span><h1 id="home-heading">What will you make today?</h1><p>Find an idea, make something new, or pick up where you left off.</p></section>
-  <nav className="home-destinations" aria-label="Choose where to go">{destinations.map(({id,title,description,action,Icon})=><a key={id} className={`home-destination home-destination-${id}`} href={`#${id}`} aria-labelledby={`home-${id}-title`} aria-describedby={`home-${id}-description`}><span className="home-destination-icon"><Icon size={25} aria-hidden="true"/></span><h2 id={`home-${id}-title`}>{title}</h2><p id={`home-${id}-description`}>{description}</p><span className="home-destination-action">{action}<ArrowRight size={18} aria-hidden="true"/></span></a>)}</nav>
-  <section className="home-inspiration" aria-labelledby="home-inspiration-heading"><div className="home-section-heading"><div><h2 id="home-inspiration-heading">A little inspiration</h2><p>Editable starters by PrintLab, ready to explore in Community.</p></div><a href="#community">Explore Community <ArrowRight size={17} aria-hidden="true"/></a></div><div className="home-design-grid">{homeStarters.map(item=><a className="home-design" key={item.id} href={`#community?model=starter-${item.id}`} aria-labelledby={`home-design-${item.id}`}><div className="home-design-image"><img src={`/templates/${item.id}.svg`} alt="" width="600" height="400" loading="lazy"/></div><div className="home-design-copy"><span>Editable starter</span><h3 id={`home-design-${item.id}`}>{item.name}</h3><p>{item.description}</p><ArrowRight size={18} aria-hidden="true"/></div></a>)}</div></section>
+  <section className="home-welcome" aria-labelledby="home-heading"><h1 id="home-heading">What will you <span>make</span> today?</h1></section>
+  <nav className="home-destinations" aria-label="Choose where to go">{destinations.map(({id,title,description,Icon})=><a key={id} className={`home-destination home-destination-${id}`} href={`#${id}`} aria-labelledby={`home-${id}-title`} aria-describedby={`home-${id}-description`}><span className="home-destination-icon"><Icon size={32} strokeWidth={1.7} aria-hidden="true"/></span><h2 id={`home-${id}-title`}>{title}</h2><p id={`home-${id}-description`}>{description}</p><ArrowRight className="home-destination-arrow" size={19} aria-hidden="true"/></a>)}</nav>
  </div>
 }
 export function PublicWebsite({templatesOnly=false}:{templatesOnly?:boolean}){
@@ -38,7 +34,7 @@ export function PublicWebsite({templatesOnly=false}:{templatesOnly?:boolean}){
     <section className="public-workflow"><div><span className="public-eyebrow">YOUR DESIGN STAYS EDITABLE</span><h2>Choose. Adjust. Inspect. Print.</h2><p>Keep the shapes and dimensions behind your model, so the next change is easier.</p></div><ol><li><span>01</span><strong>Start with a part</strong><p>Use a template, bring your mesh, or build from shapes.</p></li><li><span>02</span><strong>Make it fit</strong><p>Edit dimensions, compare clearances and record a tested fit.</p></li><li><span>03</span><strong>Check the handoff</strong><p>Review size, placement and potential overhangs before export.</p></li></ol></section>
     <section className="public-storage"><Box size={26}/><div><h2>Know where your work is saved.</h2><p>Projects and recovery copies stay in this browser. Download an editable backup for a separate copy, or sign in to save an explicit cloud snapshot. STL and 3MF exports go to your slicer for supports and printer settings.</p></div><a className="public-secondary" href="#projects">Open My projects</a></section>
    </>}
-  </main><footer className="public-footer"><strong>PrintLab</strong><span>Made for curious minds.</span><a href="#templates">Explore editable templates <ArrowRight size={15} aria-hidden="true"/></a></footer>
+  </main>{templatesOnly&&<footer className="public-footer"><strong>PrintLab</strong><span>Made for curious minds.</span><a href="#templates">Explore editable templates <ArrowRight size={15} aria-hidden="true"/></a></footer>}
   {demo&&<Suspense fallback={<div className="public-demo-loading" role="status">Loading the interactive demo… <button onClick={()=>setDemo(false)}>Cancel</button></div>}><PublicDemo onClose={()=>setDemo(false)}/></Suspense>}
  </div>
 }
