@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createDocument, vec3, type MeshPayload } from '@formforge/model'
-import { createSplitDocument, splitDocumentSafely } from './planeSplit'
+import { applySplitPreview, createSplitDocument, previewSplitDocument, splitDocumentSafely } from './planeSplit'
+import { connectorDefaults } from '../geometry/splitConnectors'
 
 vi.mock('../geometry/evaluateSnapshot', () => ({ evaluateSnapshot: vi.fn() }))
 
@@ -57,5 +58,47 @@ describe('planar split replacement', () => {
   it('accepts nonempty evaluated intersection geometry rather than inferring emptiness from source roles', () => {
     const source = createDocument(); source.nodes[0]!.boolean = 'intersect'
     expect(createSplitDocument(source, parts, options).nodes).toHaveLength(2)
+  })
+  it('previews without mutation and checkpoints before one atomic apply including loose pins', async () => {
+    let current = createDocument(); const source = current
+    const compute = vi.fn(async () => ({ ...parts, extras: [{ name: 'Dowel pin', mesh: tetrahedron }] }))
+    const preview = await previewSplitDocument(() => current, { ...options, connector: connectorDefaults.dowel }, { compute })
+    expect(current).toBe(source)
+    expect(preview.replacement.nodes).toHaveLength(3)
+    const order: string[] = []
+    const save = vi.fn(async () => { order.push('save'); expect(current).toBe(source) })
+    const apply = vi.fn(document => { order.push('apply'); current = document })
+    await applySplitPreview(() => current, preview, save, apply)
+    expect(order).toEqual(['save', 'apply'])
+    expect(save).toHaveBeenCalledWith(source, 'Before split with connectors')
+    expect(apply).toHaveBeenCalledOnce()
+    await expect(applySplitPreview(() => current, preview, save, apply)).rejects.toThrow(/preview/i)
+    expect(apply).toHaveBeenCalledOnce()
+  })
+  it('never replaces geometry when the recovery checkpoint fails', async () => {
+    const current = createDocument(), apply = vi.fn()
+    const preview = await previewSplitDocument(() => current, options, { compute: async () => parts })
+    await expect(applySplitPreview(() => current, preview, async () => { throw new Error('Storage full') }, apply)).rejects.toThrow('Storage full')
+    expect(apply).not.toHaveBeenCalled()
+  })
+  it.each(['document', 'settings', 'cancel'] as const)('rejects %s changes while recovery is saving', async change => {
+    let current = createDocument(), sameSettings = true
+    const controller = new AbortController(), apply = vi.fn()
+    const preview = await previewSplitDocument(() => current, options, { compute: async () => parts })
+    const save = async () => {
+      if (change === 'document') current = { ...current, name: 'Newer work' }
+      if (change === 'settings') sameSettings = false
+      if (change === 'cancel') controller.abort()
+    }
+    await expect(applySplitPreview(() => current, preview, save, apply, { signal: controller.signal, isCurrent: () => sameSettings })).rejects.toThrow()
+    expect(apply).not.toHaveBeenCalled()
+  })
+  it('rejects stale previews before saving and prevents connectors with only one half', async () => {
+    let current = createDocument(); const save = vi.fn(async () => undefined), apply = vi.fn()
+    const preview = await previewSplitDocument(() => current, options, { compute: async () => parts })
+    current = { ...current, name: 'Newer design' }
+    await expect(applySplitPreview(() => current, preview, save, apply)).rejects.toThrow(/changed/i)
+    expect(save).not.toHaveBeenCalled()
+    await expect(previewSplitDocument(() => current, { ...options, keep: 'positive', connector: connectorDefaults.dowel }, { compute: async () => parts })).rejects.toThrow(/both/i)
   })
 })

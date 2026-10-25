@@ -93,11 +93,20 @@ export interface BooleanLayer {
   operation: 'boolean' | 'hull'
 }
 
+export interface BoxEdge { axis:'x'|'y'|'z';sideU:1|-1;sideV:1|-1 }
+export interface EdgeTreatment extends BoxEdge {
+  version:1
+  mode:'chamfer'|'fillet'
+  amount:number
+  /** When present, authoritative selected edges. Omitted in legacy single-edge documents. */
+  edges?:BoxEdge[]
+}
+
 export interface ModelNode {
   /** Outermost first. Each operand retains its own inner groups and source roles. */
   booleanPath?: BooleanLayer[]
   faceAttachment?: {version:1;targetNodeId:string;targetKind:'box'|'cylinder';face:'x+'|'x-'|'y+'|'y-'|'z+'|'z-';offsetU:number;offsetV:number;depthMode:'through'|'blind';depth:number}
-  edgeTreatment?: {version:1;mode:'chamfer'|'fillet';axis:'x'|'y'|'z';sideU:1|-1;sideV:1|-1;amount:number}
+  edgeTreatment?: EdgeTreatment
   assemblyPath?: string[]
   text?: { content: string; size: number; depth: number; font: 'helvetiker' }
   id: string

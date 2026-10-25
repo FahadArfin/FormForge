@@ -39,7 +39,7 @@ async function follow(label:string,blocked=false){
   await act(async()=>{await new Promise(r=>setTimeout(r,0))})
   if(blocked){expect(host.querySelector('dialog[open]')?.textContent).toContain('Your latest edits');return}
   expect(window.location.hash).toBe(link.hash)
-  const selector:Record<string,string>={'PrintLab home':'.public-hero',Templates:'.template-open',Community:'.community-workshop','My projects':'h1',Studio:'.app-shell'}
+  const selector:Record<string,string>={'PrintLab home':'.home-welcome',Templates:'.template-open',Community:'.community-workshop','My projects':'h1',Studio:'.app-shell'}
   expect([...host.querySelectorAll(selector[label]!)].some(element=>!element.closest('[hidden]'))).toBe(true)
  },{timeout:4000})
 }
@@ -57,10 +57,10 @@ it('preserves the actual Studio tree, document and undo across all areas, public
  await follow('PrintLab home');await follow('Templates')
  await act(async()=>host.querySelector<HTMLAnchorElement>('.template-open')!.click())
  await vi.waitFor(async()=>{await act(async()=>{await new Promise(r=>setTimeout(r,0))});expect(host.querySelector('.template-detail')).not.toBeNull()},{timeout:4000})
- await follow('PrintLab home');expect(host.querySelector('.public-hero')).not.toBeNull()
+ await follow('PrintLab home');expect(host.querySelector('.home-welcome')).not.toBeNull()
  await follow('Studio');expect(host.querySelector('input[aria-label="Project name"]')).toBe(name)
  await act(async()=>window.history.back())
- await vi.waitFor(async()=>{await act(async()=>{await new Promise(r=>setTimeout(r,0))});expect(host.querySelector('.public-hero')).not.toBeNull()},{timeout:4000})
+ await vi.waitFor(async()=>{await act(async()=>{await new Promise(r=>setTimeout(r,0))});expect(host.querySelector('.home-welcome')).not.toBeNull()},{timeout:4000})
  await act(async()=>window.history.forward())
  await vi.waitFor(async()=>{await act(async()=>{await new Promise(r=>setTimeout(r,0))});expect(host.querySelector('.app-shell')?.closest('[hidden]')).toBeNull()},{timeout:4000})
  expect(useEditor.getState().document).toBe(current)

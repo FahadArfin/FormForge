@@ -9,10 +9,12 @@
   ],
   "scripts": {
     "dev": "concurrently -n web,api -c cyan,magenta \"npm:dev -w @formforge/web\" \"npm:dev -w @formforge/api\"",
-    "build": "npm run build -w @formforge/model && npm run build -w @formforge/web && npm run build -w @formforge/api && node scripts/generate-template-pages.mjs && node scripts/build-cloud.mjs",
-    "test": "npm run test -w @formforge/model && npm run test -w @formforge/web && npm run test -w @formforge/api",
+    "build": "npm run check:release && npm run build -w @formforge/model && npm run build -w @formforge/web && npm run build -w @formforge/api && node scripts/generate-template-pages.mjs && node scripts/build-cloud.mjs",
+    "test": "npm run test -w @formforge/model && npm run test -w @formforge/web && npm run test -w @formforge/api && npm run test:release",
     "check": "npm run build -w @formforge/model && npm run typecheck -w @formforge/web && npm run typecheck -w @formforge/api && tsc -p apps/cloud/tsconfig.json",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "check:release": "node scripts/check-release-target.mjs",
+    "test:release": "node --test scripts/release-config.test.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

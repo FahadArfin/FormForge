@@ -1,8 +1,9 @@
 /// <reference lib="webworker" />
 import Module, { type Manifold, type ManifoldToplevel } from 'manifold-3d'
 import type { MeshPayload } from '@formforge/model'
+import { connectSplitHalves, type ConnectorSolids, type SplitConnector } from './splitConnectors'
 export interface SplitPlane { axis: 'x' | 'y' | 'z'; offset: number }
-export interface SplitParts { positive: MeshPayload; negative: MeshPayload }
+export interface SplitParts { positive: MeshPayload; negative: MeshPayload; extras?: { name: string; mesh: MeshPayload }[]; notes?: string[] }
 export type SplitWorkerResponse = { ok: true; parts: SplitParts } | { ok: false; error: string }
 let modulePromise: Promise<ManifoldToplevel> | null = null
 
@@ -20,7 +21,7 @@ function toPayload(solid: Manifold): MeshPayload {
 }
 
 /** Positive coordinates are >= offset, independent of the inspection view's side flip. */
-export async function splitMeshAtPlane(mesh: MeshPayload, plane: SplitPlane): Promise<SplitParts> {
+export async function splitMeshAtPlane(mesh: MeshPayload, plane: SplitPlane, connector?: SplitConnector): Promise<SplitParts> {
   if (!['x', 'y', 'z'].includes(plane.axis) || !Number.isFinite(plane.offset) || Math.abs(plane.offset) > 1_000_000) throw new Error('Choose a finite X, Y, or Z plane position within ±1,000,000 mm.')
   if (!mesh.positions.length || mesh.positions.length % 3 || !mesh.indices.length || mesh.indices.length % 3) throw new Error('A nonempty closed solid is required for splitting.')
   if (mesh.positions.length > 3_000_000 || mesh.indices.length > 3_000_000) throw new Error('Splitting supports up to one million vertices and triangles. Simplify the model first.')
@@ -34,20 +35,25 @@ export async function splitMeshAtPlane(mesh: MeshPayload, plane: SplitPlane): Pr
   input.merge()
   const solid = new api.Manifold(input)
   let halves: [Manifold, Manifold] | undefined
+  let connected: ConnectorSolids | undefined
   try {
     if (solid.status() !== 'NoError' || solid.isEmpty() || !(solid.volume() > 0)) throw new Error('Splitting needs a closed manifold solid. Repair the source mesh and try again.')
     const normal: [number, number, number] = [0, 0, 0]; normal[coordinate] = 1
     halves = solid.splitByPlane(normal, plane.offset)
+    if (connector) {
+      connected = connectSplitHalves(api, solid, halves, plane, connector)
+      return { positive: toPayload(connected.positive), negative: toPayload(connected.negative), extras: connected.extras.map(part => ({ name: part.name, mesh: toPayload(part.solid) })), notes: connected.notes }
+    }
     return { positive: toPayload(halves[0]), negative: toPayload(halves[1]) }
-  } finally { halves?.forEach(half => half.delete()); solid.delete() }
+  } finally { if (connected) [connected.positive, connected.negative, ...connected.extras.map(part => part.solid)].forEach(part => part.delete()); halves?.forEach(half => half.delete()); solid.delete() }
 }
 
 if (typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScope) {
-  self.onmessage = async (event: MessageEvent<{ mesh: MeshPayload; plane: SplitPlane }>) => {
+  self.onmessage = async (event: MessageEvent<{ mesh: MeshPayload; plane: SplitPlane; connector?: SplitConnector }>) => {
     try {
-      const parts = await splitMeshAtPlane(event.data.mesh, event.data.plane)
+      const parts = await splitMeshAtPlane(event.data.mesh, event.data.plane, event.data.connector)
       const response: SplitWorkerResponse = { ok: true, parts }
-      self.postMessage(response, { transfer: [parts.positive.positions.buffer, parts.positive.indices.buffer, parts.negative.positions.buffer, parts.negative.indices.buffer] })
+      self.postMessage(response, { transfer: [parts.positive, parts.negative, ...(parts.extras ?? []).map(part => part.mesh)].flatMap(mesh => [mesh.positions.buffer, mesh.indices.buffer]) })
     } catch (error) { self.postMessage({ ok: false, error: error instanceof Error ? error.message : 'The model could not be split.' } satisfies SplitWorkerResponse) }
   }
 }

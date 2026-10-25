@@ -20,7 +20,8 @@ test('opening a saved project frames the ready canvas before the first interacti
 test('AI entry, phone composer, inspector shortcuts and appearance remain usable',async({page})=>{
  await page.goto('/')
  await page.getByRole('button',{name:'Switch to dark mode'}).click()
- await page.getByRole('link',{name:'Design with AI',exact:true}).first().click()
+ await page.getByRole('navigation',{name:'Choose where to go'}).getByRole('link',{name:'Studio',exact:true}).click()
+ await page.getByRole('button',{name:'Ask AI',exact:true}).click()
  await expect(page.getByRole('button',{name:'Engineering',exact:true,includeHidden:true})).toHaveAttribute('aria-pressed','false')
  const phone=(page.viewportSize()?.width??1440)<981
  const composer=page.getByRole('textbox',{name:'Describe your design'})

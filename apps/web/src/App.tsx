@@ -1,3 +1,4 @@
+import {appDisplayName} from './lib/releaseChannel'
 import {EngineeringAssistant,EngineeringPreview} from './components/EngineeringAssistant'
 import {EngineeringInspector} from './components/EngineeringInspector'
 import {useEngineeringMode,useAssistantDock,engineeringSession,restoreEngineeringPlan,submitEngineeringPlan,simplePlan} from './lib/engineeringStudio'
@@ -145,7 +146,7 @@ export function App({ active = true }: { active?: boolean }) {
   },[active,area])
   useEffect(()=>{engineeringSession.discard();void restoreEngineeringPlan(document.id).catch(()=>{});return()=>engineeringSession.discard()},[document.id])
 
-  useEffect(() => { if (active) window.document.title = area === 'studio' ? `${document.name || 'Untitled project'} · PrintLab` : area === 'community' ? 'Community · PrintLab' : 'My projects · PrintLab' }, [active, area, document.name])
+  useEffect(() => { if (active) window.document.title = area === 'studio' ? `${document.name || 'Untitled project'} · ${appDisplayName}` : area === 'community' ? `Community · ${appDisplayName}` : `My projects · ${appDisplayName}` }, [active, area, document.name])
   useEffect(() => { const onHash = () => {
     updateArea(readArea())
     if(new URLSearchParams(window.location.hash.split('?')[1]).get('workspace')==='assistant')useAssistantDock.getState().setOpen(true)

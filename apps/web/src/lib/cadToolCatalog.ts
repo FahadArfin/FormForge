@@ -1,4 +1,5 @@
 export const cadTools = [
+  { id: 'edges', name: 'Finish box edges: chamfers and fillets', group: 'Create', keywords: 'round soften bevel multiple radius edge', tab: 'tools', toolkit: 'create' },
   { id: 'print-parts', name: 'Print-friendly parts: vents, ribs and insert bosses', group: 'Create', keywords: 'ventilation panel grille reinforcement gusset bracket heat set hardware mount', tab: 'tools', toolkit: 'create' },
   { id: 'workplane', name: 'Workplane and drawing plane', group: 'Create', keywords: 'surface face plane', tab: 'tools', toolkit: 'create' },
   { id: 'image', name: 'Trace a reference image', group: 'Create', keywords: 'reference photo picture blueprint calibrate', tab: 'tools', toolkit: 'create' },
