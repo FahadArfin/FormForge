@@ -1,20 +1,26 @@
 import {lazy,Suspense,useState} from 'react'
-import {ArrowRight,Box,FolderOpen,Play,Search,Users} from 'lucide-react'
+import {ArrowRight,Box,Play,Search} from 'lucide-react'
 import {findTemplates,templateCatalog} from '@/lib/templateCatalog'
 import {useAppearance} from '@/lib/useAppearance'
 import {AppNavigation} from './AppNavigation'
 import {ThemeToggle} from './ThemeToggle'
+import {HomeIllustration} from './HomeIllustration'
 import './PublicHome.css'
 const PublicDemo=lazy(()=>import('./PublicDemo').then(m=>({default:m.PublicDemo})))
 const destinations=[
- {id:'community',title:'Community',description:'Explore ideas. Make them yours.',Icon:Users},
- {id:'studio',title:'Studio',description:'Bring your ideas to life in 3D.',Icon:Box},
- {id:'projects',title:'My projects',description:'Pick up where you left off.',Icon:FolderOpen},
+ {id:'community',title:'Community',description:'Find a little inspiration.'},
+ {id:'studio',title:'Studio',description:'Play with shapes. Make it yours.'},
+ {id:'projects',title:'My projects',description:'Pick up where you left off.'},
 ] as const
 function Home(){
  return <div className="public-home">
-  <section className="home-welcome" aria-labelledby="home-heading"><h1 id="home-heading">What will you <span>make</span> today?</h1></section>
-  <nav className="home-destinations" aria-label="Choose where to go">{destinations.map(({id,title,description,Icon})=><a key={id} className={`home-destination home-destination-${id}`} href={`#${id}`} aria-labelledby={`home-${id}-title`} aria-describedby={`home-${id}-description`}><span className="home-destination-icon"><Icon size={32} strokeWidth={1.7} aria-hidden="true"/></span><h2 id={`home-${id}-title`}>{title}</h2><p id={`home-${id}-description`}>{description}</p><ArrowRight className="home-destination-arrow" size={19} aria-hidden="true"/></a>)}</nav>
+  <section className="home-welcome" aria-labelledby="home-heading"><h1 id="home-heading">Let’s <span>make</span> something.</h1></section>
+  <nav className="home-destinations" aria-label="Choose where to go">
+   {destinations.map(({id,title,description})=><a key={id} className={`home-destination home-destination-${id}`} href={`#${id}`} aria-labelledby={`home-${id}-title`} aria-describedby={`home-${id}-description`}>
+    <span className="home-destination-art"><HomeIllustration kind={id}/></span>
+    <div className="home-destination-copy"><h2 id={`home-${id}-title`}>{title}<ArrowRight className="home-destination-arrow" size={18} aria-hidden="true"/></h2><p id={`home-${id}-description`}>{description}</p></div>
+   </a>)}
+  </nav>
  </div>
 }
 export function PublicWebsite({templatesOnly=false}:{templatesOnly?:boolean}){

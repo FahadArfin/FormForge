@@ -12,7 +12,7 @@ it('offers three clear home destinations without secondary browsing sections',as
  expect([...host.querySelectorAll('.home-destinations a')].map(a=>a.getAttribute('href'))).toEqual(['#community','#studio','#projects'])
  expect(host.querySelector('.home-inspiration,.public-footer')).toBeNull()
  expect(host.querySelector('a[href="#templates"]')?.textContent).toBe('Templates')
- expect(host.querySelector('h1')?.textContent).toBe('What will you make today?')
+ expect(host.querySelector('h1')?.textContent).toBe('Let’s make something.')
  expect(host.querySelector('.public-workflow,.public-storage,.public-library,.public-hero-model')).toBeNull()
  await act(async()=>root.unmount());host.remove()
 })
