@@ -1,0 +1,57 @@
+import {test,expect} from '@playwright/test'
+
+test('simple Home keeps three destinations visible, accessible and lightweight',async({page},testInfo)=>{
+ const errors:string[]=[],requests:string[]=[]
+ page.on('pageerror',error=>errors.push(error.message))
+ page.on('request',request=>requests.push(request.url()))
+ await page.goto('/#home')
+ const choices=page.getByRole('navigation',{name:'Choose where to go'})
+ await expect(page.getByRole('heading',{level:1})).toHaveText('Let’s make something.')
+ await expect(choices.getByRole('link')).toHaveCount(3)
+ for(const name of ['Community','Studio','My projects'])await expect(choices.getByRole('link',{name,exact:true})).toBeVisible()
+ for(const choice of await choices.getByRole('link').all()){
+  const box=await choice.boundingBox()
+  expect(box!.y).toBeGreaterThanOrEqual(0)
+  expect(box!.y+box!.height).toBeLessThanOrEqual(page.viewportSize()!.height)
+ }
+ expect(requests.filter(url=>/\/(?:App|Viewport|manifold)[-.\/]/i.test(url))).toEqual([])
+ await expect(page.locator('.public-workflow,.public-library,.public-storage,.home-inspiration,.public-footer')).toHaveCount(0)
+ await page.getByRole('heading',{level:1}).scrollIntoViewIfNeeded()
+ await page.screenshot({path:testInfo.outputPath('home-light.png'),fullPage:true,animations:'disabled'})
+ await page.getByRole('button',{name:'Switch to dark mode'}).click()
+ await expect(page.locator('.public-home-site')).toHaveAttribute('data-appearance','dark')
+ await page.screenshot({path:testInfo.outputPath('home-dark.png'),fullPage:true,animations:'disabled'})
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
+ const initialSize=page.viewportSize()!
+ if(initialSize.width>700){
+  await page.emulateMedia({reducedMotion:'reduce'})
+  for(const size of [{width:360,height:640},{width:320,height:568}]){
+   await page.setViewportSize(size)
+   const lastChoice=choices.getByRole('link',{name:'My projects',exact:true})
+   await lastChoice.scrollIntoViewIfNeeded()
+   await expect(lastChoice).toBeInViewport()
+   expect(await page.locator('.public-home-site').evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true)
+   await page.screenshot({path:testInfo.outputPath(`home-narrow-${size.width}.png`),fullPage:true,animations:'disabled'})
+  }
+  await page.setViewportSize(initialSize)
+ }
+ await page.reload()
+ await expect(page.locator('.public-home-site')).toHaveAttribute('data-appearance','dark')
+ // Keyboard users can identify and follow the same illustrated destinations.
+ const community=choices.getByRole('link',{name:'Community',exact:true})
+ await community.focus()
+ await page.keyboard.press('Tab')
+ await expect(choices.getByRole('link',{name:'Studio',exact:true})).toBeFocused()
+ await page.keyboard.press('Shift+Tab')
+ await expect(community).toBeFocused()
+ await page.keyboard.press('Enter')
+ await expect(page).toHaveURL(/#community$/)
+ await expect(page.locator('.community-workshop')).toBeVisible()
+ await page.getByRole('link',{name:'PrintLab home',exact:true}).click()
+ await choices.getByRole('link',{name:'Studio',exact:true}).click()
+ await expect(page.getByLabel('Project name',{exact:true})).toBeVisible()
+ await page.getByRole('link',{name:'PrintLab home',exact:true}).click()
+ await choices.getByRole('link',{name:'My projects',exact:true}).click()
+ await expect(page.getByRole('heading',{level:1,name:'My projects',exact:true})).toBeVisible()
+ expect(errors).toEqual([])
+})

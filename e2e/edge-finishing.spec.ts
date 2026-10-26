@@ -1,0 +1,67 @@
+import { test, expect, type Page } from '@playwright/test'
+import { readFile } from 'node:fs/promises'
+import { createDocument } from '../packages/model/src/defaults'
+
+const phone=(page:Page)=>page.viewportSize()!.width<=980
+async function closeDrawer(page:Page){if(phone(page))await page.getByRole('button',{name:/^Close inspector/}).click()}
+async function openEdges(page:Page){
+  await page.getByRole('button',{name:'Find a command',exact:true}).click()
+  await page.getByRole('combobox',{name:'Search commands'}).fill('Finish box edges')
+  await page.getByRole('option').getByRole('button',{name:/Finish box edges/}).click()
+  await expect(page.getByRole('heading',{name:'Finish box edges',exact:true})).toBeVisible()
+}
+async function backup(page:Page){
+  await page.getByRole('button',{name:'Project actions',exact:true}).click()
+  await page.getByRole('button',{name:/Download an editable backup/}).click()
+  const pending=page.waitForEvent('download')
+  await page.getByRole('button',{name:'Download editable backup',exact:true}).click()
+  const result=JSON.parse(await readFile((await(await pending).path())!,'utf8'))
+  await page.getByRole('button',{name:'Close dialog',exact:true}).click()
+  return result
+}
+test('multiple edge finishes preview, persist and undo while the source box stays editable',async({page},info)=>{
+  test.setTimeout(180_000)
+  const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message))
+  const document=createDocument('Multi-edge finishing test')
+  await page.goto('/#projects')
+  await page.getByLabel('Import a model or project').setInputFiles({name:'edges.forge.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(document))})
+  await expect(page.getByLabel('Project name',{exact:true})).toHaveValue(document.name)
+  const edit=page.getByRole('button',{name:'Edit model',exact:true});if(await edit.isVisible())await edit.click()
+  await openEdges(page)
+  const panel=page.locator('.edge-finishing'),preview=panel.getByRole('button',{name:'Preview edge finish',exact:true}),apply=panel.getByRole('button',{name:'Apply edge finish',exact:true})
+  await panel.getByLabel('Box to finish',{exact:true}).selectOption(document.nodes[0]!.id)
+  await expect(panel.getByRole('button',{name:'All edges',exact:true})).toHaveAttribute('aria-pressed','true')
+  await expect(panel.getByRole('button',{name:'Top rim',exact:true})).toHaveCount(0)
+  await panel.getByRole('button',{name:'Top front edge',exact:true}).focus()
+  await page.keyboard.press('Enter')
+  await expect(preview).toBeDisabled()
+  await expect(panel.getByText('Choose parallel edges or All edges for fillets.',{exact:true})).toBeVisible()
+  await panel.getByRole('button',{name:'All edges',exact:true}).click()
+  await panel.getByLabel('Radius (mm)',{exact:true}).fill('100')
+  await preview.click();await expect(panel.getByRole('alert')).toContainText('half')
+  await panel.getByLabel('Radius (mm)',{exact:true}).fill('2')
+  await preview.click();await expect(apply).toBeVisible({timeout:65_000})
+  await panel.getByRole('button',{name:'Discard edge preview',exact:true}).click();await expect(apply).toHaveCount(0)
+  await preview.click();await expect(apply).toBeVisible({timeout:65_000})
+  await panel.getByRole('img',{name:'Finished design preview'}).scrollIntoViewIfNeeded()
+  await page.screenshot({path:info.outputPath('rounded-all-edges.png')})
+  await panel.getByLabel('Radius (mm)',{exact:true}).fill('3');await expect(apply).toHaveCount(0)
+  await preview.click();await expect(apply).toBeVisible({timeout:65_000});await apply.click();await closeDrawer(page)
+  await expect(page.locator('.engine-status')).toContainText('Live preview ready',{timeout:65_000})
+  const rounded=await backup(page)
+  expect(rounded.nodes[0].kind).toBe('box');expect(rounded.nodes[0].parameters).toEqual(document.nodes[0]!.parameters)
+  expect(rounded.nodes[0].edgeTreatment.edges).toHaveLength(12);expect(rounded.nodes[0].edgeTreatment.amount).toBe(3)
+  await page.getByRole('button',{name:'Undo',exact:true}).click();expect((await backup(page)).nodes[0].edgeTreatment).toBeUndefined()
+  await page.getByRole('button',{name:'Redo',exact:true}).click();expect((await backup(page)).nodes[0].edgeTreatment).toEqual(rounded.nodes[0].edgeTreatment)
+  await openEdges(page);await panel.getByRole('button',{name:'Bevel · Chamfer',exact:true}).click();await panel.getByRole('button',{name:'Top rim',exact:true}).click()
+  await panel.getByLabel('Setback (mm)',{exact:true}).fill('1')
+  await preview.click();await expect(apply).toBeVisible({timeout:65_000});await apply.click();await closeDrawer(page)
+  const chamfered=await backup(page)
+  expect(chamfered.nodes[0].edgeTreatment.mode).toBe('chamfer');expect(chamfered.nodes[0].edgeTreatment.edges).toHaveLength(4)
+  await expect(page.getByRole('button',{name:'Saved on this device',exact:true})).toBeVisible();await page.reload()
+  expect((await backup(page)).nodes[0].edgeTreatment).toEqual(chamfered.nodes[0].edgeTreatment)
+  await openEdges(page);await panel.getByRole('button',{name:'Remove edge finish',exact:true}).click();await closeDrawer(page)
+  expect((await backup(page)).nodes[0].edgeTreatment).toBeUndefined()
+  await page.getByRole('button',{name:'Undo',exact:true}).click();expect((await backup(page)).nodes[0].edgeTreatment).toEqual(chamfered.nodes[0].edgeTreatment)
+  expect(errors).toEqual([])
+})

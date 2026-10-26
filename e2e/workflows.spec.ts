@@ -1,4 +1,5 @@
 import {test,expect,type Page} from '@playwright/test'
+import release from '../.openai/release.json'
 const isPhone=(page:Page)=>(page.viewportSize()?.width??1440)<981
 async function openDimensions(page:Page){if(isPhone(page))await page.getByRole('button',{name:'Dimensions',exact:true}).click()}
 async function closeDrawer(page:Page){if(isPhone(page))await page.getByRole('button',{name:'Close inspector ×',exact:true}).click()}
@@ -26,10 +27,20 @@ test('invalid dimensions recover and dialogs preserve keyboard access',async({pa
  await page.getByRole('button',{name:'Export',exact:true}).click();await page.keyboard.press('Escape');await expect(page.getByRole('dialog')).toHaveCount(0);await expect(page.getByRole('button',{name:'Export',exact:true})).toBeFocused()
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1)).toBe(true)
 })
-test('all public template previews load and provide unique indexable pages',async({page,request})=>{
+test('template previews load with release-specific canonical URLs and indexing policy',async({page,request})=>{
  await page.goto('/#templates');const images=page.locator('.public-template img');await expect(images).toHaveCount(8)
  for(const image of await images.all()){await image.scrollIntoViewIfNeeded();await expect.poll(()=>image.evaluate((el:HTMLImageElement)=>el.complete&&el.naturalWidth>0)).toBe(true)}
- for(const id of ['washer','enclosure','coupon','tray','bracket','adapter','snapfit','cable-guide']){const response=await request.get(`/templates/${id}`);expect(response.status()).toBe(200);const html=await response.text();expect(html).toContain(`rel="canonical" href="https://formforge.fwad101.chatgpt.site/templates/${id}"`);expect(html).toContain('Awaiting a documented physical test')}
+ for(const id of ['washer','enclosure','coupon','tray','bracket','adapter','snapfit','cable-guide']){
+  const response=await request.get(`/templates/${id}`);expect(response.status()).toBe(200)
+  const html=await response.text();expect(html).toContain(`rel="canonical" href="${release.origin}/templates/${id}"`);expect(html).toContain('Awaiting a documented physical test')
+  if(release.channel==='beta'){
+   expect(html).toContain('name="robots" content="noindex, nofollow"');expect(html).toContain('PrintLab Beta</title>')
+   expect(response.headers()['x-robots-tag']).toBe('noindex, nofollow')
+   expect(html).not.toContain(`${release.productionOrigin}/templates/`)
+  }
+ }
+ const sitemap=await(await request.get('/sitemap.xml')).text();expect(sitemap).toContain(`${release.origin}/templates/washer`)
+ if(release.channel==='beta')expect(await(await request.get('/robots.txt')).text()).toContain('Disallow: /')
 })
 
 test('bad mesh import preserves the current project and recovers',async({page})=>{

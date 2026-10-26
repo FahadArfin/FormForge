@@ -41,8 +41,8 @@ test('Studio canvas and edit history survive Community, Projects, templates and 
  await page.getByRole('link',{name:'PrintLab home',exact:true}).click()
  await page.getByRole('link',{name:'Templates',exact:true}).click()
  await page.locator('.template-open').first().click();await expect(page.locator('.template-detail')).toBeVisible()
- await page.getByRole('link',{name:'PrintLab home',exact:true}).click();await expect(page.locator('.public-hero')).toBeVisible()
- await destination(page,'Studio');await page.goBack();await expect(page.locator('.public-hero')).toBeVisible();await page.goForward()
+ await page.getByRole('link',{name:'PrintLab home',exact:true}).click();await expect(page.locator('.home-welcome')).toBeVisible()
+ await destination(page,'Studio');await page.goBack();await expect(page.locator('.home-welcome')).toBeVisible();await page.goForward()
  await expect(page.getByLabel('Project name',{exact:true})).toHaveValue('Navigation keeps my work')
  expect(await canvas!.evaluate(node=>node.isConnected)).toBe(true)
  await page.getByRole('button',{name:'Undo',exact:true}).click();await expect(page.getByLabel('Project name',{exact:true})).toHaveValue('Washer / spacer')
@@ -51,6 +51,6 @@ test('Studio canvas and edit history survive Community, Projects, templates and 
 test('legacy static template URL uses the shared header and can open Home',async({page})=>{
  await page.goto('/templates/washer');await expect(page.getByRole('heading',{name:'Washer / spacer',level:1})).toBeVisible()
  await checkNavigation(page)
- await page.getByRole('link',{name:'PrintLab home',exact:true}).click();await expect(page.locator('.public-hero')).toBeVisible()
+ await page.getByRole('link',{name:'PrintLab home',exact:true}).click();await expect(page.locator('.home-welcome')).toBeVisible()
  await destination(page,'Community');await checkNavigation(page,'Community')
 })

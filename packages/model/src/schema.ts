@@ -96,7 +96,7 @@ const sketchConstraintSchema = z.discriminatedUnion('type', [
 export const modelNodeSchema = z.object({
   booleanPath:z.array(z.object({id:z.string().min(1).max(128),operandId:z.string().min(1).max(128),mode:z.enum(['add','cut','intersect']),operation:z.enum(['boolean','hull'])}).strict()).max(32).optional(),
   faceAttachment:z.object({version:z.literal(1),targetNodeId:z.string().min(1).max(128),targetKind:z.enum(['box','cylinder']),face:z.enum(['x+','x-','y+','y-','z+','z-']),offsetU:z.number().finite().min(-10000).max(10000),offsetV:z.number().finite().min(-10000).max(10000),depthMode:z.enum(['through','blind']),depth:z.number().min(.1).max(10000)}).optional(),
-  edgeTreatment:z.object({version:z.literal(1),mode:z.enum(['chamfer','fillet']),axis:z.enum(['x','y','z']),sideU:z.union([z.literal(1),z.literal(-1)]),sideV:z.union([z.literal(1),z.literal(-1)]),amount:z.number().min(.01).max(1000)}).optional(),
+  edgeTreatment:z.object({version:z.literal(1),mode:z.enum(['chamfer','fillet']),axis:z.enum(['x','y','z']),sideU:z.union([z.literal(1),z.literal(-1)]),sideV:z.union([z.literal(1),z.literal(-1)]),amount:z.number().min(.01).max(1000),edges:z.array(z.object({axis:z.enum(['x','y','z']),sideU:z.union([z.literal(1),z.literal(-1)]),sideV:z.union([z.literal(1),z.literal(-1)])}).strict()).min(1).max(12).refine(edges=>new Set(edges.map(e=>`${e.axis},${e.sideU},${e.sideV}`)).size===edges.length,'Select each edge only once.').optional()}).optional(),
   assemblyPath: z.array(z.string().min(1).max(128)).max(8).optional(),
   text: z.object({ content: z.string().min(1).max(80), size: z.number().min(1).max(200), depth:z.number().min(0.1).max(30),font:z.literal('helvetiker') }).optional(),
   id: z.string().min(1),

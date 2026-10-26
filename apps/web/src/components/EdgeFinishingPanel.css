@@ -1,0 +1,13 @@
+.edge-finishing { display: grid; gap: .75rem; padding-top: .75rem; }
+.edge-finishing h3,.edge-finishing p { margin: 0; }
+.edge-mode,.edge-presets { display: flex; flex-wrap: wrap; gap: .4rem; }
+.edge-mode button,.edge-presets button { min-height: 40px; padding: .5rem .75rem; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--text); font: inherit; cursor: pointer; }
+.edge-mode button { flex: 1; }
+.edge-mode button[aria-pressed="true"],.edge-presets button[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb,var(--accent) 14%,var(--surface)); color: var(--text); }
+.edge-diagram { width: 100%; max-height: 210px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+.edge-visible { stroke: var(--muted); stroke-width: 2; stroke-linecap: round; opacity: .45; pointer-events: none; }
+.selected .edge-visible { stroke: var(--accent); stroke-width: 3.5; opacity: 1; }
+.edge-hit { stroke: transparent; stroke-width: 14; cursor: pointer; outline: none; }
+.edge-diagram g:has(.edge-hit:focus-visible) .edge-visible,.edge-diagram g:hover .edge-visible { stroke: var(--text); stroke-width: 5; opacity: 1; }
+.edge-preview .mesh-preview { height: 230px; border-radius: 16px; }
+.edge-preview { display: grid; gap: .75rem; }
